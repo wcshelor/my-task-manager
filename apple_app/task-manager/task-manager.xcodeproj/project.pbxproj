@@ -6,9 +6,20 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		EFB03E182F75BB1A00C78316 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EFB03DF22F75B96200C78316 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EFB03DF92F75B96200C78316;
+			remoteInfo = "task-manager";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		EFB03DFA2F75B96200C78316 /* task-manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "task-manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EFB03E102F75BB1A00C78316 /* Task.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Task.swift; sourceTree = "<group>"; };
+		EFB03E102F75BB1A00C78316 /* MyTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTask.swift; sourceTree = "<group>"; };
+		EFB03E112F75BB1A00C78316 /* task-managerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "task-managerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -17,10 +28,22 @@
 			path = "task-manager";
 			sourceTree = "<group>";
 		};
+		EFB03E122F75BB1A00C78316 /* task-managerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "task-managerTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		EFB03DF72F75B96200C78316 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB03E152F75BB1A00C78316 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -35,6 +58,7 @@
 			children = (
 				EFB03E0F2F75BACE00C78316 /* Models */,
 				EFB03DFC2F75B96200C78316 /* task-manager */,
+				EFB03E122F75BB1A00C78316 /* task-managerTests */,
 				EFB03DFB2F75B96200C78316 /* Services */,
 				EFB03E0E2F75BAC500C78316 /* Views */,
 			);
@@ -44,6 +68,7 @@
 			isa = PBXGroup;
 			children = (
 				EFB03DFA2F75B96200C78316 /* task-manager.app */,
+				EFB03E112F75BB1A00C78316 /* task-managerTests.xctest */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -58,7 +83,7 @@
 		EFB03E0F2F75BACE00C78316 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				EFB03E102F75BB1A00C78316 /* Task.swift */,
+				EFB03E102F75BB1A00C78316 /* MyTask.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -88,6 +113,29 @@
 			productReference = EFB03DFA2F75B96200C78316 /* task-manager.app */;
 			productType = "com.apple.product-type.application";
 		};
+		EFB03E192F75BB1A00C78316 /* task-managerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFB03E202F75BB1A00C78316 /* Build configuration list for PBXNativeTarget "task-managerTests" */;
+			buildPhases = (
+				EFB03E142F75BB1A00C78316 /* Sources */,
+				EFB03E152F75BB1A00C78316 /* Frameworks */,
+				EFB03E162F75BB1A00C78316 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EFB03E1A2F75BB1A00C78316 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				EFB03E122F75BB1A00C78316 /* task-managerTests */,
+			);
+			name = "task-managerTests";
+			packageProductDependencies = (
+			);
+			productName = "task-managerTests";
+			productReference = EFB03E112F75BB1A00C78316 /* task-managerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -100,6 +148,10 @@
 				TargetAttributes = {
 					EFB03DF92F75B96200C78316 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					EFB03E192F75BB1A00C78316 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = EFB03DF92F75B96200C78316;
 					};
 				};
 			};
@@ -118,12 +170,20 @@
 			projectRoot = "";
 			targets = (
 				EFB03DF92F75B96200C78316 /* task-manager */,
+				EFB03E192F75BB1A00C78316 /* task-managerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		EFB03DF82F75B96200C78316 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB03E162F75BB1A00C78316 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -140,7 +200,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EFB03E142F75BB1A00C78316 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EFB03E1A2F75BB1A00C78316 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EFB03DF92F75B96200C78316 /* task-manager */;
+			targetProxy = EFB03E182F75BB1A00C78316 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		EFB03E032F75B96300C78316 /* Debug */ = {
@@ -327,6 +402,55 @@
 			};
 			name = Release;
 		};
+		EFB03E1B2F75BB1A00C78316 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 83KWTTM2DT;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "camp.task-managerTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/task-manager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/task-manager";
+				TEST_TARGET_NAME = "task-manager";
+			};
+			name = Debug;
+		};
+		EFB03E1C2F75BB1A00C78316 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 83KWTTM2DT;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "camp.task-managerTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/task-manager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/task-manager";
+				TEST_TARGET_NAME = "task-manager";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -344,6 +468,15 @@
 			buildConfigurations = (
 				EFB03E062F75B96300C78316 /* Debug */,
 				EFB03E072F75B96300C78316 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EFB03E202F75BB1A00C78316 /* Build configuration list for PBXNativeTarget "task-managerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB03E1B2F75BB1A00C78316 /* Debug */,
+				EFB03E1C2F75BB1A00C78316 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
