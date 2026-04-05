@@ -87,13 +87,64 @@ struct TaskFormView: View {
 
                     TextField("Title", text: $formData.title)
 
-                    Toggle("Completed", isOn: $formData.isDone)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                    DatePicker(
-                        "Created At",
-                        selection: $formData.createdAt,
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
+                        TextEditor(text: $formData.notesText)
+                            .frame(minHeight: 100)
+                    }
+
+                    Picker("Status", selection: $formData.status) {
+                        ForEach(TaskStatus.allCases, id: \.self) { status in
+                            Text(status.displayName).tag(status)
+                        }
+                    }
+
+                    TextField("Estimated Minutes", text: $formData.estimatedMinutesText)
+                }
+
+                Section("Scheduling") {
+                    Toggle("Set Due Date", isOn: $formData.hasDueDate)
+
+                    if formData.hasDueDate {
+                        DatePicker(
+                            "Due Date",
+                            selection: $formData.dueDate,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
+                }
+
+                Section("Attributes") {
+                    Picker("Priority", selection: $formData.priority) {
+                        Text("None").tag(nil as PriorityLevel?)
+
+                        ForEach(PriorityLevel.allCases, id: \.self) { priority in
+                            Text(priority.displayName).tag(priority as PriorityLevel?)
+                        }
+                    }
+
+                    Picker("Energy Level", selection: $formData.energyLevel) {
+                        Text("None").tag(nil as EnergyLevel?)
+
+                        ForEach(EnergyLevel.allCases, id: \.self) { energyLevel in
+                            Text(energyLevel.displayName).tag(energyLevel as EnergyLevel?)
+                        }
+                    }
+
+                    Picker("Work Mode", selection: $formData.workMode) {
+                        Text("None").tag(nil as WorkModeKind?)
+
+                        ForEach(WorkModeKind.allCases, id: \.self) { workMode in
+                            Text(workMode.displayName).tag(workMode as WorkModeKind?)
+                        }
+                    }
+                }
+
+                Section("Tags") {
+                    TextField("Comma-separated tags", text: $formData.tagsText)
                 }
 
                 if mode.showsDeleteAction, onDelete != nil {
@@ -102,7 +153,7 @@ struct TaskFormView: View {
                             isShowingDeleteConfirmation = true
                         }
                     } footer: {
-                        Text("Deletes this task from the current in-memory list.")
+                        Text("Deletes this task from local app storage.")
                     }
                 }
             }
@@ -137,7 +188,7 @@ struct TaskFormView: View {
 
             Button("Keep Task", role: .cancel) {}
         } message: {
-            Text("This removes the task from the current list.")
+            Text("This removes the task from your saved task list.")
         }
     }
 

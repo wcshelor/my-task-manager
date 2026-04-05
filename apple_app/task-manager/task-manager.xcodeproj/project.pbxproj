@@ -18,7 +18,6 @@
 
 /* Begin PBXFileReference section */
 		EFB03DFA2F75B96200C78316 /* task-manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "task-manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EFB03E102F75BB1A00C78316 /* MyTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTask.swift; sourceTree = "<group>"; };
 		EFB03E112F75BB1A00C78316 /* task-managerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "task-managerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -56,7 +55,6 @@
 		EFB03DF12F75B96200C78316 = {
 			isa = PBXGroup;
 			children = (
-				EFB03E0F2F75BACE00C78316 /* Models */,
 				EFB03DFC2F75B96200C78316 /* task-manager */,
 				EFB03E122F75BB1A00C78316 /* task-managerTests */,
 				EFB03DFB2F75B96200C78316 /* Services */,
@@ -78,14 +76,6 @@
 			children = (
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		EFB03E0F2F75BACE00C78316 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				EFB03E102F75BB1A00C78316 /* MyTask.swift */,
-			);
-			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -351,7 +341,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
+				CODE_SIGN_ENTITLEMENTS = "task-manager/task-manager.entitlements";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -383,7 +376,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
+				CODE_SIGN_ENTITLEMENTS = "task-manager/task-manager.entitlements";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

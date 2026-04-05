@@ -1,97 +1,279 @@
-# Task Manager Prototype
+# Task Manager
 
 This repository currently contains two active prototype surfaces:
 
-- Python planning and calendar prototype code under `src/`
-- A SwiftUI Apple app prototype under `apple_app/`
+- a macOS SwiftUI app in `apple_app/task-manager/`
+- a Python planning/calendar prototype in `src/`
 
-The Swift app is the current visible UI prototype. The Python code still holds most of the planner, model, compatibility, and Apple Calendar experimentation.
+The Swift app is the current product-facing prototype. The Python code still contains the richer planner, compatibility, and calendar-prototype logic, but it is not wired into the Swift app.
+
+## Verification Snapshot
+
+This README was updated against the actual repo state on April 4, 2026.
+
+Automated checks run during this audit:
+
+- `pytest` -> `27 passed`
+- `python3 scripts/core_smoke_check.py` -> `8 passed, 0 failed`
+- `xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test` -> `passed`
+
+Not verified during this audit:
+
+- no manual click-through of the macOS app UI
+- no manual validation of the live EventKit permission prompt or real-calendar read behavior
+
+## Repo Layout
+
+- `apple_app/`: SwiftUI macOS prototype, SwiftData persistence scaffolding, and Swift tests
+- `src/`: Python prototype modules for models, planner logic, scheduling, and calendar experimentation
+- `tests/`: Python pytest suite
+- `scripts/`: smoke checks and manual-session helpers
+- `docs/`: planner contract notes, testing notes, and earlier manual session logs
+- `data/`: local JSON data and manual-test backups
+- `concrete_plan.md`: current implementation plan with status tracking
 
 ## Swift App Status
 
 The Swift app lives in `apple_app/task-manager/`.
 
-What it can do today:
+### What Works Today
 
-- show an in-memory task list seeded with sample tasks
-- create a new task from a dedicated task screen
-- open any existing task into a detail/edit screen from the main list
-- edit every current `MyTask` field in place: `id`, `title`, `isDone`, and `createdAt`
-- cancel out of create/edit without saving
-- save changes back into the visible list
-- delete an existing task from the detail screen
+- the macOS target builds and its Swift test suite passes
+- the visible app surface is a task list backed by `TaskListViewModel`
+- users can create, edit, and delete tasks from the SwiftUI task form
+- task fields currently supported in the form are:
+  - UUID
+  - title
+  - notes
+  - status
+  - estimated minutes
+  - optional due date
+  - priority
+  - energy level
+  - work mode
+  - comma-separated tags
+- task-list search matches title, notes, and tags
+- task-list sorting supports created date, title, due date, estimated minutes, priority, and status
+- task-list grouping supports none, status, priority, due date bucket, and work mode
+- local persistence is wired through SwiftData repositories for tasks, scheduled blocks, and app settings
+- the app composition root now uses `AppContainer` and `AppEnvironment`
+- live app composition now wires EventKit-backed calendar permission, calendar-listing, and read-only fetch services
+- excluded read-calendar titles from settings are applied when fetching calendar events
 
-Current task flow:
+### What Exists In Code But Is Still Scaffolding
 
-1. Launch the app to the task list.
-2. Click or tap `New Task` to open the task form in create mode.
-3. Click or tap an existing task row to open its detail/edit screen.
-4. Save to create or update the task, or cancel to discard changes.
-5. Delete is available only when editing an existing task.
+- `ScheduledBlock`, `CalendarLinkState`, and `AppSettings` domain models exist
+- SwiftData models and repositories exist for tasks, scheduled blocks, and settings
+- calendar seams now exist for:
+  - `CalendarReading`
+  - `CalendarListing`
+  - `CalendarWriting`
+  - `CalendarReconciling`
+  - `CalendarPermissionProviding`
+- EventKit-backed read-path services exist for:
+  - full-access permission status/request
+  - readable calendar discovery
+  - read-only event fetch mapped into `CalendarEventSnapshot`
+- planner boundary models exist:
+  - `CalendarEventSnapshot`
+  - `BusyInterval`
+  - `FreeGap`
+  - `TaskPlanningInput`
+  - `SuggestionCandidate`
+  - `PlannerOutput`
 
-Important limitations:
+These pieces are present so the Swift app can grow into planner/calendar features, but they are not yet a full feature loop.
 
-- Swift tasks are in-memory only right now. There is no persistence layer yet.
-- Closing or relaunching the app resets the Swift task list to sample data.
-- The Swift app does not yet expose projects, planner suggestions, calendar sync, or settings flows.
-- The current Swift prototype is a focused task-list/editor demo, not a full product implementation.
+### What Is Not Implemented Yet In Swift
+
+- calendar permission UI and user-visible task-only fallback flow
+- planner engine logic in Swift
+- planner suggestions UI
+- accepting a suggestion and writing it into the `Important` calendar
+- calendar write/update/delete services
+- reconciliation of local scheduled blocks against external calendar changes
+- settings, onboarding, planner, or diagnostics screens
+- CloudKit sync
+
+### Current Swift Architecture
+
+Relevant folders:
+
+- `apple_app/task-manager/task-manager/App/`: app composition and environment
+- `apple_app/task-manager/task-manager/Models/`: task domain types, scheduling domain types, and task-list presentation helpers
+- `apple_app/task-manager/task-manager/Persistence/`: repository protocols, SwiftData records, repository implementations, and model-container factory
+- `apple_app/task-manager/task-manager/Calendar/`: calendar contracts, preview stubs, and EventKit-backed permission/listing/read services
+- `apple_app/task-manager/task-manager/Planner/Models/`: planner-facing boundary models only
+- `apple_app/task-manager/task-manager/Features/Tasks/`: task list view model
+- `apple_app/task-manager/task-manager/Views/`: current task list and task form views
+
+The architecture direction is clear, but only the task-list surface is currently live.
+
+### Swift UI Behavior Today
+
+Task list behavior:
+
+- the app opens into `TaskListView`
+- `New Task` opens create mode
+- selecting a row opens edit mode
+- empty state messaging distinguishes between:
+  - no tasks
+  - no matches for the current search
+- grouped sections only appear when they have tasks
+- grouped tasks still respect the selected sort mode
+
+Task form behavior:
+
+- create and edit use the same form
+- delete is shown only in edit mode
+- blank titles are rejected
+- invalid UUID values are rejected
+- duplicate UUID values are rejected when they would collide with another task
+- non-positive estimated minutes are rejected
+
+Persistence behavior:
+
+- normal app runs use a disk-backed SwiftData `ModelContainer`
+- previews and tests use in-memory containers
+- repository tests now pass after fixing repository initialization to retain the `ModelContainer` instead of only a `ModelContext`
+
+### Swift Test Coverage
+
+Swift tests currently cover:
+
+- task model cleanup and enum-backed fields
+- task form parsing and validation
+- in-memory task collection behavior
+- search behavior
+- sort behavior
+- grouping behavior
+- grouped-section ordering
+- SwiftData task repository behavior
+- SwiftData scheduled-block repository behavior
+- SwiftData settings repository behavior
+- EventKit permission-status mapping
+- readable-calendar exclusion behavior
+- calendar event normalization and read ordering
+
+Relevant test files:
+
+- `apple_app/task-manager/task-managerTests/Calendar/EventKitCalendarServicesTests.swift`
+- `apple_app/task-manager/task-managerTests/Models/MyTaskTests.swift`
+- `apple_app/task-manager/task-managerTests/Models/MyTaskFormDataTests.swift`
+- `apple_app/task-manager/task-managerTests/Models/MyTaskCollectionTests.swift`
+- `apple_app/task-manager/task-managerTests/Models/TaskListPresentationTests.swift`
+- `apple_app/task-manager/task-managerTests/Persistence/SwiftDataTaskRepositoryTests.swift`
+- `apple_app/task-manager/task-managerTests/Persistence/SwiftDataScheduledBlockRepositoryTests.swift`
+- `apple_app/task-manager/task-managerTests/Persistence/SwiftDataSettingsRepositoryTests.swift`
 
 ## Python Prototype Status
 
-The Python code under `src/` is still present and still matters. It contains the current prototype logic for:
+The Python code under `src/` is still active and still useful. It currently provides:
 
 - task, project, event, scheduled-block, and preferences models
-- planner candidate ranking
+- planner candidate ranking logic
 - free-gap detection
-- Apple Calendar reading/prototype integration
 - JSON serialization and compatibility helpers
-- older task/calendar utility surfaces and smoke-check scripts
+- Apple Calendar read/prototype integration via AppleScript
+- older scheduler and compatibility surfaces still exercised by smoke checks
 
-This side of the repo is still prototype code, not a production application shell.
+### What Works Today In Python
 
-## Repo Layout
+- the full pytest suite passes
+- the smoke check passes
+- model roundtrips and current/legacy schema compatibility paths are covered
+- planner candidate selection is covered
+- gap detection is covered
+- Apple Calendar record parsing is covered
 
-- `apple_app/`: SwiftUI prototype app and Swift unit tests
-- `src/`: Python prototype modules
-- `tests/`: Python pytest suite for planner/model/calendar behavior
-- `scripts/`: manual smoke-check and helper scripts
-- `data/`: local prototype data files
+Python test files:
 
-## Running The Swift App
+- `tests/test_models.py`
+- `tests/test_planner.py`
+- `tests/test_gap_detection.py`
+- `tests/test_calendar_read.py`
+- `tests/test_compatibility.py`
+
+### What The Python Side Is Not
+
+- it is not the current UI
+- it is not integrated into the Swift app
+- it is not the long-term calendar integration path for the product
+
+The practical direction of the repo is:
+
+- Swift app becomes the real app shell
+- SwiftData becomes the durable app-state layer
+- EventKit becomes the future calendar integration path
+- Python remains a behavioral reference and test oracle until that logic is ported
+
+## Running The Repo
+
+### Swift App
 
 Open `apple_app/task-manager/task-manager.xcodeproj` in Xcode and run the `task-manager` scheme.
 
-From the command line, build or test with:
+Build from the command line:
 
 ```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' build
+```
+
+Run Swift tests:
+
+```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test
 ```
 
-## Running Python Tests
+### Python Prototype
 
-The repo includes a Conda environment file for the Python test setup:
+Create the environment:
 
 ```bash
 conda env create -f environment.yml
 conda activate task-manager-test
+```
+
+Run the Python test suite:
+
+```bash
 pytest
 ```
 
-Python tests currently cover model serialization/validation, planner candidate selection, gap detection, calendar record parsing, and compatibility behavior.
+Run the smoke check:
 
-## Prototype vs Not Implemented
+```bash
+python3 scripts/core_smoke_check.py
+```
 
-Prototype / present today:
+## Current Reality
 
-- Swift task list and task detail/edit flow
-- Python model and planner prototype logic
-- Python tests for core planner/model/calendar behavior
-- Swift unit tests for task model and form behavior
+Implemented and verified:
+
+- Swift macOS task list and task form prototype
+- Swift search, sort, and grouping behavior
+- SwiftData-backed repositories and passing repository tests
+- Swift EventKit permission, calendar-listing, and read-only fetch services
+- Python model, planner, gap-detection, calendar-read, and compatibility tests
+- Python smoke coverage across core compatibility surfaces
+
+Implemented but still only scaffolding:
+
+- Swift scheduled-block persistence
+- Swift app settings persistence
+- Swift calendar write/reconcile contracts
+- Swift planner boundary models
 
 Not implemented yet:
 
-- Swift persistence
-- Swift planner UI and end-to-end scheduling flow
-- production-grade Apple Calendar sync/writeback from the Swift app
-- polished multi-screen product architecture beyond the current prototype flows
+- Swift planner engine
+- suggestion acceptance and calendar writeback
+- reconciliation with external calendar edits
+- planner/settings/onboarding UI
+- CloudKit sync
+
+## Related Docs
+
+- `concrete_plan.md`: current implementation plan with status notes
+- `docs/planner_contract_v0_1.md`: current Python planner contract summary
+- `docs/testing_workflow.md`: repo-wide testing workflow

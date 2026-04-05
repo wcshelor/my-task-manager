@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import task_manager
 
@@ -10,10 +11,44 @@ struct MyTaskTests {
         #expect(MyTask.cleanedTitle(from: " \n\t ") == nil)
     }
 
-    @Test func newTaskInitializerStartsIncomplete() {
+    @Test func newTaskInitializerStartsActiveWithDefaults() {
         let task = MyTask(newTitle: "Read book")
 
         #expect(task?.title == "Read book")
-        #expect(task?.isDone == false)
+        #expect(task?.status == .active)
+        #expect(task?.tags == [])
+        #expect(task?.completedAt == nil)
+        #expect(task?.updatedAt == task?.createdAt)
+    }
+
+    @Test func taskStoresEnumBackedFieldsAndCleansOptionalValues() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let updatedAt = Date(timeIntervalSince1970: 2_000)
+        let dueDate = Date(timeIntervalSince1970: 3_000)
+        let task = MyTask(
+            title: "Prepare workshop",
+            notes: "  Review outline  ",
+            status: .scheduled,
+            estimatedMinutes: 45,
+            dueDate: dueDate,
+            priority: .urgent,
+            energyLevel: .high,
+            workMode: .deepWork,
+            tags: [" work ", "", "planning "],
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+
+        #expect(task.notes == "Review outline")
+        #expect(task.status == .scheduled)
+        #expect(task.estimatedMinutes == 45)
+        #expect(task.dueDate == dueDate)
+        #expect(task.priority == .urgent)
+        #expect(task.energyLevel == .high)
+        #expect(task.workMode == .deepWork)
+        #expect(task.tags == ["work", "planning"])
+        #expect(task.createdAt == createdAt)
+        #expect(task.updatedAt == updatedAt)
+        #expect(task.completedAt == nil)
     }
 }

@@ -1,21 +1,36 @@
 # Testing Workflow
 
-This repo's active testing surface is:
+This repo now has two active implementation surfaces:
 
-- `tests/` for automated coverage
-- `src/` for active application logic
+- the macOS Swift app in `apple_app/task-manager/`
+- the Python prototype in `src/` and `tests/`
 
-`legacy/` is not part of the active plan and should not be used for current testing.
+The fastest trustworthy workflow is:
 
-The smooth testing flow is:
+1. Run the Swift test suite.
+2. Run the Python test suite.
+3. Run the Python smoke checks.
+4. If needed, launch the Swift app in Xcode for a manual UI pass.
+5. Log gaps against `README.md` and `concrete_plan.md`.
 
-1. Activate the conda env.
-2. Run the active unit suite.
-3. Run the core smoke checks against current `src/` functionality.
-4. Start a timestamped manual test session note.
-5. Log anything that looks inconsistent with the README model.
+## 1) Swift Automated Checks
 
-## 1) Create and Activate the Env
+From the repo root:
+
+```bash
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test
+```
+
+This currently verifies:
+
+- task model behavior
+- task form validation/parsing
+- task-list search/sort/grouping behavior
+- SwiftData task repository behavior
+- SwiftData scheduled-block repository behavior
+- SwiftData settings repository behavior
+
+## 2) Create and Activate the Python Env
 
 From the repo root:
 
@@ -31,7 +46,29 @@ mamba env update -f environment.yml --prune
 conda activate task-manager-test
 ```
 
-## 2) Recommended Session Workflow
+## 3) Python Automated Checks
+
+Run the Python suite:
+
+```bash
+pytest
+```
+
+Run the smoke check:
+
+```bash
+python3 scripts/core_smoke_check.py
+```
+
+These currently verify:
+
+- Python model roundtrips
+- planner candidate selection
+- gap detection
+- Apple Calendar record parsing
+- compatibility behavior across older helper surfaces
+
+## 4) Python Session Helper
 
 From the repo root:
 
@@ -45,20 +82,33 @@ That script:
 - runs `python scripts/core_smoke_check.py`
 - creates a timestamped backup of `data/*.json`
 - creates a timestamped session note in `docs/test_sessions/`
-- prints the next recommended non-GUI exploration steps
+- prints the next recommended Python-focused exploration steps
 
-## 3) Current Manual Surface
+Important:
 
-There is currently no active non-legacy app entrypoint in the repository.
+- this script is Python-oriented
+- it does not run the Swift `xcodebuild` test suite
+- the session template under `docs/manual_test_session_template.md` is also Python-oriented
 
-So the current manual workflow is service-level rather than GUI-level:
+## 5) Current Manual Surface
 
-- run the unit suite
-- run the smoke script
-- inspect failures against the README object model and expected behavior
-- optionally do deeper interactive exploration in `ipython`
+There is now an active app entrypoint in the repository: the Swift macOS app.
 
-The smoke script is:
+Current manual work should be split like this:
+
+- Swift app manual pass:
+  - open the Xcode project
+  - run the `task-manager` scheme
+  - exercise the task list and task form
+- Python manual pass:
+  - run the unit suite
+  - run the smoke script
+  - inspect failures against the README object model and expected behavior
+  - optionally do deeper interactive exploration in `ipython`
+
+The Swift app is currently only a task-list/task-form surface. Planner and calendar integration are not yet manual-testable because those features are still scaffolding or absent.
+
+The Python smoke script is:
 
 ```bash
 python scripts/core_smoke_check.py
@@ -72,11 +122,17 @@ It intentionally covers:
 - calendar record parsing
 - persistence and scheduler compatibility surfaces
 
-Some of those compatibility checks may fail today. That is useful signal.
+## 6) Unit Test Coverage Strategy
 
-## 4) Unit Test Coverage Strategy
+Every repo-wide audit session should start with:
 
-Every manual session should start with:
+```bash
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test
+pytest
+python scripts/core_smoke_check.py
+```
+
+When you are focused only on Python behavior, use:
 
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests
@@ -91,29 +147,28 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_planner.py
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_calendar_read.py
 ```
 
-This gives you a fast signal on the newer core modules before you spend time in the GUI.
+When you are focused only on Swift behavior, use the full `xcodebuild` test command above or narrow the run with `-only-testing`.
 
-## 5) Manual Test Protocol
+## 7) Manual Test Protocol
 
 Use this order during each session:
 
-1. `Unit Suite`
-   Run the active `tests/` suite and note any failures.
-2. `Smoke Check`
-   Run `python scripts/core_smoke_check.py` and separate pass/fail results into:
-   README-aligned core behavior vs older compatibility surfaces.
-3. `Core Model Review`
-   Confirm the smoke output for Project, Task, Work-Mode Template, Event, and Scheduled Block still matches the README object model.
-4. `Planner Review`
-   Confirm free-gap detection and candidate ranking behavior look plausible.
-5. `Compatibility Review`
-   If persistence, scheduling, or calendar-manager compatibility checks fail, log them explicitly as integration gaps.
-6. `Interactive Follow-up`
-   If needed, open `ipython` and inspect one failing area more deeply.
+1. `Swift Suite`
+   Run the Swift tests and note any failures.
+2. `Python Suite`
+   Run the Python tests and note any failures.
+3. `Smoke Check`
+   Run `python scripts/core_smoke_check.py`.
+4. `Swift UI Review`
+   If your change touches the app UI, launch the Swift app in Xcode and exercise the task-list/task-form flow.
+5. `Python Core Review`
+   Confirm the smoke output for Project, Task, Work-Mode Template, Event, and Scheduled Block still matches README expectations.
+6. `Planner / Compatibility Review`
+   If planner, persistence, scheduling, or calendar-manager compatibility checks fail, log them explicitly.
 7. `Cleanup`
-   Add a short summary to the session note with the most important issues and the next test to add.
+   Add a short summary with the most important issues and the next test to add.
 
-## 6) Data Safety
+## 8) Data Safety
 
 Before manual testing, create a backup of `data/tasks.json` and `data/events.json`.
 
@@ -121,7 +176,7 @@ Before manual testing, create a backup of `data/tasks.json` and `data/events.jso
 - Backups are written under `data/manual_test_backups/<timestamp>/`.
 - If a session corrupts or dirties local data, restore the relevant JSON file from that backup directory.
 
-## 7) What to Log
+## 9) What To Log
 
 For each issue, write down:
 
