@@ -15,6 +15,58 @@ struct ContentView: View {
     }
 
     var body: some View {
+        PlatformRootView(appEnvironment: appEnvironment)
+    }
+}
+
+private struct PlatformRootView: View {
+    private let appEnvironment: AppEnvironment
+
+    init(appEnvironment: AppEnvironment) {
+        self.appEnvironment = appEnvironment
+    }
+
+    var body: some View {
+        #if os(iOS)
+        IPhoneRootView(appEnvironment: appEnvironment)
+        #else
+        MacRootView(appEnvironment: appEnvironment)
+        #endif
+    }
+}
+
+private struct IPhoneRootView: View {
+    private let appEnvironment: AppEnvironment
+
+    init(appEnvironment: AppEnvironment) {
+        self.appEnvironment = appEnvironment
+    }
+
+    var body: some View {
+        TaskManagerTabShell(appEnvironment: appEnvironment)
+    }
+}
+
+private struct MacRootView: View {
+    private let appEnvironment: AppEnvironment
+
+    init(appEnvironment: AppEnvironment) {
+        self.appEnvironment = appEnvironment
+    }
+
+    var body: some View {
+        TaskManagerTabShell(appEnvironment: appEnvironment)
+    }
+}
+
+private struct TaskManagerTabShell: View {
+    private let appEnvironment: AppEnvironment
+
+    init(appEnvironment: AppEnvironment) {
+        self.appEnvironment = appEnvironment
+    }
+
+    var body: some View {
         TabView {
             TaskListView(taskRepository: appEnvironment.taskRepository)
                 .tabItem {

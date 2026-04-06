@@ -339,24 +339,14 @@ private struct PlannerOverviewCard: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                Button("Plan by Horizon") {
-                    onGeneratePlan()
+            ViewThatFits {
+                HStack(spacing: 12) {
+                    overviewActionButtons
                 }
-                .buttonStyle(.bordered)
-                .disabled(isLoading)
 
-                Button("Request Calendar Access") {
-                    onRequestAccess()
+                VStack(alignment: .leading, spacing: 10) {
+                    overviewActionButtons
                 }
-                .buttonStyle(.bordered)
-                .disabled(isLoading || permissionStatus == .fullAccessGranted)
-
-                Button("Refresh") {
-                    onRefresh()
-                }
-                .buttonStyle(.bordered)
-                .disabled(isLoading)
             }
 
             Text(planningHint)
@@ -374,6 +364,27 @@ private struct PlannerOverviewCard: View {
         case .horizon(let horizon):
             return "Primary flow: drag across open time in the day timeline, then fill that slot. Horizon planning is still available for \(horizon.title.lowercased())."
         }
+    }
+
+    @ViewBuilder
+    private var overviewActionButtons: some View {
+        Button("Plan by Horizon") {
+            onGeneratePlan()
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoading)
+
+        Button("Request Calendar Access") {
+            onRequestAccess()
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoading || permissionStatus == .fullAccessGranted)
+
+        Button("Refresh") {
+            onRefresh()
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoading)
     }
 }
 
@@ -398,34 +409,47 @@ private struct PlannerDayNavigationCard: View {
     let onNextDay: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Day Timeline")
-                    .font(.headline)
-
-                Text(selectedDay.formatted(date: .complete, time: .omitted))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        ViewThatFits {
+            HStack(alignment: .center, spacing: 16) {
+                timelineHeading
+                Spacer()
+                dayNavigationButtons
             }
 
-            Spacer()
-
-            HStack(spacing: 10) {
-                Button(action: onPreviousDay) {
-                    Label("Previous Day", systemImage: "chevron.left")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.bordered)
-
-                Button("Today", action: onToday)
-                    .buttonStyle(.bordered)
-
-                Button(action: onNextDay) {
-                    Label("Next Day", systemImage: "chevron.right")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.bordered)
+            VStack(alignment: .leading, spacing: 12) {
+                timelineHeading
+                dayNavigationButtons
             }
+        }
+    }
+
+    private var timelineHeading: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Day Timeline")
+                .font(.headline)
+
+            Text(selectedDay.formatted(date: .complete, time: .omitted))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var dayNavigationButtons: some View {
+        HStack(spacing: 10) {
+            Button(action: onPreviousDay) {
+                Label("Previous Day", systemImage: "chevron.left")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+
+            Button("Today", action: onToday)
+                .buttonStyle(.bordered)
+
+            Button(action: onNextDay) {
+                Label("Next Day", systemImage: "chevron.right")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
         }
     }
 }
@@ -1321,7 +1345,7 @@ private struct PlannerScheduledBlockEditSheet: View {
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 280)
+        .macSheetFrame(minWidth: 420, minHeight: 280)
     }
 }
 
@@ -1556,7 +1580,7 @@ private struct HorizonPlanSheet: View {
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 360)
+        .macSheetFrame(minWidth: 420, minHeight: 360)
     }
 
     private var selectedWorkModeBinding: Binding<WorkModeKind?> {

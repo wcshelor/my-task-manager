@@ -2,7 +2,7 @@
 
 This repo currently has two active code paths:
 
-- a macOS SwiftUI app in `apple_app/task-manager/`
+- an Apple SwiftUI app in `apple_app/task-manager/` targeting macOS and iPhone
 - a legacy Python planner/calendar prototype in `src/`
 
 The Swift app is the real product path. The Python code is still useful as a reference implementation and regression surface, but it is not wired into the Swift UI.
@@ -14,12 +14,15 @@ This README was updated against the repo state in this checkout on April 6, 2026
 Automated checks run during this update:
 
 - `xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test` -> `passed`
+- `xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build` -> `passed`
+- `xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing` -> `passed`
 - `pytest -q` -> `27 passed`
 - `python3 scripts/core_smoke_check.py` -> `8 passed, 0 failed`
 
 Not manually verified during this update:
 
 - no live macOS click-through of the newest planner UI
+- no live iPhone simulator launch, because this machine has no installed simulator runtimes in `simctl`
 - no real EventKit permission-state pass against a live calendar account
 - no live verification of excluded read calendars
 - no live verification of fixed write-calendar selection
@@ -28,7 +31,7 @@ Not manually verified during this update:
 
 ## Repo Layout
 
-- `apple_app/`: SwiftUI macOS app, SwiftData persistence, EventKit integration, planner engine, and Swift tests
+- `apple_app/`: shared SwiftUI Apple app, SwiftData persistence, EventKit integration, planner engine, and Swift tests
 - `src/`: Python prototype modules for models, planner logic, scheduling, and calendar experimentation
 - `tests/`: Python pytest suite
 - `scripts/`: smoke checks and manual-session helpers
@@ -52,7 +55,9 @@ The Swift app lives in `apple_app/task-manager/`.
 
 ### What Works Today
 
-- the macOS target builds and the Swift test suite passes
+- the shared Apple target builds for macOS and iPhone simulator SDKs
+- the macOS Swift test suite passes
+- the iPhone simulator test bundle builds successfully
 - the app shell is a two-tab SwiftUI app:
   - `Tasks`
   - `Calendar`
@@ -257,17 +262,31 @@ What the Python side is not:
 
 Open `apple_app/task-manager/task-manager.xcodeproj` in Xcode and run the `task-manager` scheme.
 
-Build from the command line:
+Build for macOS from the command line:
 
 ```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' build
 ```
 
-Run Swift tests:
+Run macOS Swift tests:
 
 ```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test
 ```
+
+Build the iPhone app against the simulator SDK:
+
+```bash
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build
+```
+
+Build the iPhone test bundle for testing:
+
+```bash
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing
+```
+
+To actually launch or run tests on an iPhone simulator, install a simulator runtime from Xcode Settings > Components and then use an installed destination.
 
 ### SwiftUI macOS Debugging Notes
 
@@ -304,7 +323,7 @@ python3 scripts/core_smoke_check.py
 
 Implemented and verified:
 
-- Swift macOS task workflow
+- shared Swift task workflow foundations for macOS and iPhone
 - SwiftData-backed task, scheduled-block, and settings repositories
 - EventKit-backed permission, calendar listing, event reads, writeback, block edits, block deletes, and reconciliation
 - Swift planner UI with selected-slot-first planning and real transient suggestions
@@ -326,6 +345,8 @@ Still intentionally deferred:
 ## Related Docs
 
 - `concrete_plan.md`: current repo status and next steps
+- `docs/iphone_product_scope.md`: frozen scope for the first macOS+iPhone migration pass
+- `docs/iphone_readiness_audit.md`: platform audit and sequencing notes for the iPhone migration
 - `docs/product_direction.md`: frozen product responsibilities and target workflow
 - `docs/planner_contract_v0_1.md`: Python planner contract summary
 - `docs/testing_workflow.md`: repo-wide testing workflow

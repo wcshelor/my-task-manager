@@ -205,7 +205,7 @@ struct TaskFormView: View {
                 Button(mode.saveButtonTitle) {
                     saveTask()
                 }
-                .keyboardShortcut(.defaultAction)
+                .taskFormDefaultActionShortcut()
                 .disabled(validationMessage != nil)
             }
         }
@@ -237,6 +237,20 @@ struct TaskFormView: View {
         dismiss()
     }
 }
+
+#if os(macOS)
+private extension View {
+    func taskFormDefaultActionShortcut() -> some View {
+        keyboardShortcut(.defaultAction)
+    }
+}
+#else
+private extension View {
+    func taskFormDefaultActionShortcut() -> some View {
+        self
+    }
+}
+#endif
 
 #Preview {
     TaskFormView(mode: .create) { _ in }
