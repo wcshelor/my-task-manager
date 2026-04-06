@@ -5,13 +5,15 @@ This repo now has two active implementation surfaces:
 - the macOS Swift app in `apple_app/task-manager/`
 - the Python prototype in `src/` and `tests/`
 
+Use `docs/product_direction.md` for the frozen product behavior. This workflow doc describes what is currently implemented and how to test it.
+
 The fastest trustworthy workflow is:
 
 1. Run the Swift test suite.
 2. Run the Python test suite.
 3. Run the Python smoke checks.
 4. If needed, launch the Swift app in Xcode for a manual UI pass.
-5. Log gaps against `README.md` and `concrete_plan.md`.
+5. Log gaps against `README.md`, `concrete_plan.md`, and `docs/product_direction.md`.
 
 ## 1) Swift Automated Checks
 
@@ -26,9 +28,13 @@ This currently verifies:
 - task model behavior
 - task form validation/parsing
 - task-list search/sort/grouping behavior
+- calendar-read view-model loading / permission / window-selection behavior
 - SwiftData task repository behavior
 - SwiftData scheduled-block repository behavior
 - SwiftData settings repository behavior
+- EventKit permission-state mapping
+- readable-calendar exclusion behavior
+- calendar event normalization and read ordering
 
 ## 2) Create and Activate the Python Env
 
@@ -99,14 +105,29 @@ Current manual work should be split like this:
 - Swift app manual pass:
   - open the Xcode project
   - run the `task-manager` scheme
-  - exercise the task list and task form
+  - exercise the `Tasks` tab:
+    - create a task
+    - edit a task
+    - delete a task
+    - verify search, sort, and grouping
+  - exercise the `Calendar` tab:
+    - inspect the current permission state
+    - request Calendar access if that is safe for the session
+    - verify denied / restricted / write-only / empty states render sensible copy
+    - switch between `Today` and `Next 7 Days`
+    - verify readable calendars and read-only events load when full access is granted
 - Python manual pass:
   - run the unit suite
   - run the smoke script
   - inspect failures against the README object model and expected behavior
   - optionally do deeper interactive exploration in `ipython`
 
-The Swift app is currently only a task-list/task-form surface. Planner and calendar integration are not yet manual-testable because those features are still scaffolding or absent.
+The Swift app currently exposes two manual surfaces:
+
+- a full task-list / task-form workflow
+- a thin calendar-read workflow for permission status, readable-calendar listing, and read-only event browsing
+
+The frozen target behavior is a calendar-first planner flow with `Generate Plan`, temporary suggestion blocks, and explicit accept-before-writeback. Planner suggestions, calendar writeback, and reconciliation are still not manual-testable because that feature loop does not exist yet.
 
 The Python smoke script is:
 
@@ -160,7 +181,7 @@ Use this order during each session:
 3. `Smoke Check`
    Run `python scripts/core_smoke_check.py`.
 4. `Swift UI Review`
-   If your change touches the app UI, launch the Swift app in Xcode and exercise the task-list/task-form flow.
+   If your change touches the app UI or calendar services, launch the Swift app in Xcode and exercise the task list, task form, and calendar-read flow that is relevant to the change.
 5. `Python Core Review`
    Confirm the smoke output for Project, Task, Work-Mode Template, Event, and Scheduled Block still matches README expectations.
 6. `Planner / Compatibility Review`

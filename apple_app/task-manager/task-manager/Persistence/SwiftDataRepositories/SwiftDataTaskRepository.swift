@@ -12,7 +12,10 @@ final class SwiftDataTaskRepository: TaskRepository {
     }
 
     func fetchTasks() throws -> [MyTask] {
-        try fetchAllRecords()
+        let records = try fetchAllRecords()
+        try normalizeEstimatedMinutes(in: records)
+
+        return records
             .map(\.task)
             .sorted { leftTask, rightTask in
                 if leftTask.createdAt != rightTask.createdAt {
@@ -24,7 +27,9 @@ final class SwiftDataTaskRepository: TaskRepository {
     }
 
     func task(withID id: UUID) throws -> MyTask? {
-        try fetchRecord(withID: id)?.task
+        let records = try fetchAllRecords()
+        try normalizeEstimatedMinutes(in: records)
+        return records.first { $0.id == id }?.task
     }
 
     func saveTask(_ task: MyTask, replacingTaskWithID originalID: UUID?) throws {
@@ -56,5 +61,26 @@ final class SwiftDataTaskRepository: TaskRepository {
 
     private func fetchRecord(withID id: UUID) throws -> TaskRecord? {
         try fetchAllRecords().first { $0.id == id }
+    }
+
+    private func normalizeEstimatedMinutes(in records: [TaskRecord]) throws {
+        var didUpdateRecords = false
+
+        for record in records {
+            let cleanedEstimatedMinutes = TaskDurationRules.cleanedEstimatedMinutes(
+                record.estimatedMinutes
+            )
+
+            guard record.estimatedMinutes != cleanedEstimatedMinutes else {
+                continue
+            }
+
+            record.estimatedMinutes = cleanedEstimatedMinutes
+            didUpdateRecords = true
+        }
+
+        if didUpdateRecords {
+            try modelContext.save()
+        }
     }
 }

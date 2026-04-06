@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import task_manager
 
@@ -67,6 +68,23 @@ struct SwiftDataTaskRepositoryTests {
         try repository.deleteTask(withID: taskID)
 
         #expect(try repository.fetchTasks().isEmpty)
+    }
+
+    @Test @MainActor func taskRepositoryNormalizesLegacyInvalidEstimatedMinutesOnRead() throws {
+        let container = try ModelContainerFactory.makeInMemoryContainer()
+        let record = TaskRecord(task: MyTask(title: "Legacy task", estimatedMinutes: 30))
+        record.estimatedMinutes = 20
+        container.mainContext.insert(record)
+        try container.mainContext.save()
+
+        let repository = SwiftDataTaskRepository(modelContainer: container)
+        let fetchedTask = try repository.task(withID: record.id)
+        let persistedRecord = try container.mainContext
+            .fetch(FetchDescriptor<TaskRecord>())
+            .first { $0.id == record.id }
+
+        #expect(fetchedTask?.estimatedMinutes == nil)
+        #expect(persistedRecord?.estimatedMinutes == nil)
     }
 
     @MainActor

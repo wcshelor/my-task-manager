@@ -1,6 +1,6 @@
 import Foundation
 
-enum TaskStatus: String, CaseIterable, Codable, Sendable {
+nonisolated enum TaskStatus: String, CaseIterable, Codable, Sendable {
     case inbox
     case active
     case scheduled
@@ -23,7 +23,7 @@ enum TaskStatus: String, CaseIterable, Codable, Sendable {
     }
 }
 
-enum PriorityLevel: String, CaseIterable, Codable, Sendable {
+nonisolated enum PriorityLevel: String, CaseIterable, Codable, Sendable {
     case low
     case medium
     case high
@@ -34,7 +34,7 @@ enum PriorityLevel: String, CaseIterable, Codable, Sendable {
     }
 }
 
-enum EnergyLevel: String, CaseIterable, Codable, Sendable {
+nonisolated enum EnergyLevel: String, CaseIterable, Codable, Sendable {
     case low
     case medium
     case high
@@ -44,7 +44,7 @@ enum EnergyLevel: String, CaseIterable, Codable, Sendable {
     }
 }
 
-enum WorkModeKind: String, CaseIterable, Codable, Sendable {
+nonisolated enum WorkModeKind: String, CaseIterable, Codable, Sendable {
     case deepWork
     case shallowAdmin
     case creative
@@ -70,12 +70,56 @@ enum WorkModeKind: String, CaseIterable, Codable, Sendable {
     }
 }
 
-struct MyTask: Identifiable, Equatable, Sendable {
+nonisolated enum TaskDurationRules {
+    static let minutesIncrement = 15
+    static let defaultAssumedMinutes = 30
+
+    static func isValidEstimatedMinutes(_ estimatedMinutes: Int) -> Bool {
+        estimatedMinutes > 0 && estimatedMinutes.isMultiple(of: minutesIncrement)
+    }
+
+    static func cleanedEstimatedMinutes(_ estimatedMinutes: Int?) -> Int? {
+        guard let estimatedMinutes else {
+            return nil
+        }
+
+        guard isValidEstimatedMinutes(estimatedMinutes) else {
+            return nil
+        }
+
+        return estimatedMinutes
+    }
+
+    static func cleanedDefaultAssumedDurationMinutes(_ estimatedMinutes: Int) -> Int {
+        cleanedEstimatedMinutes(estimatedMinutes) ?? defaultAssumedMinutes
+    }
+
+    static func normalizedFormSelectionMinutes(_ estimatedMinutes: Int) -> Int {
+        let adjustedMinutes = max(minutesIncrement, estimatedMinutes)
+        let remainder = adjustedMinutes % minutesIncrement
+
+        guard remainder != 0 else {
+            return adjustedMinutes
+        }
+
+        return adjustedMinutes + (minutesIncrement - remainder)
+    }
+}
+
+nonisolated struct MyTask: Identifiable, Equatable, Sendable {
     let id: UUID
     var title: String
     var notes: String?
     var status: TaskStatus
-    var estimatedMinutes: Int?
+    private var storedEstimatedMinutes: Int?
+    var estimatedMinutes: Int? {
+        get {
+            storedEstimatedMinutes
+        }
+        set {
+            storedEstimatedMinutes = TaskDurationRules.cleanedEstimatedMinutes(newValue)
+        }
+    }
     var dueDate: Date?
     var priority: PriorityLevel?
     var energyLevel: EnergyLevel?
@@ -110,7 +154,7 @@ struct MyTask: Identifiable, Equatable, Sendable {
         self.title = Self.cleanedTitle(from: title) ?? title.trimmingCharacters(in: .whitespacesAndNewlines)
         self.notes = Self.cleanedOptionalText(from: notes)
         self.status = status
-        self.estimatedMinutes = Self.cleanedEstimatedMinutes(estimatedMinutes)
+        self.storedEstimatedMinutes = TaskDurationRules.cleanedEstimatedMinutes(estimatedMinutes)
         self.dueDate = dueDate
         self.priority = priority
         self.energyLevel = energyLevel
@@ -142,7 +186,7 @@ struct MyTask: Identifiable, Equatable, Sendable {
             title: "Reply to emails",
             notes: "Inbox zero for client follow-ups",
             status: .completed,
-            estimatedMinutes: 20,
+            estimatedMinutes: 30,
             priority: .low,
             workMode: .shallowAdmin,
             tags: ["work", "admin"]
@@ -171,11 +215,7 @@ struct MyTask: Identifiable, Equatable, Sendable {
     }
 
     static func cleanedEstimatedMinutes(_ estimatedMinutes: Int?) -> Int? {
-        guard let estimatedMinutes else {
-            return nil
-        }
-
-        return estimatedMinutes > 0 ? estimatedMinutes : nil
+        TaskDurationRules.cleanedEstimatedMinutes(estimatedMinutes)
     }
 
     static func cleanedTags(from rawTags: String) -> [String] {

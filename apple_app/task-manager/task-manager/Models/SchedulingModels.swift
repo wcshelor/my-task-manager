@@ -1,6 +1,6 @@
 import Foundation
 
-enum ScheduledBlockStatus: String, CaseIterable, Codable, Sendable {
+nonisolated enum ScheduledBlockStatus: String, CaseIterable, Codable, Sendable {
     case proposed
     case accepted
     case rejected
@@ -9,7 +9,7 @@ enum ScheduledBlockStatus: String, CaseIterable, Codable, Sendable {
     case deletedExternally
 }
 
-enum CalendarLinkState: String, CaseIterable, Codable, Sendable {
+nonisolated enum CalendarLinkState: String, CaseIterable, Codable, Sendable {
     case notWritten
     case writePending
     case linked
@@ -19,7 +19,7 @@ enum CalendarLinkState: String, CaseIterable, Codable, Sendable {
     case syncError
 }
 
-struct ScheduledBlock: Identifiable, Equatable, Sendable {
+nonisolated struct ScheduledBlock: Identifiable, Equatable, Sendable {
     let id: UUID
     var taskID: UUID
     var start: Date
@@ -76,12 +76,36 @@ struct ScheduledBlock: Identifiable, Equatable, Sendable {
     }
 }
 
-struct AppSettings: Equatable, Sendable {
+nonisolated struct AppSettings: Equatable, Sendable {
     var excludedReadCalendarTitles: [String]
     var writeCalendarTitle: String
     var minimumGapMinutes: Int
-    var defaultAssumedDurationMinutes: Int
+    private var storedDefaultAssumedDurationMinutes: Int
+    var defaultAssumedDurationMinutes: Int {
+        get {
+            storedDefaultAssumedDurationMinutes
+        }
+        set {
+            storedDefaultAssumedDurationMinutes =
+                TaskDurationRules.cleanedDefaultAssumedDurationMinutes(newValue)
+        }
+    }
     var plannerSuggestionCap: Int
+
+    init(
+        excludedReadCalendarTitles: [String],
+        writeCalendarTitle: String,
+        minimumGapMinutes: Int,
+        defaultAssumedDurationMinutes: Int,
+        plannerSuggestionCap: Int
+    ) {
+        self.excludedReadCalendarTitles = excludedReadCalendarTitles
+        self.writeCalendarTitle = writeCalendarTitle
+        self.minimumGapMinutes = max(1, minimumGapMinutes)
+        self.storedDefaultAssumedDurationMinutes =
+            TaskDurationRules.cleanedDefaultAssumedDurationMinutes(defaultAssumedDurationMinutes)
+        self.plannerSuggestionCap = max(0, plannerSuggestionCap)
+    }
 
     static let mvpDefault = AppSettings(
         excludedReadCalendarTitles: ["Birthdays"],

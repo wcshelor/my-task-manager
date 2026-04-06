@@ -13,7 +13,14 @@ final class SwiftDataSettingsRepository: SettingsRepository {
 
     func loadSettings() throws -> AppSettings {
         if let record = try fetchRecord() {
-            return record.settings
+            let settings = record.settings
+
+            if recordNeedsNormalization(record, normalizedSettings: settings) {
+                record.update(from: settings)
+                try modelContext.save()
+            }
+
+            return settings
         }
 
         let record = AppSettingsRecord(settings: .mvpDefault)
@@ -36,5 +43,14 @@ final class SwiftDataSettingsRepository: SettingsRepository {
         try modelContext.fetch(FetchDescriptor<AppSettingsRecord>()).first {
             $0.id == AppSettingsRecord.singletonID
         }
+    }
+
+    private func recordNeedsNormalization(
+        _ record: AppSettingsRecord,
+        normalizedSettings: AppSettings
+    ) -> Bool {
+        record.minimumGapMinutes != normalizedSettings.minimumGapMinutes
+            || record.defaultAssumedDurationMinutes != normalizedSettings.defaultAssumedDurationMinutes
+            || record.plannerSuggestionCap != normalizedSettings.plannerSuggestionCap
     }
 }

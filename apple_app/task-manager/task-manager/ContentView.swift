@@ -21,10 +21,15 @@ struct ContentView: View {
                     Label("Tasks", systemImage: "checklist")
                 }
 
-            CalendarReadView(
+            PlannerView(
+                taskRepository: appEnvironment.taskRepository,
+                scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
+                settingsRepository: appEnvironment.settingsRepository,
                 calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
                 calendarListingService: appEnvironment.calendarListingService,
-                calendarReader: appEnvironment.calendarReader
+                calendarReader: appEnvironment.calendarReader,
+                calendarWriter: appEnvironment.calendarWriter,
+                calendarReconciler: appEnvironment.calendarReconciler
             )
             .tabItem {
                 Label("Calendar", systemImage: "calendar")

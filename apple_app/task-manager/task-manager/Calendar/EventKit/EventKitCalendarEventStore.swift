@@ -25,15 +25,47 @@ struct EventStoreEventDescriptor: Equatable, Sendable {
     let calendarTitle: String
 }
 
+struct EventStoreEventMutationRequest: Equatable, Sendable {
+    let identifier: String?
+    let title: String
+    let start: Date
+    let end: Date
+    let isAllDay: Bool
+    let calendarIdentifier: String
+}
+
+enum EventStoreMutationError: Error, LocalizedError, Equatable {
+    case calendarNotFound(String)
+    case eventNotFound(String)
+    case invalidDateRange
+    case saveFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .calendarNotFound(let identifier):
+            return "Calendar \(identifier) could not be found."
+        case .eventNotFound(let identifier):
+            return "Calendar event \(identifier) could not be found."
+        case .invalidDateRange:
+            return "Calendar events must end after they start."
+        case .saveFailed(let message):
+            return message
+        }
+    }
+}
+
 @MainActor
 protocol CalendarEventStore {
     func authorizationStatus() -> EventStoreAuthorizationStatus
     func requestFullAccess() async throws -> Bool
     func fetchEventCalendars() -> [EventStoreCalendarDescriptor]
+    func fetchEvent(withIdentifier identifier: String) -> EventStoreEventDescriptor?
     func fetchEvents(
         in window: DateInterval,
         calendarIdentifiers: Set<String>?
     ) -> [EventStoreEventDescriptor]
+    func saveEvent(_ request: EventStoreEventMutationRequest) throws -> EventStoreEventDescriptor
+    func deleteEvent(withIdentifier identifier: String) throws
 }
 
 @MainActor
@@ -64,6 +96,21 @@ final class EventKitCalendarEventStore: CalendarEventStore {
             .sorted { lhs, rhs in
                 lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
+    }
+
+    func fetchEvent(withIdentifier identifier: String) -> EventStoreEventDescriptor? {
+        guard let event = eventStore.event(withIdentifier: identifier) else {
+            return nil
+        }
+
+        return EventStoreEventDescriptor(
+            identifier: event.eventIdentifier,
+            title: event.title,
+            start: event.startDate,
+            end: event.endDate,
+            isAllDay: event.isAllDay,
+            calendarTitle: event.calendar.title
+        )
     }
 
     func fetchEvents(
@@ -119,6 +166,62 @@ final class EventKitCalendarEventStore: CalendarEventStore {
                 return normalizedEventTitle(lhs.title)
                     .localizedCaseInsensitiveCompare(normalizedEventTitle(rhs.title)) == .orderedAscending
             }
+    }
+
+    func saveEvent(_ request: EventStoreEventMutationRequest) throws -> EventStoreEventDescriptor {
+        guard request.end > request.start else {
+            throw EventStoreMutationError.invalidDateRange
+        }
+
+        guard let calendar = eventStore.calendars(for: .event).first(where: {
+            $0.calendarIdentifier == request.calendarIdentifier
+        }) else {
+            throw EventStoreMutationError.calendarNotFound(request.calendarIdentifier)
+        }
+
+        let event: EKEvent
+        if let identifier = request.identifier {
+            guard let existingEvent = eventStore.event(withIdentifier: identifier) else {
+                throw EventStoreMutationError.eventNotFound(identifier)
+            }
+
+            event = existingEvent
+        } else {
+            event = EKEvent(eventStore: eventStore)
+        }
+
+        event.calendar = calendar
+        event.title = request.title
+        event.startDate = request.start
+        event.endDate = request.end
+        event.isAllDay = request.isAllDay
+
+        do {
+            try eventStore.save(event, span: .thisEvent, commit: true)
+        } catch {
+            throw EventStoreMutationError.saveFailed(error.localizedDescription)
+        }
+
+        return EventStoreEventDescriptor(
+            identifier: event.eventIdentifier,
+            title: event.title,
+            start: event.startDate,
+            end: event.endDate,
+            isAllDay: event.isAllDay,
+            calendarTitle: event.calendar.title
+        )
+    }
+
+    func deleteEvent(withIdentifier identifier: String) throws {
+        guard let event = eventStore.event(withIdentifier: identifier) else {
+            throw EventStoreMutationError.eventNotFound(identifier)
+        }
+
+        do {
+            try eventStore.remove(event, span: .thisEvent, commit: true)
+        } catch {
+            throw EventStoreMutationError.saveFailed(error.localizedDescription)
+        }
     }
 
     private static func mapAuthorizationStatus(

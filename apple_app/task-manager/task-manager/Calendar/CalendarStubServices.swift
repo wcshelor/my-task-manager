@@ -44,3 +44,41 @@ final class StubCalendarReader: CalendarReading {
         }
     }
 }
+
+@MainActor
+final class StubCalendarWriter: CalendarWriting {
+    private let validatedCalendarTitle: String
+
+    init(validatedCalendarTitle: String = AppSettings.mvpDefault.writeCalendarTitle) {
+        self.validatedCalendarTitle = validatedCalendarTitle
+    }
+
+    func validateWriteCalendar() async throws -> String {
+        validatedCalendarTitle
+    }
+
+    func createEvent(for block: ScheduledBlock, task: MyTask) async throws -> CalendarWriteResult {
+        CalendarWriteResult(
+            eventIdentifier: "stub-\(block.id.uuidString)",
+            calendarTitle: validatedCalendarTitle,
+            eventTitle: "Task: \(task.title)"
+        )
+    }
+
+    func updateEvent(for block: ScheduledBlock, task: MyTask) async throws -> CalendarWriteResult {
+        CalendarWriteResult(
+            eventIdentifier: block.calendarEventIdentifier ?? "stub-\(block.id.uuidString)",
+            calendarTitle: validatedCalendarTitle,
+            eventTitle: "Task: \(task.title)"
+        )
+    }
+
+    func deleteEvent(for block: ScheduledBlock) async throws {}
+}
+
+@MainActor
+final class StubCalendarReconciler: CalendarReconciling {
+    func reconcileScheduledBlocks() async throws -> ReconciliationReport {
+        .empty
+    }
+}

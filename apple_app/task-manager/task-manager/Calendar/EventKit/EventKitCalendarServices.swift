@@ -14,6 +14,32 @@ enum CalendarReadError: LocalizedError, Equatable {
     }
 }
 
+enum CalendarWriteError: LocalizedError, Equatable {
+    case fullAccessRequired(CalendarPermissionStatus)
+    case missingWriteCalendar(String)
+    case ambiguousWriteCalendar(String)
+    case writeCalendarNotWritable(String)
+    case missingLinkedEventIdentifier
+    case saveFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .fullAccessRequired(let status):
+            return "Full Calendar access is required before accepted suggestions can be written. Current status: \(status)."
+        case .missingWriteCalendar(let calendarTitle):
+            return "The configured write calendar \"\(calendarTitle)\" could not be found."
+        case .ambiguousWriteCalendar(let calendarTitle):
+            return "Multiple calendars are named \"\(calendarTitle)\". Rename the write calendar so the app can target one calendar safely."
+        case .writeCalendarNotWritable(let calendarTitle):
+            return "The configured write calendar \"\(calendarTitle)\" does not allow event changes."
+        case .missingLinkedEventIdentifier:
+            return "The scheduled block is missing its linked calendar event identifier."
+        case .saveFailed(let message):
+            return message
+        }
+    }
+}
+
 @MainActor
 final class EventKitCalendarPermissionService: CalendarPermissionProviding {
     private let eventStore: any CalendarEventStore
@@ -128,10 +154,339 @@ final class EventKitCalendarReader: CalendarReading {
     }
 }
 
+@MainActor
+final class EventKitCalendarWriter: CalendarWriting {
+    private let eventStore: any CalendarEventStore
+    private let settingsRepository: any SettingsRepository
+
+    init(
+        eventStore: any CalendarEventStore,
+        settingsRepository: any SettingsRepository
+    ) {
+        self.eventStore = eventStore
+        self.settingsRepository = settingsRepository
+    }
+
+    func validateWriteCalendar() async throws -> String {
+        try resolvedWriteCalendar().title
+    }
+
+    func createEvent(for block: ScheduledBlock, task: MyTask) async throws -> CalendarWriteResult {
+        let writeCalendar = try resolvedWriteCalendar()
+        let eventTitle = plannerEventTitle(for: task)
+        let savedEvent = try saveEvent(
+            EventStoreEventMutationRequest(
+                identifier: nil,
+                title: eventTitle,
+                start: block.start,
+                end: block.end,
+                isAllDay: block.isAllDay,
+                calendarIdentifier: writeCalendar.id
+            ),
+            writeCalendarTitle: writeCalendar.title
+        )
+
+        return CalendarWriteResult(
+            eventIdentifier: savedEvent.identifier,
+            calendarTitle: savedEvent.calendarTitle,
+            eventTitle: eventTitle
+        )
+    }
+
+    func updateEvent(for block: ScheduledBlock, task: MyTask) async throws -> CalendarWriteResult {
+        let writeCalendar = try resolvedWriteCalendar()
+        let eventTitle = plannerEventTitle(for: task)
+        let savedEvent = try saveEvent(
+            EventStoreEventMutationRequest(
+                identifier: try requireEventIdentifier(from: block),
+                title: eventTitle,
+                start: block.start,
+                end: block.end,
+                isAllDay: block.isAllDay,
+                calendarIdentifier: writeCalendar.id
+            ),
+            writeCalendarTitle: writeCalendar.title
+        )
+
+        return CalendarWriteResult(
+            eventIdentifier: savedEvent.identifier,
+            calendarTitle: savedEvent.calendarTitle,
+            eventTitle: eventTitle
+        )
+    }
+
+    func deleteEvent(for block: ScheduledBlock) async throws {
+        try requireFullAccessForWriting(from: eventStore)
+
+        do {
+            try eventStore.deleteEvent(withIdentifier: requireEventIdentifier(from: block))
+        } catch let error as EventStoreMutationError {
+            throw mapWriteError(error, writeCalendarTitle: block.calendarTitle)
+        } catch {
+            throw CalendarWriteError.saveFailed(error.localizedDescription)
+        }
+    }
+
+    private func resolvedWriteCalendar() throws -> EventStoreCalendarDescriptor {
+        try requireFullAccessForWriting(from: eventStore)
+
+        let writeCalendarTitle = try configuredWriteCalendarTitle()
+        let matchingCalendars = eventStore.fetchEventCalendars().filter { descriptor in
+            descriptor.title == writeCalendarTitle
+        }
+
+        guard matchingCalendars.isEmpty == false else {
+            throw CalendarWriteError.missingWriteCalendar(writeCalendarTitle)
+        }
+
+        guard matchingCalendars.count == 1 else {
+            throw CalendarWriteError.ambiguousWriteCalendar(writeCalendarTitle)
+        }
+
+        let writeCalendar = matchingCalendars[0]
+        guard writeCalendar.allowsContentModifications else {
+            throw CalendarWriteError.writeCalendarNotWritable(writeCalendarTitle)
+        }
+
+        return writeCalendar
+    }
+
+    private func configuredWriteCalendarTitle() throws -> String {
+        let writeCalendarTitle = try settingsRepository.loadSettings().writeCalendarTitle
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard writeCalendarTitle.isEmpty == false else {
+            throw CalendarWriteError.saveFailed("No write calendar is configured.")
+        }
+
+        return writeCalendarTitle
+    }
+
+    private func requireEventIdentifier(from block: ScheduledBlock) throws -> String {
+        guard
+            let eventIdentifier = block.calendarEventIdentifier?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            eventIdentifier.isEmpty == false
+        else {
+            throw CalendarWriteError.missingLinkedEventIdentifier
+        }
+
+        return eventIdentifier
+    }
+
+    private func saveEvent(
+        _ request: EventStoreEventMutationRequest,
+        writeCalendarTitle: String
+    ) throws -> (identifier: String, calendarTitle: String) {
+        do {
+            let savedEvent = try eventStore.saveEvent(request)
+            guard
+                let identifier = savedEvent.identifier?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                identifier.isEmpty == false
+            else {
+                throw CalendarWriteError.saveFailed(
+                    "Calendar event was created without a stable identifier."
+                )
+            }
+
+            return (identifier: identifier, calendarTitle: savedEvent.calendarTitle)
+        } catch let error as EventStoreMutationError {
+            throw mapWriteError(error, writeCalendarTitle: writeCalendarTitle)
+        } catch let error as CalendarWriteError {
+            throw error
+        } catch {
+            throw CalendarWriteError.saveFailed(error.localizedDescription)
+        }
+    }
+
+    private func mapWriteError(
+        _ error: EventStoreMutationError,
+        writeCalendarTitle: String?
+    ) -> CalendarWriteError {
+        switch error {
+        case .calendarNotFound:
+            return .missingWriteCalendar(writeCalendarTitle ?? "Unknown")
+        case .eventNotFound:
+            return .missingLinkedEventIdentifier
+        case .invalidDateRange:
+            return .saveFailed(error.localizedDescription)
+        case .saveFailed(let message):
+            return .saveFailed("Unable to save the calendar event: \(message)")
+        }
+    }
+}
+
+@MainActor
+final class EventKitCalendarReconciler: CalendarReconciling {
+    private let eventStore: any CalendarEventStore
+    private let scheduledBlockRepository: any ScheduledBlockRepository
+    private let taskRepository: any TaskRepository
+    private let nowProvider: @Sendable () -> Date
+
+    init(
+        eventStore: any CalendarEventStore,
+        scheduledBlockRepository: any ScheduledBlockRepository,
+        taskRepository: any TaskRepository,
+        nowProvider: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.eventStore = eventStore
+        self.scheduledBlockRepository = scheduledBlockRepository
+        self.taskRepository = taskRepository
+        self.nowProvider = nowProvider
+    }
+
+    func reconcileScheduledBlocks() async throws -> ReconciliationReport {
+        try requireFullAccess(from: eventStore)
+
+        var report = ReconciliationReport.empty
+        var touchedTaskIDs: Set<UUID> = []
+        let scheduledBlocks = try scheduledBlockRepository.fetchScheduledBlocks()
+
+        for block in scheduledBlocks {
+            guard block.status == .accepted else {
+                continue
+            }
+
+            guard let eventIdentifier = normalizedEventIdentifier(from: block) else {
+                if block.calendarLinkState == .identifierStale {
+                    continue
+                }
+
+                var updatedBlock = block
+                updatedBlock.calendarLinkState = .identifierStale
+                updatedBlock.updatedAt = nowProvider()
+                updatedBlock.lastSyncedAt = updatedBlock.updatedAt
+                updatedBlock.syncErrorMessage = "This accepted block is missing its linked calendar event identifier."
+                try scheduledBlockRepository.saveScheduledBlock(
+                    updatedBlock,
+                    replacingBlockWithID: updatedBlock.id
+                )
+                report.issues.append(
+                    ReconciliationIssue(
+                        blockID: updatedBlock.id,
+                        message: updatedBlock.syncErrorMessage ?? "Missing linked event identifier."
+                    )
+                )
+                continue
+            }
+
+            guard let event = eventStore.fetchEvent(withIdentifier: eventIdentifier) else {
+                if block.calendarLinkState == .deletedExternally
+                    && block.status == .deletedExternally {
+                    continue
+                }
+
+                var updatedBlock = block
+                updatedBlock.status = .deletedExternally
+                updatedBlock.calendarLinkState = .deletedExternally
+                updatedBlock.updatedAt = nowProvider()
+                updatedBlock.lastSyncedAt = updatedBlock.updatedAt
+                updatedBlock.syncErrorMessage = "The linked calendar event was deleted outside the app."
+                try scheduledBlockRepository.saveScheduledBlock(
+                    updatedBlock,
+                    replacingBlockWithID: updatedBlock.id
+                )
+                report.deletedBlockCount += 1
+                touchedTaskIDs.insert(updatedBlock.taskID)
+                continue
+            }
+
+            let normalizedEventTitle = normalizedSnapshotTitle(event.title)
+            let didMoveExternally =
+                block.start != event.start
+                || block.end != event.end
+                || block.isAllDay != event.isAllDay
+                || block.calendarTitle != event.calendarTitle
+                || normalizedSnapshotTitle(block.eventTitleSnapshot) != normalizedEventTitle
+            let needsStateRepair =
+                didMoveExternally == false
+                && (block.calendarLinkState == .identifierStale || block.calendarLinkState == .syncError)
+
+            guard didMoveExternally || needsStateRepair else {
+                continue
+            }
+
+            var updatedBlock = block
+            updatedBlock.start = event.start
+            updatedBlock.end = event.end
+            updatedBlock.isAllDay = event.isAllDay
+            updatedBlock.calendarTitle = event.calendarTitle
+            updatedBlock.eventTitleSnapshot = normalizedEventTitle
+            updatedBlock.updatedAt = nowProvider()
+            updatedBlock.lastSyncedAt = updatedBlock.updatedAt
+            updatedBlock.syncErrorMessage = nil
+            updatedBlock.calendarLinkState = didMoveExternally ? .movedExternally : .linked
+            try scheduledBlockRepository.saveScheduledBlock(
+                updatedBlock,
+                replacingBlockWithID: updatedBlock.id
+            )
+
+            if didMoveExternally {
+                report.movedBlockCount += 1
+            } else {
+                report.reconciledBlockCount += 1
+            }
+        }
+
+        for taskID in touchedTaskIDs {
+            try syncTaskSchedulingStatus(for: taskID)
+        }
+
+        return report
+    }
+
+    private func normalizedEventIdentifier(from block: ScheduledBlock) -> String? {
+        let identifier = block.calendarEventIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let identifier, identifier.isEmpty == false else {
+            return nil
+        }
+
+        return identifier
+    }
+
+    private func syncTaskSchedulingStatus(for taskID: UUID) throws {
+        guard var task = try taskRepository.task(withID: taskID) else {
+            return
+        }
+
+        let scheduledBlocks = try scheduledBlockRepository.fetchScheduledBlocks(for: taskID)
+        let hasActiveBlock = scheduledBlocks.contains(where: \.isActivelyScheduled)
+        let syncDate = nowProvider()
+
+        if hasActiveBlock {
+            guard task.status != .scheduled || task.completedAt != nil else {
+                return
+            }
+
+            task.status = .scheduled
+            task.completedAt = nil
+            task.updatedAt = syncDate
+            try taskRepository.saveTask(task, replacingTaskWithID: task.id)
+            return
+        }
+
+        guard task.status == .scheduled else {
+            return
+        }
+
+        task.status = .active
+        task.updatedAt = syncDate
+        try taskRepository.saveTask(task, replacingTaskWithID: task.id)
+    }
+}
+
 private func requireFullAccess(from eventStore: any CalendarEventStore) throws {
     let status = mapPermissionStatus(eventStore.authorizationStatus())
     guard status == .fullAccessGranted else {
         throw CalendarReadError.fullAccessRequired(status)
+    }
+}
+
+private func requireFullAccessForWriting(from eventStore: any CalendarEventStore) throws {
+    let status = mapPermissionStatus(eventStore.authorizationStatus())
+    guard status == .fullAccessGranted else {
+        throw CalendarWriteError.fullAccessRequired(status)
     }
 }
 
@@ -152,4 +507,12 @@ private func mapPermissionStatus(
     case .unknown:
         return .error("Unknown Calendar authorization status.")
     }
+}
+
+private func plannerEventTitle(for task: MyTask) -> String {
+    "Task: \(task.title)"
+}
+
+private func normalizedSnapshotTitle(_ title: String?) -> String {
+    normalizedEventTitle(title)
 }

@@ -1,36 +1,50 @@
 # Task Manager
 
-This repository currently contains two active prototype surfaces:
+This repo currently has two active code paths:
 
 - a macOS SwiftUI app in `apple_app/task-manager/`
-- a Python planning/calendar prototype in `src/`
+- a legacy Python planner/calendar prototype in `src/`
 
-The Swift app is the current product-facing prototype. The Python code still contains the richer planner, compatibility, and calendar-prototype logic, but it is not wired into the Swift app.
+The Swift app is the real product path. The Python code is still useful as a reference implementation and regression surface, but it is not wired into the Swift UI.
 
 ## Verification Snapshot
 
-This README was updated against the actual repo state on April 4, 2026.
+This README was updated against the repo state in this checkout on April 6, 2026.
 
-Automated checks run during this audit:
+Automated checks run during this update:
 
-- `pytest` -> `27 passed`
-- `python3 scripts/core_smoke_check.py` -> `8 passed, 0 failed`
 - `xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test` -> `passed`
+- `pytest -q` -> `27 passed`
+- `python3 scripts/core_smoke_check.py` -> `8 passed, 0 failed`
 
-Not verified during this audit:
+Not manually verified during this update:
 
-- no manual click-through of the macOS app UI
-- no manual validation of the live EventKit permission prompt or real-calendar read behavior
+- no live macOS click-through of the newest planner UI
+- no real EventKit permission-state pass against a live calendar account
+- no live verification of excluded read calendars
+- no live verification of fixed write-calendar selection
+- no live verification of accept/edit/reschedule/cancel/delete flows against Apple Calendar
+- no live verification of reconciliation behavior after external calendar edits or deletes
 
 ## Repo Layout
 
-- `apple_app/`: SwiftUI macOS prototype, SwiftData persistence scaffolding, and Swift tests
+- `apple_app/`: SwiftUI macOS app, SwiftData persistence, EventKit integration, planner engine, and Swift tests
 - `src/`: Python prototype modules for models, planner logic, scheduling, and calendar experimentation
 - `tests/`: Python pytest suite
 - `scripts/`: smoke checks and manual-session helpers
-- `docs/`: planner contract notes, testing notes, and earlier manual session logs
+- `docs/`: product direction, testing notes, planner notes, and archived manual sessions
 - `data/`: local JSON data and manual-test backups
-- `concrete_plan.md`: current implementation plan with status tracking
+- `concrete_plan.md`: current implementation status and ordered next steps
+
+## Product Contract
+
+The current product contract is:
+
+- tasks live in the app database
+- Apple Calendar is external busy-time input
+- accepted planner suggestions are written back to Apple Calendar only after explicit user acceptance
+- `ScheduledBlock` is the bridge object linking app tasks to calendar events
+- calendar drift must be reconciled back into app-owned scheduled-block state
 
 ## Swift App Status
 
@@ -38,9 +52,11 @@ The Swift app lives in `apple_app/task-manager/`.
 
 ### What Works Today
 
-- the macOS target builds and its Swift test suite passes
-- the visible app surface is a task list backed by `TaskListViewModel`
-- users can create, edit, and delete tasks from the SwiftUI task form
+- the macOS target builds and the Swift test suite passes
+- the app shell is a two-tab SwiftUI app:
+  - `Tasks`
+  - `Calendar`
+- the `Tasks` tab supports create, edit, delete, search, sort, and grouping
 - task fields currently supported in the form are:
   - UUID
   - title
@@ -52,110 +68,149 @@ The Swift app lives in `apple_app/task-manager/`.
   - energy level
   - work mode
   - comma-separated tags
-- task-list search matches title, notes, and tags
-- task-list sorting supports created date, title, due date, estimated minutes, priority, and status
-- task-list grouping supports none, status, priority, due date bucket, and work mode
-- local persistence is wired through SwiftData repositories for tasks, scheduled blocks, and app settings
-- the app composition root now uses `AppContainer` and `AppEnvironment`
-- live app composition now wires EventKit-backed calendar permission, calendar-listing, and read-only fetch services
-- excluded read-calendar titles from settings are applied when fetching calendar events
-
-### What Exists In Code But Is Still Scaffolding
-
-- `ScheduledBlock`, `CalendarLinkState`, and `AppSettings` domain models exist
-- SwiftData models and repositories exist for tasks, scheduled blocks, and settings
-- calendar seams now exist for:
-  - `CalendarReading`
-  - `CalendarListing`
-  - `CalendarWriting`
-  - `CalendarReconciling`
-  - `CalendarPermissionProviding`
-- EventKit-backed read-path services exist for:
-  - full-access permission status/request
+- local persistence is wired through SwiftData repositories for:
+  - tasks
+  - scheduled blocks
+  - app settings
+- live app composition goes through `AppContainer` and `AppEnvironment`
+- EventKit-backed services now exist for:
+  - permission state / access request
   - readable calendar discovery
-  - read-only event fetch mapped into `CalendarEventSnapshot`
-- planner boundary models exist:
-  - `CalendarEventSnapshot`
-  - `BusyInterval`
-  - `FreeGap`
-  - `TaskPlanningInput`
-  - `SuggestionCandidate`
-  - `PlannerOutput`
+  - event reads with excluded-calendar filtering
+  - fixed write-calendar validation
+  - calendar event create / update / delete
+  - scheduled-block reconciliation against external calendar moves and deletes
+- the `Calendar` tab is now a planner-first surface
+- the planner screen can:
+  - show current calendar permission state
+  - request full calendar access
+  - manually refresh planner/calendar state
+  - refresh again when the app becomes active
+  - show a selected-day timeline with:
+    - real fetched calendar events
+    - accepted scheduled blocks
+    - transient planner suggestions
+  - navigate between days
+  - click open timeline regions to create a quarter-hour-aligned temporary selection
+  - drag to expand the temporary selection in 15-minute increments
+  - clear stale selected-slot suggestions when the selected slot changes or is cleared
+  - hide the temporary day-calendar `Fill` overlay once slot suggestions render so the generated task blocks do not overlap it
+  - use the selected slot as the primary planning window through the inline slot planner panel
+  - use a secondary `Plan by Horizon` flow for broader windows:
+    - `Next 2 Hours`
+    - `Rest of Today`
+    - `Tomorrow`
+    - `Next 7 Days`
+  - add lightweight planning constraints before generating suggestions:
+    - work mode
+    - tags
+    - priority emphasis
+  - generate transient planner suggestions from:
+    - real EventKit events as busy time
+    - active scheduled blocks as additional busy time
+    - SwiftData task metadata
+    - persisted planner settings
+    - either an explicitly selected slot or a preset horizon
+  - accept a suggestion and:
+    - validate the configured fixed write calendar
+    - persist an accepted `ScheduledBlock`
+    - write a real EventKit event into the configured calendar
+    - store linkage metadata back onto the `ScheduledBlock`
+    - update the linked task status to `scheduled`
+  - accept or reject a transient suggestion inline from the day-calendar block with check / x controls, or from the agenda cards
+  - reject a suggestion locally and avoid immediately regenerating the exact same suggestion during the same planner session
+  - manage already-accepted scheduled blocks from the agenda:
+    - edit start/end time in a sheet
+    - move a block into the currently selected open slot
+    - cancel a block while preserving local canceled history
+    - delete a block entirely
+  - update or remove the matching EventKit event when an accepted block is edited, rescheduled, canceled, or deleted
+  - reconcile accepted blocks on planner refresh/load so that:
+    - external calendar moves update the saved block interval
+    - external calendar deletes mark the block as deleted externally
+    - the UI surfaces moved/sync-warning states on scheduled blocks
 
-These pieces are present so the Swift app can grow into planner/calendar features, but they are not yet a full feature loop.
+### Current Planner Engine
+
+The first-pass planner engine is implemented in pure Swift.
+
+Current behavior:
+
+- converts calendar events and active scheduled blocks into busy intervals
+- merges overlapping or touching busy intervals
+- computes free gaps inside the requested planning window
+- filters out completed, archived, and already-actively-scheduled tasks
+- scores tasks with deterministic heuristics:
+  - tasks that fit the gap are preferred
+  - due-soon tasks are preferred
+  - higher-priority tasks are preferred
+  - durations close to the available gap are preferred
+  - missing durations use the default assumed duration from settings
+- supports both:
+  - a selected custom time slot
+  - a preset horizon window
+- produces one best suggestion per gap, capped by the configured suggestion limit
+- keeps suggestions transient until the user accepts one
+
+### What Exists But Is Still Partial
+
+- `AppSettings` persistence exists, but there is still no user-facing settings screen
+- rejected suggestions are still session-local only
+- the planner currently surfaces one best candidate per gap, so a selected slot usually yields one best suggestion at a time
+- reconciliation exists, but it currently runs on planner refresh/load/app activation rather than a dedicated `EKEventStoreChanged` observer
+- the task status model still coexists with scheduled-block truth instead of being fully derived from it
+- no real manual EventKit validation pass has been completed for the new write/update/delete/reconciliation loop
 
 ### What Is Not Implemented Yet In Swift
 
-- calendar permission UI and user-visible task-only fallback flow
-- planner engine logic in Swift
-- planner suggestions UI
-- accepting a suggestion and writing it into the `Important` calendar
-- calendar write/update/delete services
-- reconciliation of local scheduled blocks against external calendar changes
-- settings, onboarding, planner, or diagnostics screens
+- persistent rejected-suggestion history across launches
+- multi-task packing or broader alternative sets inside one selected slot
+- settings management UI
+- stronger onboarding / recovery flows for denied, restricted, or write-only calendar states
 - CloudKit sync
 
-### Current Swift Architecture
+## Current Swift Architecture
 
 Relevant folders:
 
 - `apple_app/task-manager/task-manager/App/`: app composition and environment
-- `apple_app/task-manager/task-manager/Models/`: task domain types, scheduling domain types, and task-list presentation helpers
-- `apple_app/task-manager/task-manager/Persistence/`: repository protocols, SwiftData records, repository implementations, and model-container factory
-- `apple_app/task-manager/task-manager/Calendar/`: calendar contracts, preview stubs, and EventKit-backed permission/listing/read services
-- `apple_app/task-manager/task-manager/Planner/Models/`: planner-facing boundary models only
+- `apple_app/task-manager/task-manager/Models/`: task and scheduling domain types
+- `apple_app/task-manager/task-manager/Persistence/`: repository protocols, SwiftData records, repositories, and container factory
+- `apple_app/task-manager/task-manager/Calendar/`: calendar contracts, EventKit services, and stubs
+- `apple_app/task-manager/task-manager/Planner/`: planner domain contracts and pure Swift planner engine
 - `apple_app/task-manager/task-manager/Features/Tasks/`: task list view model
-- `apple_app/task-manager/task-manager/Views/`: current task list and task form views
+- `apple_app/task-manager/task-manager/Features/Planner/`: planner presentation models and planner view model
+- `apple_app/task-manager/task-manager/Views/`: task and planner SwiftUI views
 
-The architecture direction is clear, but only the task-list surface is currently live.
+Boundary intent in the current Swift app:
 
-### Swift UI Behavior Today
+- SwiftData persists tasks, scheduled blocks, and settings
+- EventKit services own permission, calendar listing, read normalization, writeback, and reconciliation
+- planner code owns busy-time normalization, gap detection, ranking, and suggestion generation
+- the planner view model coordinates repositories, calendar services, and transient UI state
 
-Task list behavior:
-
-- the app opens into `TaskListView`
-- `New Task` opens create mode
-- selecting a row opens edit mode
-- empty state messaging distinguishes between:
-  - no tasks
-  - no matches for the current search
-- grouped sections only appear when they have tasks
-- grouped tasks still respect the selected sort mode
-
-Task form behavior:
-
-- create and edit use the same form
-- delete is shown only in edit mode
-- blank titles are rejected
-- invalid UUID values are rejected
-- duplicate UUID values are rejected when they would collide with another task
-- non-positive estimated minutes are rejected
-
-Persistence behavior:
-
-- normal app runs use a disk-backed SwiftData `ModelContainer`
-- previews and tests use in-memory containers
-- repository tests now pass after fixing repository initialization to retain the `ModelContainer` instead of only a `ModelContext`
-
-### Swift Test Coverage
+## Swift Test Coverage
 
 Swift tests currently cover:
 
-- task model cleanup and enum-backed fields
+- task model cleanup and validation
 - task form parsing and validation
-- in-memory task collection behavior
-- search behavior
-- sort behavior
-- grouping behavior
-- grouped-section ordering
+- task collection behavior
+- task-list search, sorting, and grouping
 - SwiftData task repository behavior
 - SwiftData scheduled-block repository behavior
 - SwiftData settings repository behavior
 - EventKit permission-status mapping
 - readable-calendar exclusion behavior
-- calendar event normalization and read ordering
+- calendar event normalization and filtering
+- write-calendar validation
+- calendar event create / update / delete behavior
+- reconciliation of accepted blocks after external moves and deletes
+- planner engine gap merging, gap detection, ranking, and default-duration behavior
+- planner timeline quarter-hour alignment, point-to-slot conversion, drag expansion, and open-region selection rejection when busy time is tapped
+- planner view-model loading, slot-based and horizon-based plan generation, exact selected-slot timing, accept/reject flow behavior, stale slot-suggestion clearing, accepted-block lifecycle actions, accepted-block timeline rendering, mirrored write-calendar event suppression, and transient rejection behavior
 
-Relevant test files:
+Relevant Swift test files:
 
 - `apple_app/task-manager/task-managerTests/Calendar/EventKitCalendarServicesTests.swift`
 - `apple_app/task-manager/task-managerTests/Models/MyTaskTests.swift`
@@ -165,28 +220,24 @@ Relevant test files:
 - `apple_app/task-manager/task-managerTests/Persistence/SwiftDataTaskRepositoryTests.swift`
 - `apple_app/task-manager/task-managerTests/Persistence/SwiftDataScheduledBlockRepositoryTests.swift`
 - `apple_app/task-manager/task-managerTests/Persistence/SwiftDataSettingsRepositoryTests.swift`
+- `apple_app/task-manager/task-managerTests/Planner/PlannerEngineTests.swift`
+- `apple_app/task-manager/task-managerTests/Planner/PlannerTimelineGridTests.swift`
+- `apple_app/task-manager/task-managerTests/Planner/PlannerViewModelTests.swift`
 
 ## Python Prototype Status
 
-The Python code under `src/` is still active and still useful. It currently provides:
+The Python code under `src/` is still present and tested.
 
-- task, project, event, scheduled-block, and preferences models
+It currently provides:
+
+- task, project, event, scheduled-block, and preference models
 - planner candidate ranking logic
 - free-gap detection
-- JSON serialization and compatibility helpers
-- Apple Calendar read/prototype integration via AppleScript
-- older scheduler and compatibility surfaces still exercised by smoke checks
+- scheduler/session generation
+- compatibility and roundtrip helpers
+- Apple Calendar read/prototype integration via older AppleScript-era code paths
 
-### What Works Today In Python
-
-- the full pytest suite passes
-- the smoke check passes
-- model roundtrips and current/legacy schema compatibility paths are covered
-- planner candidate selection is covered
-- gap detection is covered
-- Apple Calendar record parsing is covered
-
-Python test files:
+Current Python tests:
 
 - `tests/test_models.py`
 - `tests/test_planner.py`
@@ -194,18 +245,11 @@ Python test files:
 - `tests/test_calendar_read.py`
 - `tests/test_compatibility.py`
 
-### What The Python Side Is Not
+What the Python side is not:
 
-- it is not the current UI
+- it is not the current product UI
 - it is not integrated into the Swift app
-- it is not the long-term calendar integration path for the product
-
-The practical direction of the repo is:
-
-- Swift app becomes the real app shell
-- SwiftData becomes the durable app-state layer
-- EventKit becomes the future calendar integration path
-- Python remains a behavioral reference and test oracle until that logic is ported
+- it is not the long-term EventKit integration path
 
 ## Running The Repo
 
@@ -225,6 +269,16 @@ Run Swift tests:
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test
 ```
 
+### SwiftUI macOS Debugging Notes
+
+Useful patterns from local scripting/debugging experiments on the Swift app:
+
+- For layout or AppKit-bridge issues, a small scratch harness that hosts the target SwiftUI view in `NSHostingView` inside a plain `NSWindow` is much faster than repeatedly launching the full app.
+- Recursively dumping the `NSView` tree is useful when SwiftUI labels do not map cleanly to AppKit controls. In this app, the task-form `Toggle` bridged to `FocusRingNSButton`, and the visible text lived in a sibling hosting view, not in `NSButton.title`.
+- In headless/local CLI experiments, `button.performClick(nil)` and posted Quartz `CGEvent` mouse clicks did not reliably propagate back into SwiftUI state. Synthesized `NSEvent.mouseEvent(...)` events routed through the owning `NSWindow` were more reliable for driving the real control path.
+- `System Events` / AppleScript is fine for process-level checks, but UI-element scripting can stall or fail if Accessibility access is not available. For repeatable debugging from the shell, in-process AppKit harnesses are more dependable.
+- Keep model and form-state validation covered with ordinary Swift tests, and use the AppKit harness only for view/layout bugs that depend on real macOS control behavior.
+
 ### Python Prototype
 
 Create the environment:
@@ -234,10 +288,10 @@ conda env create -f environment.yml
 conda activate task-manager-test
 ```
 
-Run the Python test suite:
+Run the Python tests:
 
 ```bash
-pytest
+pytest -q
 ```
 
 Run the smoke check:
@@ -250,30 +304,28 @@ python3 scripts/core_smoke_check.py
 
 Implemented and verified:
 
-- Swift macOS task list and task form prototype
-- Swift search, sort, and grouping behavior
-- SwiftData-backed repositories and passing repository tests
-- Swift EventKit permission, calendar-listing, and read-only fetch services
-- Python model, planner, gap-detection, calendar-read, and compatibility tests
-- Python smoke coverage across core compatibility surfaces
+- Swift macOS task workflow
+- SwiftData-backed task, scheduled-block, and settings repositories
+- EventKit-backed permission, calendar listing, event reads, writeback, block edits, block deletes, and reconciliation
+- Swift planner UI with selected-slot-first planning and real transient suggestions
+- pure Swift planner engine for busy-time merging, free-gap detection, and ranking
+- accepted planner suggestions persisted as `ScheduledBlock` records and written to the configured calendar
+- accepted-block edit/reschedule/cancel/delete lifecycle in the planner
+- planner rejection behavior scoped to the current planning session
+- Python planner, scheduler, gap-detection, compatibility, and smoke-test coverage
 
-Implemented but still only scaffolding:
+Still intentionally deferred:
 
-- Swift scheduled-block persistence
-- Swift app settings persistence
-- Swift calendar write/reconcile contracts
-- Swift planner boundary models
-
-Not implemented yet:
-
-- Swift planner engine
-- suggestion acceptance and calendar writeback
-- reconciliation with external calendar edits
-- planner/settings/onboarding UI
-- CloudKit sync
+- real manual EventKit validation of permission states, excluded calendars, write-calendar selection, accept flow, lifecycle actions, and error handling
+- dedicated live store-change observation while the app stays frontmost
+- persistent rejected suggestions
+- settings and onboarding UX
+- richer multi-suggestion packing inside a single selected slot
+- sync beyond the current local prototype
 
 ## Related Docs
 
-- `concrete_plan.md`: current implementation plan with status notes
-- `docs/planner_contract_v0_1.md`: current Python planner contract summary
+- `concrete_plan.md`: current repo status and next steps
+- `docs/product_direction.md`: frozen product responsibilities and target workflow
+- `docs/planner_contract_v0_1.md`: Python planner contract summary
 - `docs/testing_workflow.md`: repo-wide testing workflow

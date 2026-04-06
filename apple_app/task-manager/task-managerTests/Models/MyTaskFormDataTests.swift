@@ -13,7 +13,7 @@ struct MyTaskFormDataTests {
             title: "Finish report",
             notes: "Send the draft",
             status: .completed,
-            estimatedMinutes: 25,
+            estimatedMinutes: 30,
             dueDate: dueDate,
             priority: .urgent,
             energyLevel: .high,
@@ -31,7 +31,7 @@ struct MyTaskFormDataTests {
         #expect(formData.notesText == "Send the draft")
         #expect(formData.status == .completed)
         #expect(formData.isCompleted == true)
-        #expect(formData.estimatedMinutesText == "25")
+        #expect(formData.estimatedMinutesText == "30")
         #expect(formData.hasDueDate == true)
         #expect(formData.dueDate == dueDate)
         #expect(formData.priority == .urgent)
@@ -91,20 +91,16 @@ struct MyTaskFormDataTests {
         #expect(formData.validationMessage == "Enter a task title.")
     }
 
-    @Test func estimatedMinutesValidationRejectsZeroAndNegativeValues() {
-        let zeroMinutes = MyTaskFormData(title: "Read", estimatedMinutesText: "0")
-        let negativeMinutes = MyTaskFormData(title: "Read", estimatedMinutesText: "-5")
+    @Test func estimatedMinutesValidationRejectsNonQuarterHourValues() {
+        for invalidMinutes in ["10", "20", "37"] {
+            let formData = MyTaskFormData(title: "Read", estimatedMinutesText: invalidMinutes)
 
-        #expect(zeroMinutes.makeTask() == nil)
-        #expect(negativeMinutes.makeTask() == nil)
-        #expect(
-            zeroMinutes.validationMessage
-                == "Estimated minutes must be a whole number greater than 0."
-        )
-        #expect(
-            negativeMinutes.validationMessage
-                == "Estimated minutes must be a whole number greater than 0."
-        )
+            #expect(formData.makeTask() == nil)
+            #expect(
+                formData.validationMessage
+                    == "Estimated minutes must be a positive multiple of 15."
+            )
+        }
     }
 
     @Test func commaSeparatedTagsAreParsedAndTrimmed() {
@@ -135,6 +131,44 @@ struct MyTaskFormDataTests {
         #expect(task?.createdAt == savedAt)
         #expect(task?.updatedAt == savedAt)
         #expect(task?.completedAt == nil)
+    }
+
+    @Test func estimatedDurationTogglePreservesNoDurationAndDefaultsToThirtyMinutes() {
+        var formData = MyTaskFormData(title: "Plan week")
+
+        #expect(formData.hasEstimatedDuration == false)
+        #expect(formData.estimatedMinutesText.isEmpty)
+
+        formData.hasEstimatedDuration = true
+
+        #expect(formData.hasEstimatedDuration == true)
+        #expect(formData.estimatedMinutesSelection == 30)
+        #expect(formData.estimatedMinutesText == "30")
+
+        formData.hasEstimatedDuration = false
+
+        #expect(formData.hasEstimatedDuration == false)
+        #expect(formData.estimatedMinutesText.isEmpty)
+    }
+
+    @Test func estimatedDurationSelectionSnapsToQuarterHourSteps() {
+        var formData = MyTaskFormData(title: "Read")
+
+        formData.hasEstimatedDuration = true
+        formData.estimatedMinutesSelection = 45
+        #expect(formData.estimatedMinutesText == "45")
+
+        formData.estimatedMinutesSelection = 1
+        #expect(formData.estimatedMinutesSelection == 15)
+        #expect(formData.estimatedMinutesDisplayText == "15 min")
+    }
+
+    @Test func estimatedDurationDisplayFallsBackToDefaultStepForInvalidStoredMinutes() {
+        let formData = MyTaskFormData(title: "Read", estimatedMinutesText: "20")
+
+        #expect(formData.hasEstimatedDuration == true)
+        #expect(formData.estimatedMinutesSelection == 30)
+        #expect(formData.estimatedMinutesDisplayText == "30 min")
     }
 
     @Test func validationRejectsDuplicateIDForAnotherTask() {

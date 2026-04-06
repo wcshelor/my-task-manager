@@ -8,6 +8,8 @@ struct AppContainer {
     let calendarPermissionProvider: any CalendarPermissionProviding
     let calendarListingService: any CalendarListing
     let calendarReader: any CalendarReading
+    let calendarWriter: any CalendarWriting
+    let calendarReconciler: any CalendarReconciling
 
     static func makeLive() throws -> AppContainer {
         let modelContainer = try ModelContainerFactory.makeDefaultContainer()
@@ -30,6 +32,15 @@ struct AppContainer {
             eventStore: calendarEventStore,
             settingsRepository: settingsRepository
         )
+        let calendarWriter = EventKitCalendarWriter(
+            eventStore: calendarEventStore,
+            settingsRepository: settingsRepository
+        )
+        let calendarReconciler = EventKitCalendarReconciler(
+            eventStore: calendarEventStore,
+            scheduledBlockRepository: scheduledBlockRepository,
+            taskRepository: taskRepository
+        )
 
         _ = try settingsRepository.loadSettings()
 
@@ -40,7 +51,9 @@ struct AppContainer {
             settingsRepository: settingsRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
-            calendarReader: calendarReader
+            calendarReader: calendarReader,
+            calendarWriter: calendarWriter,
+            calendarReconciler: calendarReconciler
         )
     }
 
@@ -58,6 +71,8 @@ struct AppContainer {
         let calendarPermissionProvider = StubCalendarPermissionService()
         let calendarListingService = StubCalendarListingService()
         let calendarReader = StubCalendarReader()
+        let calendarWriter = StubCalendarWriter()
+        let calendarReconciler = StubCalendarReconciler()
 
         _ = try? settingsRepository.loadSettings()
 
@@ -72,7 +87,9 @@ struct AppContainer {
             settingsRepository: settingsRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
-            calendarReader: calendarReader
+            calendarReader: calendarReader,
+            calendarWriter: calendarWriter,
+            calendarReconciler: calendarReconciler
         )
     }
 }

@@ -1,521 +1,319 @@
 # Concrete Plan
 
-Status update as of April 4, 2026.
+Status update as of April 6, 2026.
 
-Legend:
+This file is meant to answer two questions:
 
-- `Done`: implemented and present in the repo
-- `Mostly done`: the intended structure exists, but follow-up work is still needed
-- `Partially done`: some of the shape is present, but the user-facing feature loop is incomplete
-- `Not started`: still absent
+1. What is actually true in the repo right now?
+2. What should happen next, in order?
 
-## High-Level Summary
+## Current State
 
-Done or mostly done:
+### Done
 
-- the Swift app now has a real composition root
-- local SwiftData persistence exists for tasks, scheduled blocks, and app settings
-- repository seams exist
-- planner and calendar boundary types/protocols exist
-- the EventKit read path now exists for permission status, readable-calendar discovery, and event normalization
-- the Swift task-list surface is backed by repository data rather than a view-local sample array
-- Swift and Python automated tests both pass
+- the Swift app is the real product path
+- app-owned tasks, calendar busy-time reads, and explicit accept-before-writeback are the frozen product contract
+- SwiftData persists:
+  - tasks
+  - scheduled blocks
+  - app settings
+- repository seams exist and are used in the live app
+- the planner engine exists in pure Swift
+- the Calendar tab is now a planner-first UI, not a read-only diagnostic surface
+- EventKit-backed services exist for:
+  - permission status and access requests
+  - readable calendar discovery
+  - excluded-calendar-aware event reads
+  - fixed write-calendar validation
+  - event create / update / delete
+  - reconciliation of accepted blocks against external calendar moves and deletes
+- accepting a suggestion now:
+  - persists an accepted `ScheduledBlock`
+  - writes the linked event into the configured write calendar
+  - saves linkage metadata back onto the block
+  - marks the task as `scheduled`
+- accepted scheduled blocks now support:
+  - edit
+  - reschedule to the selected slot
+  - cancel
+  - delete
+- selected-slot transient suggestions are now cleared when the selected slot changes or is cleared
+- planner refresh/load reconciles accepted blocks against external calendar drift
+- Swift, Python, and smoke-test automation all pass
 
-Partially done:
+### Partially Done
 
-- scheduled-block modeling exists, but there is no planner or calendar write loop yet
-- settings are modeled and persisted, but only calendar-read exclusions drive live runtime behavior today
-- the task status model still coexists with scheduled-block truth instead of being fully derived from it
+- reconciliation exists, but it is not yet driven by a dedicated `EKEventStoreChanged` observer
+- task scheduling semantics still partly live in `MyTask.status` instead of being fully derived from scheduled blocks
+- rejected suggestions are still session-local only
+- the planner still surfaces one best candidate per gap rather than a richer alternative set
+- settings are persisted, but there is still no user-facing settings UI
+- permission handling has sensible inline copy, but there is still no broader onboarding / recovery flow
 
-Not started:
+### Not Done
 
-- permission flow UI
-- planner engine in Swift
-- suggestion acceptance/writeback
-- reconciliation
+- real manual EventKit validation of the new planner/writeback lifecycle
+- dedicated settings UI
+- richer planner alternatives or multi-task packing inside one selected slot
 - CloudKit sync
 
-## 1. Architectural Shape To Freeze Now
+## Architecture Snapshot
 
-Status: `Mostly done`
-
-### Persistence Boundary
+### Persistence
 
 Done:
 
-- SwiftData model types exist for:
-  - `TaskRecord`
-  - `ScheduledBlockRecord`
-  - `AppSettingsRecord`
-- repository protocols exist for:
-  - `TaskRepository`
-  - `ScheduledBlockRepository`
-  - `SettingsRepository`
-- SwiftData repository implementations exist for all three repositories
+- `TaskRecord`
+- `ScheduledBlockRecord`
+- `AppSettingsRecord`
+- `TaskRepository`
+- `ScheduledBlockRepository`
+- `SettingsRepository`
+- SwiftData repository implementations for all three
 
-Still missing:
+Still open:
 
-- reconciliation diagnostics storage beyond the current block-level fields
-- richer persistence rules around derived task scheduling state
+- richer persistence for diagnostics beyond the current block-level reconciliation fields
+- stronger derivation rules between active scheduled blocks and task status
 
 ### Calendar Boundary
 
-Mostly done:
+Done:
 
-- the boundary exists as protocols and result/report types in `Calendar/CalendarContracts.swift`
-- `CalendarListing` now exists alongside the original calendar seams
-- EventKit-backed permission, calendar-listing, and read services exist under `Calendar/EventKit/`
-- the rest of the app does not directly depend on EventKit today
-
-Not done:
-
-- no calendar writer or reconciler
-- no `EKEventStoreChanged` observer
-
-### Domain / Planner Boundary
-
-Partially done:
-
-- plain Swift planner-facing structs exist:
-  - `CalendarEventSnapshot`
-  - `BusyInterval`
-  - `FreeGap`
-  - `TaskPlanningInput`
-  - `SuggestionCandidate`
-  - `PlannerOutput`
-- these types are independent of SwiftUI, EventKit, and SwiftData
-
-Not done:
-
-- no planner engine
-- no Swift port of the Python ranking and gap-placement behavior
-
-## 2. Concrete Coding Decisions
-
-Status: `Partially done`
-
-### Model Decision 1: Use App-Owned IDs Everywhere
-
-Status: `Done`
-
-- `MyTask.id` is app-owned `UUID`
-- `ScheduledBlock.id` is app-owned `UUID`
-- SwiftData records persist app-owned IDs as durable identifiers
-- no EventKit identifier is being used as a primary key
-
-### Model Decision 2: Split Scheduling State From Reconciliation State
-
-Status: `Done`
-
-- `ScheduledBlockStatus` exists with workflow state
-- `CalendarLinkState` exists with calendar-link state
-
-This split is already present in the code and should be kept.
-
-### Model Decision 3: Normalize Calendar Data Immediately
-
-Status: `Mostly done`
-
-- `CalendarEventSnapshot` exists
-- `BusyInterval` exists
-- EventKit read services now normalize calendar events into `CalendarEventSnapshot`
-
-Still missing:
-
-- no pipeline yet from calendar snapshots into merged planner busy intervals / planner input
-
-### Model Decision 4: Make Task Scheduling Semantics Explicit
-
-Status: `Partially done`
-
-- `MyTask.hasActiveScheduledBlock(in:)` exists
-- `ScheduledBlock.isActivelyScheduled` exists
-
-Still missing:
-
-- task scheduling state is not yet derived automatically from scheduled blocks
-- task status can still drift from scheduled-block truth because there is no acceptance/reconciliation loop
-
-### Model Decision 5: Make Settings Fixed But Still Modeled
-
-Status: `Done`
-
-- `AppSettings` exists
-- MVP defaults are modeled:
-  - excluded read calendars
-  - write calendar title
-  - minimum gap minutes
-  - default assumed duration
-  - planner suggestion cap
-- settings are persisted through `AppSettingsRecord` and `SwiftDataSettingsRepository`
-
-## 3. Suggested Swift Module / Folder Layout
-
-Status: `Partially done`
-
-Present now:
-
-- `App/`
-- `Models/`
-- `Persistence/`
-- `Calendar/`
-- `Calendar/EventKit/`
-- `Planner/Models/`
-- `Features/Tasks/`
-- `Views/`
-
-Present but not in the originally suggested final place:
-
-- task list and task form UI still live under `Views/` instead of being fully moved under `Features/Tasks/`
-
-Still missing from the suggested layout:
-
-- `Planner/Engine/`
-- `Features/Planner/`
-- `Features/Settings/`
-- `Features/Onboarding/`
-- `Diagnostics/`
-
-## 4. The Protocols To Define First
-
-Status: `Done`
-
-Defined today:
-
-- `CalendarReading`
+- `CalendarPermissionProviding`
 - `CalendarListing`
+- `CalendarReading`
 - `CalendarWriting`
 - `CalendarReconciling`
-- `CalendarPermissionProviding`
+- a shared `EKEventStore` owner in `AppContainer`
+- EventKit adapters for read/write/delete/reconcile
 
-This seam is already in place and should remain the integration contract.
+Still open:
 
-## 5. Permissions Subsystem
+- dedicated store-change observation while the app remains frontmost
+- broader manual validation across real calendars and error paths
 
-Status: `Partially done`
-
-Done:
-
-- `CalendarPermissionStatus` exists with the intended cases
-- EventKit permission service implementation exists
-- full-access vs write-only-insufficient mapping exists
-
-Not done:
-
-- no UI for requesting permission
-- no explicit task-only-mode messaging
-- no user-visible fallback flow
-
-## 6. EventKit Service Design
-
-Status: `Partially done`
+### Planner Boundary
 
 Done:
 
-- a single shared `EKEventStore` owner exists in the live `AppContainer`
-- permission checks
-- readable calendar discovery
-- read-only event fetch and normalization into `CalendarEventSnapshot`
+- planner-facing value types are independent of SwiftUI, EventKit, and SwiftData
+- busy-time merging, free-gap detection, and ranking exist in Swift
+- the planner view model owns transient selection and suggestion state
 
-Still needed:
+Still open:
 
-- `Important` calendar resolution
-- read/write/delete helpers
-- store-change observation
+- richer planner behavior than "one best suggestion per gap"
+- persistent suggestion history / alternative exploration
 
-## 7. Reconciliation Design
+## What Changed In This Cycle
 
-Status: `Not started`
+- fixed the stale selected-slot suggestion problem by clearing slot-scoped transient suggestions when the slot changes or is cleared
+- finished accepted-block lifecycle operations in the planner UI and view model:
+  - edit
+  - reschedule
+  - cancel
+  - delete
+- added EventKit update/delete coverage for those lifecycle operations
+- added reconciliation of accepted blocks against external calendar moves and deletes
+- added planner refresh points that actually run reconciliation
+- updated repo docs to match the current checkout instead of the earlier pre-planner state
 
-Done:
+## Ordered Next Steps
 
-- `ReconciliationIssue`
-- `ReconciliationReport`
-- scheduled-block state needed for reconciliation (`calendarEventIdentifier`, `calendarTitle`, `lastSyncedAt`, `syncErrorMessage`)
+These are the next highest-value tasks in order.
 
-Not done:
+### 1. Do A Real Manual EventKit Pass
 
-- no reconciler implementation
-- no foreground / planner-load / refresh triggers
-- no response to external calendar moves/deletes
+This is now the top priority. The code paths exist; live validation is the missing confidence layer.
 
-## 8. Suggested Implementation Order
+Required checklist:
 
-### Phase 1: Freeze Contracts
+- permission states:
+  - not determined
+  - granted full access
+  - denied
+  - restricted if reproducible
+  - write-only if reproducible
+- excluded read calendars:
+  - confirm excluded calendars do not appear as busy-time input
+  - confirm non-excluded calendars still do
+- write-calendar selection:
+  - confirm the configured write calendar is used
+  - confirm missing or ambiguous write-calendar configurations fail clearly
+- accept flow:
+  - create a suggestion
+  - accept it
+  - confirm the linked calendar event is created in the right calendar
+- accepted-block lifecycle:
+  - edit the block
+  - reschedule the block
+  - cancel the block
+  - delete the block
+  - confirm matching EventKit updates/deletes happen
+- reconciliation:
+  - move the linked event externally in Calendar.app
+  - delete the linked event externally in Calendar.app
+  - confirm planner refresh/app re-activation reconciles the local block state
+- error handling:
+  - missing write calendar
+  - non-writable write calendar
+  - revoked permission after launch
+  - event missing at update/delete time
 
-Status: `Mostly done`
+Definition of done:
 
-Done:
+- a real manual note exists under `docs/test_sessions/`
+- README and this file can stop saying the EventKit pass is still outstanding
 
-- core Swift planner models exist
-- calendar protocols exist
-- repository protocols exist
-- settings are modeled
-- app-owned IDs are used
+### 2. Add Dedicated Store-Change Observation
 
-Still useful follow-up:
+Current behavior is acceptable but incomplete:
 
-- centralize date/calendar helpers
-- add explicit error types around calendar and planner failures
-
-### Phase 2: Add Real Persistence
-
-Status: `Mostly done`
-
-Done:
-
-- SwiftData models exist
-- repository implementations exist
-- task list is repository-backed
-- settings repository exists
-- repository tests exist and pass
+- reconciliation runs on planner refresh
+- reconciliation runs on planner load
+- reconciliation runs when the app becomes active
 
 Still missing:
 
-- no manual relaunch audit was performed in this review
-- no archived/completed business-rule layer beyond current CRUD/state editing
-- no migration story beyond the current prototype stage
+- automatic response to `EKEventStoreChanged` while the app remains frontmost
 
-### Phase 3: Calendar Read Path Only
+Definition of done:
 
-Status: `Mostly done`
+- external Calendar changes are picked up without requiring manual refresh or app re-activation
+- tests cover the observation trigger path
 
-Done:
+### 3. Build The Settings UI
 
-- EventKit permission service exists
-- readable-calendar discovery exists
-- excluded read-calendar settings are applied to live reads
-- event fetch maps into `CalendarEventSnapshot`
-- mock-based tests cover permission, listing, and read normalization
+Persisted settings already matter to live behavior, but there is no UI for them yet.
 
-Still missing:
+The first settings screen should expose:
 
-- no UI consuming the read layer yet
-- no busy-interval / gap pipeline yet
-- no manual validation against a real EventKit store in this audit
+- excluded read calendars
+- write calendar title
+- minimum gap minutes
+- default assumed duration
+- planner suggestion cap
 
-### Phase 4: Port Planner Logic Into Swift
+Definition of done:
 
-Status: `Not started`
+- users can change these settings in-app
+- changes affect the planner without editing storage manually
 
-The Python planner remains the current reference implementation.
+### 4. Improve Planner Quality
 
-### Phase 5: Accept Suggestion Writeback
+The current planner is good enough for an MVP loop, but not yet good enough for broader use.
 
-Status: `Not started`
+Next improvements:
 
-There is no suggestion UI, no accepted-block flow, and no calendar write path.
+- more than one candidate per free gap
+- richer alternatives within a selected slot
+- better regeneration after rejection
+- possible multi-task packing when the slot is large
 
-### Phase 6: Reconciliation
+Definition of done:
 
-Status: `Not started`
+- selected-slot planning can show meaningful alternatives instead of mostly one candidate
+- rejection feels like a real alternative-search path rather than a session-local blocklist
 
-No implementation yet.
+### 5. Tighten Scheduling Semantics
 
-### Phase 7: CloudKit Sync Polish
+The model still lets task status and scheduled-block truth drift apart in some cases.
 
-Status: `Not started`
+Next cleanup:
 
-No CloudKit wiring is present.
+- decide what should be derived from active scheduled blocks
+- reduce duplicated scheduling meaning in `MyTask.status`
+- make reconciliation and block lifecycle updates the primary driver of scheduling truth
 
-## 9. Proper Testing Strategy
+Definition of done:
 
-Status: `Partially done`
+- task scheduling state is predictable after accept/edit/reschedule/cancel/delete/reconcile
 
-### Layer 1: Pure Unit Tests
+### 6. Keep CloudKit Out Of The Critical Path
 
-Status: `Mostly done`
+CloudKit is still a later milestone.
 
-Done today:
+Do not start sync work before:
 
-- Python unit tests for:
-  - models
-  - gap detection
-  - planner candidate selection
-  - calendar read parsing
-  - compatibility behavior
-- Swift unit tests for:
-  - task model cleanup
-  - task form validation/parsing
-  - task-list search/sort/grouping behavior
-  - EventKit permission mapping
-  - readable-calendar exclusion behavior
-  - calendar event normalization and read ordering
+- the manual EventKit pass is done
+- store-change observation is done
+- settings UI exists
+- scheduling semantics are tighter
 
-Still missing:
+## Testing Status
 
-- pure Swift planner-engine tests because the planner engine does not exist yet
+### Automated
 
-### Layer 2: Repository Tests
+Current repo-wide checks:
 
-Status: `Done`
+- `xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test`
+- `pytest -q`
+- `python3 scripts/core_smoke_check.py`
 
-Done today:
+Current automated confidence is strong for:
 
-- `SwiftDataTaskRepositoryTests`
-- `SwiftDataScheduledBlockRepositoryTests`
-- `SwiftDataSettingsRepositoryTests`
+- Swift task models and repositories
+- Swift planner engine behavior
+- Swift planner view-model lifecycle behavior
+- EventKit adapter behavior with mocks
+- Python reference behavior and smoke surfaces
 
-Important note:
+### Manual
 
-- these tests were crashing before this audit because repositories were being initialized from `ModelContext` while the in-memory `ModelContainer` was immediately dropped
-- repository initialization now retains the `ModelContainer`, and the suite passes
+Current manual confidence is still weak for:
 
-### Layer 3: Calendar Adapter Tests With Mocks
+- real EventKit permission prompts
+- live calendar inclusion/exclusion behavior
+- real write-calendar routing
+- real Apple Calendar update/delete/reconcile behavior
 
-Status: `Partially done`
+That is why the manual EventKit pass is the top next step.
 
-Done:
+## Risks To Watch
 
-- mock-based tests exist for the EventKit permission service
-- mock-based tests exist for readable-calendar exclusion behavior
-- mock-based tests exist for read normalization/filtering behavior
-
-Not done:
-
-- no writer or reconciler adapter tests exist because those implementations do not exist yet
-
-### Layer 4: Manual Integration Matrix
-
-Status: `Partially done`
-
-Done:
-
-- there are Python-oriented manual session notes under `docs/test_sessions/`
-
-Not done:
-
-- no current Swift manual integration matrix exists for live EventKit permission/read behavior
-- no current manual UI verification document for the Swift app task-list surface
-
-## 10. The Exact Tests To Add First
-
-Status: `Mixed`
-
-Already present in some form:
-
-- repository tests for tasks, scheduled blocks, and settings
-- Python equivalents of planner ranking and gap-detection coverage
-- Swift tests for permission-state mapping and calendar-read normalization/filtering
-
-Still needed on the Swift side:
-
-- planner-engine tests once the engine exists:
-  - gap detection
-  - overlap merging
-  - ranking behavior
-  - default-duration behavior
-- calendar reconciliation tests
-- acceptance-flow tests
-
-Recommended next high-value Swift tests:
-
-- `PlannerEngineTests`
-- `PlannerAcceptanceFlowTests`
-- `CalendarReconcilerTests`
-- `EventKitWriterTests`
-- `EventStoreChangeObserverTests`
-
-## 11. Risk Areas To Watch
-
-### Risk 1: Task Status Still Carries Scheduling Meaning
+### Risk 1: Live EventKit Reality Still Lags Automation
 
 Current state:
 
-- partly mitigated by `hasActiveScheduledBlock(in:)`
-- still unresolved at the product-flow level
+- automated coverage is good
+- real Calendar.app behavior is still not manually signed off
 
-### Risk 2: EventKit Layer Stops At Read-Only
-
-Current state:
-
-- real EventKit read behavior now exists
-- writeback, reconciliation, and change observation are still absent
-
-### Risk 3: Python / Swift Behavior Drift
+### Risk 2: Frontmost External Changes Are Not Fully Automatic Yet
 
 Current state:
 
-- Python is still the richer planner reference
-- Swift has planner contracts but no engine
+- refresh/load/app-active reconciliation exists
+- dedicated live store-change observation does not
 
-### Risk 4: Settings Exist Without UI Or Runtime Usage
-
-Current state:
-
-- settings persist correctly
-- `excludedReadCalendarTitles` now drives live calendar reads
-- most remaining settings are not yet driving live planner/calendar behavior because those systems are missing
-
-### Risk 5: Manual Reality Lags Behind Automated Coverage
+### Risk 3: Task Status Still Carries Scheduling Meaning
 
 Current state:
 
-- automated coverage is now decent for current surfaces
-- manual Swift app verification is still light
+- partly mitigated
+- not fully normalized
 
-## 12. Recommended Definition Of Done For Each Milestone
+### Risk 4: Planner Quality Could Stall After The MVP Loop
 
-### Milestone A: Data Foundation Done
+Current state:
 
-Status: `Mostly done`
+- end-to-end workflow works
+- suggestion richness still needs a second pass
 
-Evidence:
+## Bottom Line
 
-- no view-local sample array drives the main task list
-- repositories exist and tests pass
-- app composition is container-based
-- local SwiftData persistence is wired in the live app path
+The biggest architectural gaps from the earlier plan are no longer the problem.
 
-Remaining caution:
+The repo now has:
 
-- this audit did not perform a multi-relaunch or long-running manual persistence pass
+- a real planner UI
+- real EventKit writeback
+- accepted-block lifecycle operations
+- reconciliation support
 
-### Milestone B: Calendar Read Done
+The next work should stop being speculative architecture and start being product hardening:
 
-Status: `Mostly done`
-
-Evidence:
-
-- EventKit permission, calendar-listing, and read services exist
-- excluded calendar settings affect live read behavior
-- calendar read services are injected through `AppContainer`
-- adapter tests pass
-
-Remaining caution:
-
-- no UI path uses the read layer yet
-- this audit did not manually verify live calendars or permission prompts
-
-### Milestone C: Planner Done
-
-Status: `Not started`
-
-### Milestone D: Accept / Write Done
-
-Status: `Not started`
-
-### Milestone E: Reconciliation Done
-
-Status: `Not started`
-
-### Milestone F: Sync Done
-
-Status: `Not started`
-
-## 13. Short Practical Marching Orders
-
-Current best next sequence:
-
-1. Keep the current Swift data foundation stable.
-2. Surface the new EventKit permission/read layer in minimal UI and manually verify it against real calendars.
-3. Port the Python planner behavior into a pure Swift planner engine with tests.
-4. Build suggestion acceptance and calendar writeback.
-5. Implement reconciliation before adding polish features like CloudKit sync or broader UI expansion.
-
-Bottom line:
-
-- the Swift app is now the real app shell
-- SwiftData is now the live local persistence layer
-- Python remains the behavior reference, not the integration target
-- the next major missing milestone is turning the new calendar read path into planner/writeback behavior, not more task-list polish
+1. manually validate EventKit behavior for real
+2. add dedicated store-change observation
+3. expose planner/calendar settings in the UI
+4. improve planner alternatives

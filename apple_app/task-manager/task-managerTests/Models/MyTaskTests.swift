@@ -21,6 +21,30 @@ struct MyTaskTests {
         #expect(task?.updatedAt == task?.createdAt)
     }
 
+    @Test func cleanedEstimatedMinutesAcceptQuarterHourMultiples() {
+        for estimatedMinutes in [15, 30, 45, 60] {
+            #expect(MyTask.cleanedEstimatedMinutes(estimatedMinutes) == estimatedMinutes)
+        }
+    }
+
+    @Test func cleanedEstimatedMinutesRejectInvalidValuesAndAllowsNil() {
+        for estimatedMinutes in [10, 20, 37, 0, -15] {
+            #expect(MyTask.cleanedEstimatedMinutes(estimatedMinutes) == nil)
+        }
+
+        #expect(MyTask.cleanedEstimatedMinutes(nil) == nil)
+    }
+
+    @Test func estimatedMinutesSetterPreservesQuarterHourInvariant() {
+        var task = MyTask(title: "Prepare workshop", estimatedMinutes: 45)
+
+        task.estimatedMinutes = 20
+        #expect(task.estimatedMinutes == nil)
+
+        task.estimatedMinutes = 60
+        #expect(task.estimatedMinutes == 60)
+    }
+
     @Test func taskStoresEnumBackedFieldsAndCleansOptionalValues() {
         let createdAt = Date(timeIntervalSince1970: 1_000)
         let updatedAt = Date(timeIntervalSince1970: 2_000)

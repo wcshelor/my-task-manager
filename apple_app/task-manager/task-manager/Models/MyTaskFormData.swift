@@ -78,6 +78,30 @@ struct MyTaskFormData {
         validationMessage(reservedTaskIDs: [])
     }
 
+    var hasEstimatedDuration: Bool {
+        get {
+            hasEstimatedMinutesInput
+        }
+        set {
+            estimatedMinutesText = newValue ? String(estimatedMinutesSelection) : ""
+        }
+    }
+
+    var estimatedMinutesSelection: Int {
+        get {
+            parsedEstimatedMinutes ?? TaskDurationRules.defaultAssumedMinutes
+        }
+        set {
+            estimatedMinutesText = String(
+                TaskDurationRules.normalizedFormSelectionMinutes(newValue)
+            )
+        }
+    }
+
+    var estimatedMinutesDisplayText: String {
+        "\(estimatedMinutesSelection) min"
+    }
+
     var isCompleted: Bool {
         get {
             status == .completed
@@ -104,7 +128,7 @@ struct MyTaskFormData {
         }
 
         if hasEstimatedMinutesInput && parsedEstimatedMinutes == nil {
-            return "Estimated minutes must be a whole number greater than 0."
+            return "Estimated minutes must be a positive multiple of 15."
         }
 
         guard let parsedID else {
@@ -175,6 +199,6 @@ struct MyTaskFormData {
             return nil
         }
 
-        return MyTask.cleanedEstimatedMinutes(estimatedMinutes)
+        return TaskDurationRules.cleanedEstimatedMinutes(estimatedMinutes)
     }
 }

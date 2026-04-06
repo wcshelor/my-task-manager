@@ -162,6 +162,241 @@ struct EventKitCalendarServicesTests {
             )
         }
     }
+
+    @Test func calendarWriterValidatesConfiguredWritableCalendarByExactTitle() async throws {
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.calendars = [
+            EventStoreCalendarDescriptor(
+                id: "important",
+                title: "Important",
+                allowsContentModifications: true
+            )
+        ]
+        let service = EventKitCalendarWriter(
+            eventStore: store,
+            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+        )
+
+        let calendarTitle = try await service.validateWriteCalendar()
+
+        #expect(calendarTitle == "Important")
+    }
+
+    @Test func calendarWriterRejectsMissingWriteCalendar() async {
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.calendars = [
+            EventStoreCalendarDescriptor(
+                id: "work",
+                title: "Work",
+                allowsContentModifications: true
+            )
+        ]
+        let service = EventKitCalendarWriter(
+            eventStore: store,
+            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+        )
+
+        await #expect(throws: CalendarWriteError.missingWriteCalendar("Important")) {
+            try await service.validateWriteCalendar()
+        }
+    }
+
+    @Test func calendarWriterCreatesEventInConfiguredCalendarWithConsistentTitle() async throws {
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.calendars = [
+            EventStoreCalendarDescriptor(
+                id: "important",
+                title: "Important",
+                allowsContentModifications: true
+            )
+        ]
+        store.saveEventResult = .success(
+            EventStoreEventDescriptor(
+                identifier: "event-123",
+                title: "Task: Draft roadmap",
+                start: Date(timeIntervalSince1970: 1_000),
+                end: Date(timeIntervalSince1970: 2_800),
+                isAllDay: false,
+                calendarTitle: "Important"
+            )
+        )
+        let service = EventKitCalendarWriter(
+            eventStore: store,
+            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+        )
+        let task = MyTask(title: "Draft roadmap", estimatedMinutes: 30)
+        let block = ScheduledBlock(
+            taskID: task.id,
+            start: Date(timeIntervalSince1970: 1_000),
+            end: Date(timeIntervalSince1970: 2_800),
+            status: .accepted,
+            calendarLinkState: .writePending
+        )
+
+        let writeResult = try await service.createEvent(for: block, task: task)
+
+        #expect(store.savedRequests.count == 1)
+        #expect(store.savedRequests[0].calendarIdentifier == "important")
+        #expect(store.savedRequests[0].title == "Task: Draft roadmap")
+        #expect(writeResult.eventIdentifier == "event-123")
+        #expect(writeResult.calendarTitle == "Important")
+        #expect(writeResult.eventTitle == "Task: Draft roadmap")
+    }
+
+    @Test func calendarWriterUpdatesExistingLinkedEvent() async throws {
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.calendars = [
+            EventStoreCalendarDescriptor(
+                id: "important",
+                title: "Important",
+                allowsContentModifications: true
+            )
+        ]
+        store.saveEventResult = .success(
+            EventStoreEventDescriptor(
+                identifier: "event-123",
+                title: "Task: Draft roadmap",
+                start: Date(timeIntervalSince1970: 2_000),
+                end: Date(timeIntervalSince1970: 3_800),
+                isAllDay: false,
+                calendarTitle: "Important"
+            )
+        )
+        let service = EventKitCalendarWriter(
+            eventStore: store,
+            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+        )
+        let task = MyTask(title: "Draft roadmap", estimatedMinutes: 30)
+        let block = ScheduledBlock(
+            taskID: task.id,
+            start: Date(timeIntervalSince1970: 2_000),
+            end: Date(timeIntervalSince1970: 3_800),
+            status: .accepted,
+            calendarLinkState: .linked,
+            calendarEventIdentifier: "event-123",
+            calendarTitle: "Important"
+        )
+
+        let writeResult = try await service.updateEvent(for: block, task: task)
+
+        #expect(store.savedRequests.count == 1)
+        #expect(store.savedRequests[0].identifier == "event-123")
+        #expect(writeResult.eventIdentifier == "event-123")
+    }
+
+    @Test func calendarWriterDeletesLinkedEventByIdentifier() async throws {
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.events = [
+            EventStoreEventDescriptor(
+                identifier: "event-123",
+                title: "Task: Draft roadmap",
+                start: Date(timeIntervalSince1970: 2_000),
+                end: Date(timeIntervalSince1970: 3_800),
+                isAllDay: false,
+                calendarTitle: "Important"
+            )
+        ]
+        let service = EventKitCalendarWriter(
+            eventStore: store,
+            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+        )
+        let block = ScheduledBlock(
+            taskID: UUID(),
+            start: Date(timeIntervalSince1970: 2_000),
+            end: Date(timeIntervalSince1970: 3_800),
+            status: .accepted,
+            calendarLinkState: .linked,
+            calendarEventIdentifier: "event-123",
+            calendarTitle: "Important"
+        )
+
+        try await service.deleteEvent(for: block)
+
+        #expect(store.deletedEventIdentifiers == ["event-123"])
+    }
+
+    @Test func reconcilerUpdatesAcceptedBlockWhenEventMovesExternally() async throws {
+        let task = MyTask(
+            title: "Draft roadmap",
+            status: .scheduled,
+            estimatedMinutes: 30,
+            priority: .high
+        )
+        let originalBlock = ScheduledBlock(
+            taskID: task.id,
+            start: Date(timeIntervalSince1970: 1_000),
+            end: Date(timeIntervalSince1970: 2_800),
+            status: .accepted,
+            calendarLinkState: .linked,
+            calendarEventIdentifier: "event-123",
+            calendarTitle: "Important",
+            eventTitleSnapshot: "Task: Draft roadmap"
+        )
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.events = [
+            EventStoreEventDescriptor(
+                identifier: "event-123",
+                title: "Task: Draft roadmap",
+                start: Date(timeIntervalSince1970: 4_000),
+                end: Date(timeIntervalSince1970: 5_800),
+                isAllDay: false,
+                calendarTitle: "Important"
+            )
+        ]
+        let blockRepository = FakeScheduledBlockRepository(blocks: [originalBlock])
+        let taskRepository = FakeTaskRepository(tasks: [task])
+        let reconciler = EventKitCalendarReconciler(
+            eventStore: store,
+            scheduledBlockRepository: blockRepository,
+            taskRepository: taskRepository,
+            nowProvider: { Date(timeIntervalSince1970: 9_000) }
+        )
+
+        let report = try await reconciler.reconcileScheduledBlocks()
+        let savedBlock = try #require(blockRepository.blocks.first)
+
+        #expect(report.movedBlockCount == 1)
+        #expect(savedBlock.start == Date(timeIntervalSince1970: 4_000))
+        #expect(savedBlock.end == Date(timeIntervalSince1970: 5_800))
+        #expect(savedBlock.calendarLinkState == .movedExternally)
+    }
+
+    @Test func reconcilerMarksAcceptedBlockDeletedWhenLinkedEventIsGone() async throws {
+        let task = MyTask(
+            title: "Draft roadmap",
+            status: .scheduled,
+            estimatedMinutes: 30,
+            priority: .high
+        )
+        let block = ScheduledBlock(
+            taskID: task.id,
+            start: Date(timeIntervalSince1970: 1_000),
+            end: Date(timeIntervalSince1970: 2_800),
+            status: .accepted,
+            calendarLinkState: .linked,
+            calendarEventIdentifier: "event-123",
+            calendarTitle: "Important",
+            eventTitleSnapshot: "Task: Draft roadmap"
+        )
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        let blockRepository = FakeScheduledBlockRepository(blocks: [block])
+        let taskRepository = FakeTaskRepository(tasks: [task])
+        let reconciler = EventKitCalendarReconciler(
+            eventStore: store,
+            scheduledBlockRepository: blockRepository,
+            taskRepository: taskRepository,
+            nowProvider: { Date(timeIntervalSince1970: 9_000) }
+        )
+
+        let report = try await reconciler.reconcileScheduledBlocks()
+        let savedBlock = try #require(blockRepository.blocks.first)
+        let savedTask = try #require(try taskRepository.task(withID: task.id))
+
+        #expect(report.deletedBlockCount == 1)
+        #expect(savedBlock.status == .deletedExternally)
+        #expect(savedBlock.calendarLinkState == .deletedExternally)
+        #expect(savedTask.status == .active)
+    }
 }
 
 @MainActor
@@ -169,8 +404,12 @@ private final class FakeCalendarEventStore: CalendarEventStore {
     var authorizationStatusValue: EventStoreAuthorizationStatus
     var authorizationStatusAfterRequest: EventStoreAuthorizationStatus?
     var requestResult: Result<Bool, Error> = .success(false)
+    var saveEventResult: Result<EventStoreEventDescriptor, Error>?
+    var deleteEventError: Error?
     var calendars: [EventStoreCalendarDescriptor] = []
     var events: [EventStoreEventDescriptor] = []
+    private(set) var savedRequests: [EventStoreEventMutationRequest] = []
+    private(set) var deletedEventIdentifiers: [String] = []
     private(set) var requestFullAccessCallCount = 0
     private(set) var lastRequestedCalendarIdentifiers: Set<String>?
 
@@ -196,6 +435,10 @@ private final class FakeCalendarEventStore: CalendarEventStore {
         calendars
     }
 
+    func fetchEvent(withIdentifier identifier: String) -> EventStoreEventDescriptor? {
+        events.first { $0.identifier == identifier }
+    }
+
     func fetchEvents(
         in window: DateInterval,
         calendarIdentifiers: Set<String>?
@@ -215,6 +458,46 @@ private final class FakeCalendarEventStore: CalendarEventStore {
             return calendarID.map(calendarIdentifiers.contains) ?? false
         }
     }
+
+    func saveEvent(_ request: EventStoreEventMutationRequest) throws -> EventStoreEventDescriptor {
+        savedRequests.append(request)
+
+        if let saveEventResult {
+            return try saveEventResult.get()
+        }
+
+        let savedEvent = EventStoreEventDescriptor(
+            identifier: request.identifier ?? "saved-\(savedRequests.count)",
+            title: request.title,
+            start: request.start,
+            end: request.end,
+            isAllDay: request.isAllDay,
+            calendarTitle: calendars.first(where: { $0.id == request.calendarIdentifier })?.title ?? "Unknown"
+        )
+
+        if let identifier = savedEvent.identifier,
+            let existingIndex = events.firstIndex(where: { $0.identifier == identifier }) {
+            events[existingIndex] = savedEvent
+        } else {
+            events.append(savedEvent)
+        }
+
+        return savedEvent
+    }
+
+    func deleteEvent(withIdentifier identifier: String) throws {
+        deletedEventIdentifiers.append(identifier)
+
+        if let deleteEventError {
+            throw deleteEventError
+        }
+
+        if events.contains(where: { $0.identifier == identifier }) == false {
+            throw EventStoreMutationError.eventNotFound(identifier)
+        }
+
+        events.removeAll { $0.identifier == identifier }
+    }
 }
 
 @MainActor
@@ -231,5 +514,65 @@ private final class FakeSettingsRepository: SettingsRepository {
 
     func saveSettings(_ settings: AppSettings) throws {
         self.settings = settings
+    }
+}
+
+@MainActor
+private final class FakeTaskRepository: TaskRepository {
+    private(set) var tasks: [MyTask]
+
+    init(tasks: [MyTask]) {
+        self.tasks = tasks
+    }
+
+    func fetchTasks() throws -> [MyTask] {
+        tasks
+    }
+
+    func task(withID id: UUID) throws -> MyTask? {
+        tasks.first { $0.id == id }
+    }
+
+    func saveTask(_ task: MyTask, replacingTaskWithID originalID: UUID?) throws {
+        tasks.saveTask(task, replacingTaskWithID: originalID)
+    }
+
+    func deleteTask(withID id: UUID) throws {
+        tasks.deleteTask(withID: id)
+    }
+}
+
+@MainActor
+private final class FakeScheduledBlockRepository: ScheduledBlockRepository {
+    private(set) var blocks: [ScheduledBlock]
+
+    init(blocks: [ScheduledBlock]) {
+        self.blocks = blocks
+    }
+
+    func fetchScheduledBlocks() throws -> [ScheduledBlock] {
+        blocks
+    }
+
+    func fetchScheduledBlocks(for taskID: UUID) throws -> [ScheduledBlock] {
+        blocks.filter { $0.taskID == taskID }
+    }
+
+    func saveScheduledBlock(_ block: ScheduledBlock, replacingBlockWithID originalID: UUID?) throws {
+        if let originalID, let existingIndex = blocks.firstIndex(where: { $0.id == originalID }) {
+            blocks[existingIndex] = block
+            return
+        }
+
+        if let existingIndex = blocks.firstIndex(where: { $0.id == block.id }) {
+            blocks[existingIndex] = block
+            return
+        }
+
+        blocks.append(block)
+    }
+
+    func deleteScheduledBlock(withID id: UUID) throws {
+        blocks.removeAll { $0.id == id }
     }
 }

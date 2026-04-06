@@ -9,18 +9,21 @@ nonisolated enum CalendarPermissionStatus: Equatable, Sendable {
     case error(String)
 }
 
-struct CalendarWriteResult: Equatable, Sendable {
+nonisolated struct CalendarWriteResult: Equatable, Sendable {
     let eventIdentifier: String
     let calendarTitle: String
+    let eventTitle: String
     let writtenAt: Date
 
     init(
         eventIdentifier: String,
         calendarTitle: String,
+        eventTitle: String,
         writtenAt: Date = .now
     ) {
         self.eventIdentifier = eventIdentifier
         self.calendarTitle = calendarTitle
+        self.eventTitle = eventTitle
         self.writtenAt = writtenAt
     }
 }
@@ -74,6 +77,7 @@ protocol CalendarListing {
 
 @MainActor
 protocol CalendarWriting {
+    func validateWriteCalendar() async throws -> String
     func createEvent(for block: ScheduledBlock, task: MyTask) async throws -> CalendarWriteResult
     func updateEvent(for block: ScheduledBlock, task: MyTask) async throws -> CalendarWriteResult
     func deleteEvent(for block: ScheduledBlock) async throws

@@ -72,6 +72,20 @@ struct TaskFormView: View {
         )
     }
 
+    private var hasEstimatedDurationBinding: Binding<Bool> {
+        Binding(
+            get: { formData.hasEstimatedDuration },
+            set: { formData.hasEstimatedDuration = $0 }
+        )
+    }
+
+    private var estimatedMinutesSelectionBinding: Binding<Int> {
+        Binding(
+            get: { formData.estimatedMinutesSelection },
+            set: { formData.estimatedMinutesSelection = $0 }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Form {
@@ -102,7 +116,24 @@ struct TaskFormView: View {
                         }
                     }
 
-                    TextField("Estimated Minutes", text: $formData.estimatedMinutesText)
+                    Toggle("Add Estimated Duration", isOn: hasEstimatedDurationBinding)
+
+                    if formData.hasEstimatedDuration {
+                        LabeledContent("Estimated Duration") {
+                            HStack(spacing: 12) {
+                                Text(formData.estimatedMinutesDisplayText)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+
+                                Stepper(
+                                    "",
+                                    value: estimatedMinutesSelectionBinding,
+                                    step: TaskDurationRules.minutesIncrement
+                                )
+                                .labelsHidden()
+                            }
+                        }
+                    }
                 }
 
                 Section("Scheduling") {

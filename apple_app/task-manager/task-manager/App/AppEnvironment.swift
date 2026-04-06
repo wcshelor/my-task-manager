@@ -27,6 +27,14 @@ final class AppEnvironment {
         container.calendarReader
     }
 
+    var calendarWriter: any CalendarWriting {
+        container.calendarWriter
+    }
+
+    var calendarReconciler: any CalendarReconciling {
+        container.calendarReconciler
+    }
+
     init(container: AppContainer) {
         self.container = container
     }

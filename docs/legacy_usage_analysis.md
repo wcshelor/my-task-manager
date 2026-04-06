@@ -1,201 +1,129 @@
 # Legacy Usage Analysis
 
-Date: 2026-03-19
+Date: 2026-04-05
 
-Context:
+This document records the current status of the repo's relationship to `legacy/`.
 
-- The current source of truth is [README.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/README.md), which describes the active v0.1 product model and plan.
-- `legacy/` should be treated as old code, not as the target architecture.
-- Status update: the active workflow docs/scripts were later cleaned so they no longer direct testing into `legacy/`. Remaining mentions here are documentary analysis.
+## Current Conclusion
 
-## Conclusion
+`legacy/` is not part of the active product path.
 
-The active codebase does **not** currently require `legacy/` in order to run the `src/` core modules or the `tests/` unit suite.
+The active implementation surfaces are now:
 
-The current dependency picture is:
+- the macOS SwiftUI app in `apple_app/task-manager/`
+- the Python prototype modules and tests under `src/` and `tests/`
 
-1. `src/` and `tests/` are effectively independent of `legacy/`.
-2. `legacy/` contains old code that imports and depends on `src/`.
-3. A few newer docs/scripts currently reference `legacy/` as a manual-testing path. Those references are not aligned with the README-based plan and should be removed or replaced.
+The Swift app is the active app shell. The Python code is still the richer planner reference and compatibility surface. The `legacy/` folder should be treated as archival material only.
 
-So the main problem is **not** that the current architecture depends on `legacy/` internally. The problem is that:
+## Why This Matters
 
-- old archival code is still present and reaches into current modules, and
-- some repo tooling/docs still point humans toward that old folder.
+Earlier repo cleanup work had to untangle two separate problems:
 
-## What The Active Code Uses
+1. whether active code depended on `legacy/`
+2. whether active docs and testing workflows were still sending humans into `legacy/`
 
-### No `legacy/` dependency in active Python package code
+The first problem is already mostly solved technically. The second problem is now largely solved in the documentation as well, but `legacy/` still exists in the tree and can still create confusion for future work.
 
-I found no references to `legacy` inside `src/`.
+## Active Runtime And Test Boundaries
 
-This means the current application logic under `src/` does not import from `legacy/`, does not call into `legacy/`, and does not require `legacy/` to execute.
+### `src/` does not depend on `legacy/`
 
-### No `legacy/` dependency in active pytest configuration
+The current Python modules under `src/` do not require imports from `legacy/` in order to run.
 
-[pytest.ini](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/pytest.ini#L1) explicitly limits test discovery to `tests`:
+Practical implication:
 
-- `testpaths = tests`
+- active Python logic can execute independently of old archival code
 
-That means `legacy/test_*.py` is excluded from normal pytest collection unless someone runs it manually.
+### `tests/` do not depend on `legacy/`
 
-### Active unit tests are pointed only at `src/`
+The active pytest suite under `tests/` targets `src.*` modules, not `legacy.*`.
 
-The current tests under `tests/` import only `src.*` modules and do not reference `legacy/`.
+Practical implication:
 
-Implication:
+- the automated Python surface is already scoped away from the old UI path
 
-- from the README-based architecture perspective, `legacy/` is already outside the active automated surface.
+### `pytest.ini` keeps normal collection scoped to `tests`
 
-## Where `legacy/` Is Still Referenced
+Normal pytest discovery is limited to `tests`, which keeps old `legacy/test_*.py` files out of the default automated workflow.
 
-### 1) Newer workflow docs and helper script
+Practical implication:
 
-These repo files currently direct manual testing into `legacy/`:
+- the main test run does not accidentally pull legacy files back into the active path
 
-- [docs/testing_workflow.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/docs/testing_workflow.md#L5)
-- [docs/manual_test_session_template.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/docs/manual_test_session_template.md#L16)
-- [scripts/manual_test_session.sh](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/scripts/manual_test_session.sh#L67)
+## Documentation And Workflow Status
 
-Specific examples:
+### Active docs now point at the real app shell
 
-- [docs/testing_workflow.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/docs/testing_workflow.md#L56) tells the user to launch `PYTHONPATH=. python legacy/app.py`.
-- [docs/manual_test_session_template.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/docs/manual_test_session_template.md#L22) includes “Started the legacy GUI”.
-- [scripts/manual_test_session.sh](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/scripts/manual_test_session.sh#L69) records the GUI launch command as `PYTHONPATH=. python legacy/app.py`.
+The repo now has a real non-legacy app entrypoint in `apple_app/task-manager/`, and the active docs should treat that as the current UI surface.
 
-These are documentation/tooling references, not core architecture dependencies. But they are still important because they push real testing behavior toward the old folder.
+The main workflow documents now describe:
 
-### 2) Generated session note artifacts
+- Swift `xcodebuild` tests
+- Swift manual testing through the Xcode app target
+- Python unit tests and smoke checks
 
-Generated files under `docs/test_sessions/` also now contain `legacy` launch instructions because they were created from the helper script template.
+That is the correct direction for the repo.
 
-These are artifacts, not source logic, but they should be considered stale once the workflow is corrected.
+### The manual session helper is still Python-oriented, but no longer needs legacy framing
 
-## How `legacy/` Depends On Current Code
+`scripts/manual_test_session.sh` is still primarily a Python preflight helper. That is acceptable as long as the surrounding docs make two things explicit:
 
-The strongest active coupling is actually in the opposite direction: old legacy code imports current `src/` modules.
+- it does not replace the Swift `xcodebuild` suite
+- it does not represent the full manual workflow for the current app shell
 
-### Legacy GUI imports current `src/`
+### Old generated notes may still reflect older workflow assumptions
 
-[legacy/app.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/app.py#L16) imports:
+Historical artifacts under `docs/test_sessions/` may still capture older testing habits or narrower Python-focused sessions. They should be treated as session logs, not as current workflow guidance.
 
-- `src.models`
-- `src`
-- `src.preferences`
-- `src.calendar_manager`
-- `src.scheduler`
+## How `legacy/` Still Interacts With Current Code
 
-This means the old GUI is effectively acting as an outdated frontend on top of current backend modules.
+The most important remaining coupling is directional:
 
-That is risky because the GUI expects the old data model while `README.md` and newer tests are moving toward the new v0.1 object model.
+- old legacy code may import current `src/` modules
+- active `src/` and `tests/` should not import legacy code back
 
-### Legacy helper/test scripts also import current `src/`
+That means `legacy/` can still be useful as archival reference material, but it should not be used to define current behavior, test expectations, or implementation priorities.
 
-Examples:
+## Risks That Still Exist
 
-- [legacy/verify_gui_tasks.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/verify_gui_tasks.py#L7) imports `src.task_manager`.
-- [legacy/test_scheduler.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/test_scheduler.py#L8) manually mutates `sys.path` and imports `src.models` and `src.scheduler`.
+### Risk 1: Humans may mistake `legacy/` for an active app path
 
-This is not the active plan. It is old code using current modules through compatibility assumptions.
+Even if active code is decoupled, the folder name alone invites confusion.
 
-## Signs That `legacy/` Is Already Broken Or Mismatched
+### Risk 2: Old notes can look authoritative
 
-### Broken legacy test-mode path
+Historical test-session notes can read like workflow instructions if someone opens them without context.
 
-[legacy/app_test.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/app_test.py#L8) imports `src.test_mode`, but there is no active `src/test_mode.py` in the repo.
+### Risk 3: Legacy data-model assumptions can leak back into planning
 
-That means this old test-mode entrypoint is already broken.
+The legacy UI and helpers were built around older task concepts and compatibility assumptions. Those concepts should not override the current README / Swift-app direction.
 
-### Broken relative imports inside old helper
+## Recommended Project Conventions
 
-[legacy/test_mode.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/test_mode.py#L12) uses relative imports like:
+The clean rule set is:
 
-- `from .models import Task`
-- `from .utils import load_tasks, save_tasks`
+1. Treat `README.md` and `concrete_plan.md` as the current source of truth.
+2. Treat `docs/product_direction.md` as the frozen product behavior contract.
+3. Treat the Swift app under `apple_app/task-manager/` as the current UI shell.
+4. Treat Python under `src/` and `tests/` as the behavioral reference and compatibility surface.
+5. Treat `legacy/` as archival only unless a task explicitly asks for it.
+6. Avoid new tooling, tests, or docs that route normal work through `legacy/`.
 
-But this file lives in `legacy/`, not in an installed package context. As currently structured, this is not a valid active workflow.
+## Suggested Cleanup That Still Would Help
 
-### Old schema assumptions
+- Add a short `legacy/README.md` that says the folder is archival and may be broken.
+- Consider renaming `legacy/` to a more obviously archival name if keeping it long-term.
+- Keep generated session notes under `docs/test_sessions/` clearly separated from source-of-truth docs.
 
-[legacy/app.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/app.py#L53) and [legacy/test_scheduler.py](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/legacy/test_scheduler.py#L20) use older task concepts like:
+## Bottom Line
 
-- `deadline`
-- `est_time`
-- `effort`
-- `priority`
-- `category`
-- `notes`
+The repo no longer needs `legacy/` to explain or exercise the active product direction.
 
-But the README source of truth defines the v0.1 task model around fields like:
+The correct implementation story is now:
 
-- `dueDate`
-- `priorityLevel`
-- `energyLevel`
-- `estimatedMinutes`
-- `minBlockMinutes`
-- `projectId`
-
-So even where compatibility aliases exist, the legacy code is conceptually driving the wrong object model.
-
-## Practical Interpretation
-
-If the README is the source of truth, then `legacy/` should be treated as:
-
-- archive/reference material,
-- possible design inspiration,
-- but **not** part of the current execution or testing strategy.
-
-At the moment, the repo is already mostly there technically:
-
-- active `src/` code does not import `legacy/`
-- active `tests/` do not import `legacy/`
-- pytest does not collect legacy tests by default
-
-What remains is mostly cleanup and boundary enforcement.
-
-## What Needs To Be Done To Undo Legacy Reliance
-
-### Immediate cleanup
-
-1. Remove `legacy` references from active testing docs and helper scripts.
-   Files:
-   - [docs/testing_workflow.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/docs/testing_workflow.md#L5)
-   - [docs/manual_test_session_template.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/docs/manual_test_session_template.md#L16)
-   - [scripts/manual_test_session.sh](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/scripts/manual_test_session.sh#L67)
-
-2. Replace the manual workflow with one aligned to the README plan.
-   Right now there is no active non-legacy GUI entrypoint in the repo, so the honest options are:
-   - define a non-GUI manual workflow around `src/` services and tests, or
-   - build the new active app entrypoint before advertising manual GUI testing.
-
-3. Treat existing `docs/test_sessions/*.md` notes as stale artifacts once the workflow is updated.
-
-### Boundary hardening
-
-4. Add a README note or project convention that `legacy/` is archival and not part of the active runtime plan.
-
-5. Keep pytest scoped to `tests/` only.
-   This is already done in [pytest.ini](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/pytest.ini#L1).
-
-6. Avoid new tooling that launches or imports `legacy/`.
-
-### Structural cleanup
-
-7. Consider renaming `legacy/` to something more explicit like `archive/legacy_ui_prototype/`.
-   That would reduce the chance that agents or humans mistake it for the current app.
-
-8. If you want to keep the folder, add a short `legacy/README.md` stating:
-   - archival only
-   - not source of truth
-   - may be broken
-   - do not use for current implementation planning unless explicitly requested
-
-## Recommended Next Move
-
-The cleanest next step is:
-
-1. remove active workflow references to `legacy/`
-2. define a README-aligned testing workflow that targets only `src/` and `tests/`
-3. decide whether manual testing should wait until a new non-legacy app shell exists
-
-That would make the repo behavior consistent with the architecture described in [README.md](/Users/campshelor/Desktop/GitHub%20Repos/task_manager/README.md#L1).
+- Swift app for the real shell
+- SwiftData for local app state
+- EventKit for calendar integration
+- a calendar-first planner shell as the next product milestone
+- Python as planner/reference behavior
+- `legacy/` as archive
