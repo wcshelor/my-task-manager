@@ -86,16 +86,26 @@ struct TaskFormView: View {
         )
     }
 
+    private var showsIdentifierEditor: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Form {
                 Section("Task Details") {
-                    HStack {
-                        TextField("ID", text: $formData.idText)
-                            .font(.system(.body, design: .monospaced))
+                    if showsIdentifierEditor {
+                        HStack {
+                            TextField("ID", text: $formData.idText)
+                                .font(.system(.body, design: .monospaced))
 
-                        Button("Generate ID") {
-                            formData.generateNewID()
+                            Button("Generate ID") {
+                                formData.generateNewID()
+                            }
                         }
                     }
 

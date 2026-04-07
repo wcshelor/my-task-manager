@@ -137,7 +137,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         id: UUID = UUID(),
         title: String,
         notes: String? = nil,
-        status: TaskStatus = .active,
+        status: TaskStatus = .inbox,
         estimatedMinutes: Int? = nil,
         dueDate: Date? = nil,
         priority: PriorityLevel? = nil,
@@ -177,6 +177,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         MyTask(
             title: "Buy groceries",
             notes: "Milk, eggs, and fruit",
+            status: .active,
             priority: .medium,
             energyLevel: .low,
             workMode: .errand,
@@ -193,6 +194,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         ),
         MyTask(
             title: "Walk the dog",
+            status: .active,
             dueDate: .now.addingTimeInterval(60 * 60),
             energyLevel: .medium,
             workMode: .flexible,

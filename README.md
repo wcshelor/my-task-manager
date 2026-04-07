@@ -9,7 +9,7 @@ The Swift app is the real product path. The Python code is still useful as a ref
 
 ## Verification Snapshot
 
-This README was updated against the repo state in this checkout on April 6, 2026.
+This README was updated against the repo state in this checkout on April 7, 2026.
 
 Automated checks run during this update:
 
@@ -22,7 +22,7 @@ Automated checks run during this update:
 Not manually verified during this update:
 
 - no live macOS click-through of the newest planner UI
-- no live iPhone simulator launch, because this machine has no installed simulator runtimes in `simctl`
+- no live iPhone simulator launch, because `xcrun simctl list runtimes` and `xcrun simctl list devices available` are both empty on this machine
 - no real EventKit permission-state pass against a live calendar account
 - no live verification of excluded read calendars
 - no live verification of fixed write-calendar selection
@@ -58,21 +58,30 @@ The Swift app lives in `apple_app/task-manager/`.
 - the shared Apple target builds for macOS and iPhone simulator SDKs
 - the macOS Swift test suite passes
 - the iPhone simulator test bundle builds successfully
+- the local machine still lacks installed simulator runtimes, so iPhone verification is currently SDK-level build verification rather than runnable simulator execution
 - the app shell is a two-tab SwiftUI app:
   - `Tasks`
   - `Calendar`
 - the `Tasks` tab supports create, edit, delete, search, sort, and grouping
-- task fields currently supported in the form are:
-  - UUID
+- new tasks now default to `Inbox`, with no due date and neutral priority / energy / work-mode defaults
+- on iPhone, the `Tasks` tab now has a separate quick-add capture path with:
+  - title
+  - notes
+  - easy quarter-hour duration choices
+  - optional due date
+  - a `More Details` handoff into the full editor while keeping shared form logic
+- the full task editor still supports:
   - title
   - notes
   - status
   - estimated minutes
-  - optional due date
   - priority
   - energy level
   - work mode
   - comma-separated tags
+  - UUID editing on macOS
+- task rows now surface compact metadata for due date, duration, priority, and inbox / scheduled / archived state
+- iPhone task rows now support swipe delete plus contextual complete / archive / reopen actions
 - local persistence is wired through SwiftData repositories for:
   - tasks
   - scheduled blocks
@@ -159,6 +168,8 @@ Current behavior:
 
 ### What Exists But Is Still Partial
 
+- the new iPhone quick-add and narrow-width task-list refinements are only SDK-verified so far on this machine, not live simulator- or device-verified
+- the iPhone full editor still uses the same detailed form as macOS, so more phone-specific tightening may still be worthwhile after live use
 - `AppSettings` persistence exists, but there is still no user-facing settings screen
 - rejected suggestions are still session-local only
 - the planner currently surfaces one best candidate per gap, so a selected slot usually yields one best suggestion at a time
@@ -202,6 +213,7 @@ Swift tests currently cover:
 - task form parsing and validation
 - task collection behavior
 - task-list search, sorting, and grouping
+- task-list quick complete / reopen / archive transitions
 - SwiftData task repository behavior
 - SwiftData scheduled-block repository behavior
 - SwiftData settings repository behavior
@@ -218,6 +230,7 @@ Swift tests currently cover:
 Relevant Swift test files:
 
 - `apple_app/task-manager/task-managerTests/Calendar/EventKitCalendarServicesTests.swift`
+- `apple_app/task-manager/task-managerTests/Features/TaskListViewModelTests.swift`
 - `apple_app/task-manager/task-managerTests/Models/MyTaskTests.swift`
 - `apple_app/task-manager/task-managerTests/Models/MyTaskFormDataTests.swift`
 - `apple_app/task-manager/task-managerTests/Models/MyTaskCollectionTests.swift`
@@ -286,7 +299,7 @@ Build the iPhone test bundle for testing:
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing
 ```
 
-To actually launch or run tests on an iPhone simulator, install a simulator runtime from Xcode Settings > Components and then use an installed destination.
+To actually launch or run tests on an iPhone simulator, install a simulator runtime from Xcode Settings > Components and then use an installed destination. On this machine, `simctl` currently reports no installed runtimes or available simulator devices.
 
 ### SwiftUI macOS Debugging Notes
 

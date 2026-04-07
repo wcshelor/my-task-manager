@@ -11,11 +11,11 @@ struct MyTaskTests {
         #expect(MyTask.cleanedTitle(from: " \n\t ") == nil)
     }
 
-    @Test func newTaskInitializerStartsActiveWithDefaults() {
+    @Test func newTaskInitializerStartsInInboxWithDefaults() {
         let task = MyTask(newTitle: "Read book")
 
         #expect(task?.title == "Read book")
-        #expect(task?.status == .active)
+        #expect(task?.status == .inbox)
         #expect(task?.tags == [])
         #expect(task?.completedAt == nil)
         #expect(task?.updatedAt == task?.createdAt)

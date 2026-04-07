@@ -120,7 +120,7 @@ struct MyTaskFormDataTests {
 
         let task = formData.makeTask(savedAt: savedAt)
 
-        #expect(task?.status == .active)
+        #expect(task?.status == .inbox)
         #expect(task?.notes == nil)
         #expect(task?.estimatedMinutes == nil)
         #expect(task?.dueDate == nil)

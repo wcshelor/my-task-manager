@@ -21,7 +21,7 @@ struct MyTaskFormData {
         idText: String = UUID().uuidString,
         title: String = "",
         notesText: String = "",
-        status: TaskStatus = .active,
+        status: TaskStatus = .inbox,
         estimatedMinutesText: String = "",
         hasDueDate: Bool = false,
         dueDate: Date = .now,

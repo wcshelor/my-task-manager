@@ -52,4 +52,46 @@ final class TaskListViewModel: ObservableObject {
             errorMessage = "Unable to delete task: \(error.localizedDescription)"
         }
     }
+
+    func markTaskCompleted(withID id: UUID) {
+        updateTask(withID: id) { task in
+            task.status = .completed
+            task.completedAt = .now
+        }
+    }
+
+    func reopenTask(withID id: UUID) {
+        updateTask(withID: id) { task in
+            task.status = .active
+            task.completedAt = nil
+        }
+    }
+
+    func archiveTask(withID id: UUID) {
+        updateTask(withID: id) { task in
+            task.status = .archived
+            task.completedAt = nil
+        }
+    }
+
+    private func updateTask(
+        withID id: UUID,
+        mutate: (inout MyTask) -> Void
+    ) {
+        do {
+            guard var task = try taskRepository.task(withID: id) else {
+                errorMessage = "Unable to update task: Task not found."
+                return
+            }
+
+            mutate(&task)
+            task.updatedAt = .now
+            try taskRepository.saveTask(task, replacingTaskWithID: id)
+            tasks = try taskRepository.fetchTasks()
+            errorMessage = nil
+            hasLoaded = true
+        } catch {
+            errorMessage = "Unable to update task: \(error.localizedDescription)"
+        }
+    }
 }

@@ -1,4 +1,15 @@
-iPhone Version + Sync Plan for Task Manager
+# iPhone Version + Sync Plan for Task Manager
+
+Status update as of April 7, 2026.
+
+Current branch status for the early migration phases:
+
+- Phase 0 is effectively complete. The repo already treats the Swift app as the real product path, keeps SwiftData/EventKit/planner boundaries intact, and freezes CloudKit as a later milestone rather than current work.
+- Phase 1 is effectively complete enough to guide implementation. The shared model, repository, planner, and EventKit layers are already portable, while the main iPhone risks are now second-pass list polish, planner density, and real-device validation rather than architectural portability.
+- Phase 2 is mostly complete. The shared app target still passes macOS tests, `iphonesimulator` builds succeed, and `iphonesimulator build-for-testing` succeeds. Live simulator execution is still blocked on this machine because no simulator runtimes or devices are installed in `simctl`.
+- Phase 3 is partially complete. The repo now has an iPhone-first quick-add sheet, a separate detailed create/edit path, shared form parsing/validation across both, and inbox-oriented defaults for new tasks. The remaining gap is live simulator/device validation and any ergonomic tightening that comes from real phone use.
+- Phase 4 is partially complete. Task rows now surface compact narrow-width metadata and iPhone swipe actions, but the list still needs real-device validation and possibly a more phone-native control layout after usage feedback.
+- The highest-value remaining work has shifted to the remaining Phase 4 and Phase 5 work before touching CloudKit sync.
 
 This plan is based on the repo’s current state in README.md and concrete_plan.md: the Swift app is already the real product path, SwiftData is already the app-side source of truth, EventKit is already the calendar boundary, and CloudKit sync is not implemented yet.
 
@@ -97,9 +108,13 @@ Objective
 
 Reduce ambiguity before code changes.
 
+Current status
+
+Done in practice. The assumptions below already match the current repo direction and should remain frozen unless product scope changes deliberately.
+
 Deliverables
 
-Create a short product note in docs/ that freezes:
+Freeze the following assumptions in repo-facing planning docs, whether that lives in README.md, concrete_plan.md, this plan, or a dedicated docs note:
 
 supported platforms: macOS + iPhone only
 supported sync scope: single-user, same Apple ID
@@ -127,6 +142,25 @@ Phase 1 — Audit the Existing Swift App for iPhone Readiness
 Objective
 
 Identify what already ports cleanly and what is macOS-shaped.
+
+Current status
+
+Effectively complete for implementation sequencing. The audit outcome for the current checkout is:
+
+- shared and reusable without architectural change:
+  - models
+  - repositories
+  - planner engine
+  - EventKit service abstractions
+  - validation and reconciliation logic
+- main iPhone UI risk areas:
+  - task entry flow now has a phone-first quick-add path, but still needs live-use validation
+  - task list narrow-width refinement has started, but likely still needs iteration after device testing
+  - planner/calendar is functionally portable but still visually dense for phone
+- low current platform-coupling risk:
+  - the live app is SwiftUI-first
+  - app composition is already centralized
+  - the main remaining work is UX adaptation rather than boundary cleanup
 
 Tasks
 1. Inventory platform assumptions
@@ -166,7 +200,7 @@ reconciliation logic
 validation logic
 Deliverables
 
-Produce an internal audit document listing:
+Capture an internal audit summary listing:
 
 reusable shared modules
 platform-specific UI surfaces
@@ -180,6 +214,22 @@ Phase 2 — Introduce an iPhone Target Safely
 Objective
 
 Get the app running on iPhone with the smallest possible blast radius.
+
+Current status
+
+Mostly complete. The current branch already has:
+
+- a shared Apple target that still passes the macOS test path
+- successful `xcodebuild ... -sdk iphonesimulator build`
+- successful `xcodebuild ... -sdk iphonesimulator build-for-testing`
+- a shared composition root and shared persistence setup still centered on `AppContainer` / `AppEnvironment`
+
+What is still not complete for this phase on this machine:
+
+- live iPhone simulator launch verification
+- live simulator test execution
+
+Those remaining gaps are environment-related here, because `simctl` currently reports no installed simulator runtimes or available devices.
 
 Tasks
 1. Add or adapt the app target
@@ -209,11 +259,12 @@ macOS build still works
 iPhone simulator build works
 iPhone tests run where applicable
 Deliverables
-iPhone target builds
-app launches on iPhone simulator
-existing mac build remains intact
-no sync yet
-no planner polish yet
+
+- iPhone build path works at the SDK level
+- existing macOS build/test path remains intact
+- no sync yet
+- no planner polish yet
+- live simulator launch remains pending local runtime availability
 Technical notes
 
 At this point, success is just “shared architecture, separate platform shell,” not feature parity.
@@ -233,6 +284,21 @@ minimal required fields
 fast save
 good defaults
 later editing on desktop if needed
+
+Current status
+
+Partially complete in code. The current checkout now has:
+
+- an iPhone-first `Quick Add` sheet with a prominent title field, optional notes, quarter-hour duration buttons, optional due date, large tap targets, and a bottom action bar
+- a separate full create/edit path via the existing detailed form
+- shared parsing and validation through `MyTaskFormData` for both quick add and full edit
+- new-task defaults that save into `Inbox` with no due date and neutral optional metadata
+
+Still pending for this phase:
+
+- live iPhone simulator or device validation of create/edit/delete ergonomics
+- any iteration that comes from real one-handed use
+
 Tasks
 1. Redesign task entry for phone ergonomics
 
@@ -282,10 +348,11 @@ optional “Add details later” mindset
 Validation/parsing should remain shared with existing task form logic rather than being rewritten separately for iPhone.
 
 Deliverables
-iPhone quick-add flow
-iPhone full-edit screen
-save/edit/delete tested on simulator and device
-task list reflects changes locally
+
+- iPhone quick-add flow: implemented in code
+- iPhone full-edit screen: implemented in code
+- save/edit/delete tested on simulator and device: still pending live runtime / device validation on this machine
+- task list reflects changes locally: implemented in code
 Technical notes
 
 This phase should produce something you would actually use daily even before sync exists.
@@ -294,6 +361,19 @@ Phase 4 — Build a Good iPhone Task List Experience
 Objective
 
 Make reviewing and editing tasks on iPhone feel comfortable, not just possible.
+
+Current status
+
+Started. The current checkout already has:
+
+- compact task rows that prioritize title plus due date, duration, priority, and inbox / scheduled / archived indicators
+- iPhone swipe delete plus contextual complete / archive / reopen actions
+- quick access to both `Quick Add` and the full editor from the iPhone task-list shell
+
+Still pending:
+
+- confirm that row density and current menu-based sort/group controls feel right on real phone hardware
+- decide whether the list controls need a more explicitly phone-native presentation after live use
 
 Tasks
 1. Adapt list presentation for narrow width
@@ -325,9 +405,11 @@ duration
 maybe priority marker
 maybe scheduled indicator
 Deliverables
-useful iPhone task list
-quick navigation to add/edit
-shared underlying repository behavior unchanged
+
+- useful iPhone task list: first pass implemented in code, but still needs device validation
+- quick navigation to add/edit: implemented in code
+- shared underlying repository behavior unchanged: maintained
+
 Phase 5 — Bring EventKit to iPhone Properly
 Objective
 
