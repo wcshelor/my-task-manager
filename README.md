@@ -9,7 +9,7 @@ The Swift app is the real product path. The Python code is still useful as a ref
 
 ## Verification Snapshot
 
-This README was updated against the repo state in this checkout on April 7, 2026.
+This README was updated against the repo state in this checkout on April 10, 2026.
 
 Automated checks run during this update:
 
@@ -19,10 +19,18 @@ Automated checks run during this update:
 - `pytest -q` -> `27 passed`
 - `python3 scripts/core_smoke_check.py` -> `8 passed, 0 failed`
 
+Additional runtime checks run during this update:
+
+- `xcrun simctl list runtimes` -> `iOS 26.3 (26.3.1 - 23D8133)`
+- `xcrun simctl list devices available` -> available devices include `iPhone 17`
+- `xcrun simctl boot D015EDAE-E08D-4EA4-9178-80164B787D70` -> `passed`
+- `xcrun simctl install D015EDAE-E08D-4EA4-9178-80164B787D70 .../task-manager.app` -> `passed`
+- `xcrun simctl launch D015EDAE-E08D-4EA4-9178-80164B787D70 camp.task-manager` -> `launched (pid 71725)`
+
 Not manually verified during this update:
 
 - no live macOS click-through of the newest planner UI
-- no live iPhone simulator launch, because `xcrun simctl list runtimes` and `xcrun simctl list devices available` are both empty on this machine
+- no full iPhone simulator tap-through of quick add, swipe actions, or planner interactions after the successful iPhone 17 launch smoke
 - no real EventKit permission-state pass against a live calendar account
 - no live verification of excluded read calendars
 - no live verification of fixed write-calendar selection
@@ -58,7 +66,8 @@ The Swift app lives in `apple_app/task-manager/`.
 - the shared Apple target builds for macOS and iPhone simulator SDKs
 - the macOS Swift test suite passes
 - the iPhone simulator test bundle builds successfully
-- the local machine still lacks installed simulator runtimes, so iPhone verification is currently SDK-level build verification rather than runnable simulator execution
+- this machine now has an installed iOS 26.3 simulator runtime and multiple available simulator devices
+- the current app launches on a live `iPhone 17` simulator in addition to passing simulator SDK builds
 - the app shell is a two-tab SwiftUI app:
   - `Tasks`
   - `Calendar`
@@ -100,6 +109,7 @@ The Swift app lives in `apple_app/task-manager/`.
   - request full calendar access
   - manually refresh planner/calendar state
   - refresh again when the app becomes active
+  - refresh again when EventKit posts store-change notifications while the app stays frontmost
   - show a selected-day timeline with:
     - real fetched calendar events
     - accepted scheduled blocks
@@ -168,12 +178,11 @@ Current behavior:
 
 ### What Exists But Is Still Partial
 
-- the new iPhone quick-add and narrow-width task-list refinements are only SDK-verified so far on this machine, not live simulator- or device-verified
+- the app now has live iPhone simulator launch confidence on this machine, but the quick-add, swipe-action, and planner flows still have not had a full manual tap-through in this update
 - the iPhone full editor still uses the same detailed form as macOS, so more phone-specific tightening may still be worthwhile after live use
 - `AppSettings` persistence exists, but there is still no user-facing settings screen
 - rejected suggestions are still session-local only
 - the planner currently surfaces one best candidate per gap, so a selected slot usually yields one best suggestion at a time
-- reconciliation exists, but it currently runs on planner refresh/load/app activation rather than a dedicated `EKEventStoreChanged` observer
 - the task status model still coexists with scheduled-block truth instead of being fully derived from it
 - no real manual EventKit validation pass has been completed for the new write/update/delete/reconciliation loop
 
@@ -201,7 +210,7 @@ Relevant folders:
 Boundary intent in the current Swift app:
 
 - SwiftData persists tasks, scheduled blocks, and settings
-- EventKit services own permission, calendar listing, read normalization, writeback, and reconciliation
+- EventKit services own permission, calendar listing, read normalization, writeback, reconciliation, and store-change observation
 - planner code owns busy-time normalization, gap detection, ranking, and suggestion generation
 - the planner view model coordinates repositories, calendar services, and transient UI state
 
@@ -223,6 +232,7 @@ Swift tests currently cover:
 - write-calendar validation
 - calendar event create / update / delete behavior
 - reconciliation of accepted blocks after external moves and deletes
+- frontmost store-change observation trigger behavior
 - planner engine gap merging, gap detection, ranking, and default-duration behavior
 - planner timeline quarter-hour alignment, point-to-slot conversion, drag expansion, and open-region selection rejection when busy time is tapped
 - planner view-model loading, slot-based and horizon-based plan generation, exact selected-slot timing, accept/reject flow behavior, stale slot-suggestion clearing, accepted-block lifecycle actions, accepted-block timeline rendering, mirrored write-calendar event suppression, and transient rejection behavior
@@ -299,7 +309,7 @@ Build the iPhone test bundle for testing:
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing
 ```
 
-To actually launch or run tests on an iPhone simulator, install a simulator runtime from Xcode Settings > Components and then use an installed destination. On this machine, `simctl` currently reports no installed runtimes or available simulator devices.
+This machine now has an installed `iOS 26.3` simulator runtime and multiple available devices. A live launch smoke was verified on `iPhone 17`, but a broader manual phone workflow pass is still outstanding.
 
 ### SwiftUI macOS Debugging Notes
 
@@ -338,18 +348,19 @@ Implemented and verified:
 
 - shared Swift task workflow foundations for macOS and iPhone
 - SwiftData-backed task, scheduled-block, and settings repositories
-- EventKit-backed permission, calendar listing, event reads, writeback, block edits, block deletes, and reconciliation
+- EventKit-backed permission, calendar listing, event reads, writeback, block edits, block deletes, reconciliation, and frontmost store-change observation
 - Swift planner UI with selected-slot-first planning and real transient suggestions
 - pure Swift planner engine for busy-time merging, free-gap detection, and ranking
 - accepted planner suggestions persisted as `ScheduledBlock` records and written to the configured calendar
 - accepted-block edit/reschedule/cancel/delete lifecycle in the planner
+- iPhone simulator runtime availability and successful `iPhone 17` launch smoke on April 10, 2026
 - planner rejection behavior scoped to the current planning session
 - Python planner, scheduler, gap-detection, compatibility, and smoke-test coverage
 
 Still intentionally deferred:
 
 - real manual EventKit validation of permission states, excluded calendars, write-calendar selection, accept flow, lifecycle actions, and error handling
-- dedicated live store-change observation while the app stays frontmost
+- a broader manual iPhone workflow pass after the April 10, 2026 simulator launch smoke
 - persistent rejected suggestions
 - settings and onboarding UX
 - richer multi-suggestion packing inside a single selected slot

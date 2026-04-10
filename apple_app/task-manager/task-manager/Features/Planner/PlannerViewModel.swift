@@ -28,11 +28,16 @@ final class PlannerViewModel: ObservableObject {
     private let calendarReader: any CalendarReading
     private let calendarWriter: any CalendarWriting
     private let calendarReconciler: (any CalendarReconciling)?
+    private let calendarChangeObserver: (any CalendarChangeObserving)?
     private let plannerEngine: PlannerEngine
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
     private var hasLoaded = false
     private var rejectedSuggestionFingerprints: Set<SuggestionFingerprint> = []
+    private var calendarStoreChangeObservation: (any CalendarChangeObservation)?
+    private var isCalendarStoreObservationEnabled = false
+    private var isRefreshingObservedCalendarStoreChange = false
+    private var hasPendingObservedCalendarStoreChange = false
 
     init(
         taskRepository: any TaskRepository,
@@ -43,6 +48,7 @@ final class PlannerViewModel: ObservableObject {
         calendarReader: any CalendarReading,
         calendarWriter: any CalendarWriting,
         calendarReconciler: (any CalendarReconciling)? = nil,
+        calendarChangeObserver: (any CalendarChangeObserving)? = nil,
         plannerEngine: PlannerEngine = PlannerEngine(),
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = Date.init,
@@ -57,6 +63,7 @@ final class PlannerViewModel: ObservableObject {
         self.calendarReader = calendarReader
         self.calendarWriter = calendarWriter
         self.calendarReconciler = calendarReconciler
+        self.calendarChangeObserver = calendarChangeObserver
         self.plannerEngine = plannerEngine
         self.calendar = calendar
         self.nowProvider = nowProvider
@@ -218,6 +225,29 @@ final class PlannerViewModel: ObservableObject {
         }
 
         await refresh()
+    }
+
+    func setCalendarStoreChangeObservationEnabled(_ isEnabled: Bool) {
+        guard isCalendarStoreObservationEnabled != isEnabled else {
+            return
+        }
+
+        isCalendarStoreObservationEnabled = isEnabled
+
+        if isEnabled {
+            guard calendarStoreChangeObservation == nil else {
+                return
+            }
+
+            calendarStoreChangeObservation = calendarChangeObserver?.observeStoreChanges { [weak self] in
+                self?.queueObservedCalendarStoreChangeRefresh()
+            }
+            return
+        }
+
+        hasPendingObservedCalendarStoreChange = false
+        calendarStoreChangeObservation?.invalidate()
+        calendarStoreChangeObservation = nil
     }
 
     func requestCalendarAccess() async {
@@ -585,6 +615,50 @@ final class PlannerViewModel: ObservableObject {
         clearSelectedTimeRange()
         selectedDay = calendar.startOfDay(for: day)
         await refreshCalendarDataIfPermitted()
+    }
+
+    private func queueObservedCalendarStoreChangeRefresh() {
+        guard isCalendarStoreObservationEnabled else {
+            return
+        }
+
+        hasPendingObservedCalendarStoreChange = true
+
+        guard isRefreshingObservedCalendarStoreChange == false else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            await self?.drainObservedCalendarStoreChangeRefreshQueue()
+        }
+    }
+
+    private func drainObservedCalendarStoreChangeRefreshQueue() async {
+        guard isRefreshingObservedCalendarStoreChange == false else {
+            return
+        }
+
+        isRefreshingObservedCalendarStoreChange = true
+        defer {
+            isRefreshingObservedCalendarStoreChange = false
+        }
+
+        while hasPendingObservedCalendarStoreChange {
+            hasPendingObservedCalendarStoreChange = false
+
+            guard isCalendarStoreObservationEnabled, hasLoaded else {
+                continue
+            }
+
+            permissionStatus = calendarPermissionProvider.currentStatus()
+            guard permissionStatus == .fullAccessGranted else {
+                calendars = []
+                calendarEvents = []
+                continue
+            }
+
+            await refresh()
+        }
     }
 
     private func refreshCalendarDataIfPermitted() async {

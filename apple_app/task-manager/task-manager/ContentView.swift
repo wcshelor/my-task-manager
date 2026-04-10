@@ -81,7 +81,8 @@ private struct TaskManagerTabShell: View {
                 calendarListingService: appEnvironment.calendarListingService,
                 calendarReader: appEnvironment.calendarReader,
                 calendarWriter: appEnvironment.calendarWriter,
-                calendarReconciler: appEnvironment.calendarReconciler
+                calendarReconciler: appEnvironment.calendarReconciler,
+                calendarChangeObserver: appEnvironment.calendarChangeObserver
             )
             .tabItem {
                 Label("Calendar", systemImage: "calendar")

@@ -1,6 +1,8 @@
 import SwiftData
 
 enum ModelContainerFactory {
+    private static let cloudKitContainerIdentifier = "iCloud.camp.task-manager"
+
     static func makeDefaultContainer() throws -> ModelContainer {
         try makeContainer(isStoredInMemoryOnly: false)
     }
@@ -17,7 +19,15 @@ enum ModelContainerFactory {
             ScheduledBlockRecord.self,
             AppSettingsRecord.self,
         ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: isStoredInMemoryOnly)
+        let configuration: ModelConfiguration
+
+        if isStoredInMemoryOnly {
+            configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        } else {
+            configuration = ModelConfiguration(
+                cloudKitDatabase: .private(cloudKitContainerIdentifier)
+            )
+        }
 
         return try ModelContainer(for: schema, configurations: configuration)
     }

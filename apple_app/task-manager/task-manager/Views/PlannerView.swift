@@ -15,7 +15,8 @@ struct PlannerView: View {
         calendarListingService: any CalendarListing,
         calendarReader: any CalendarReading,
         calendarWriter: any CalendarWriting,
-        calendarReconciler: any CalendarReconciling
+        calendarReconciler: any CalendarReconciling,
+        calendarChangeObserver: any CalendarChangeObserving
     ) {
         _viewModel = StateObject(
             wrappedValue: PlannerViewModel(
@@ -26,7 +27,8 @@ struct PlannerView: View {
                 calendarListingService: calendarListingService,
                 calendarReader: calendarReader,
                 calendarWriter: calendarWriter,
-                calendarReconciler: calendarReconciler
+                calendarReconciler: calendarReconciler,
+                calendarChangeObserver: calendarChangeObserver
             )
         )
     }
@@ -236,6 +238,8 @@ struct PlannerView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
+            viewModel.setCalendarStoreChangeObservationEnabled(newPhase == .active)
+
             guard newPhase == .active else {
                 return
             }
@@ -245,6 +249,7 @@ struct PlannerView: View {
             }
         }
         .task {
+            viewModel.setCalendarStoreChangeObservationEnabled(scenePhase == .active)
             await viewModel.loadIfNeeded()
         }
     }
@@ -2050,6 +2055,7 @@ private struct PlannerDayCalendarLayoutItem: Identifiable {
             ]
         ),
         calendarWriter: StubCalendarWriter(),
-        calendarReconciler: StubCalendarReconciler()
+        calendarReconciler: StubCalendarReconciler(),
+        calendarChangeObserver: StubCalendarChangeObserver()
     )
 }

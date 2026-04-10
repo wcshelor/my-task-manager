@@ -5,12 +5,12 @@ import SwiftData
 final class AppSettingsRecord {
     static let singletonID = "app-settings"
 
-    @Attribute(.unique) var id: String
-    var excludedReadCalendarTitlesText: String
-    var writeCalendarTitle: String
-    var minimumGapMinutes: Int
-    var defaultAssumedDurationMinutes: Int
-    var plannerSuggestionCap: Int
+    var id: String = AppSettingsRecord.singletonID
+    var excludedReadCalendarTitlesText: String = ""
+    var writeCalendarTitle: String = ""
+    var minimumGapMinutes: Int = AppSettings.mvpDefault.minimumGapMinutes
+    var defaultAssumedDurationMinutes: Int = AppSettings.mvpDefault.defaultAssumedDurationMinutes
+    var plannerSuggestionCap: Int = AppSettings.mvpDefault.plannerSuggestionCap
 
     init(
         id: String = AppSettingsRecord.singletonID,

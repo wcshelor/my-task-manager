@@ -1,6 +1,9 @@
+import CoreData
 import SwiftUI
 
 struct TaskListView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     private enum Destination: Hashable {
         case newTask
         case existingTask(UUID)
@@ -134,6 +137,24 @@ struct TaskListView: View {
             .searchable(text: $searchText, prompt: "Search title, notes, or tags")
             .task {
                 viewModel.loadTasksIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else {
+                    return
+                }
+
+                viewModel.handleSceneDidBecomeActive()
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: .NSPersistentStoreRemoteChange
+                )
+            ) { _ in
+                guard scenePhase == .active else {
+                    return
+                }
+
+                viewModel.loadTasks()
             }
             .toolbar {
                 #if os(iOS)

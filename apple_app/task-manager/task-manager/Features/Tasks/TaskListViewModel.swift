@@ -21,6 +21,14 @@ final class TaskListViewModel: ObservableObject {
         loadTasks()
     }
 
+    func handleSceneDidBecomeActive() {
+        guard hasLoaded else {
+            return
+        }
+
+        loadTasks()
+    }
+
     func loadTasks() {
         do {
             tasks = try taskRepository.fetchTasks()

@@ -93,3 +93,14 @@ protocol CalendarPermissionProviding {
     func currentStatus() -> CalendarPermissionStatus
     func requestFullAccess() async -> CalendarPermissionStatus
 }
+
+protocol CalendarChangeObservation: AnyObject {
+    func invalidate()
+}
+
+@MainActor
+protocol CalendarChangeObserving {
+    func observeStoreChanges(
+        _ onChange: @escaping @MainActor @Sendable () -> Void
+    ) -> any CalendarChangeObservation
+}

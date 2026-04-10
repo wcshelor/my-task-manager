@@ -3,18 +3,18 @@ import SwiftData
 
 @Model
 final class TaskRecord {
-    @Attribute(.unique) var id: UUID
-    var title: String
+    var id: UUID = UUID()
+    var title: String = ""
     var notes: String?
-    var statusRawValue: String
+    var statusRawValue: String = TaskStatus.active.rawValue
     var estimatedMinutes: Int?
     var dueDate: Date?
     var priorityRawValue: String?
     var energyLevelRawValue: String?
     var workModeRawValue: String?
-    var tagsText: String
-    var createdAt: Date
-    var updatedAt: Date
+    var tagsText: String = ""
+    var createdAt: Date = Date.distantPast
+    var updatedAt: Date = Date.distantPast
     var completedAt: Date?
 
     init(task: MyTask) {

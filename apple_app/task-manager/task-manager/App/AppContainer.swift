@@ -10,6 +10,7 @@ struct AppContainer {
     let calendarReader: any CalendarReading
     let calendarWriter: any CalendarWriting
     let calendarReconciler: any CalendarReconciling
+    let calendarChangeObserver: any CalendarChangeObserving
 
     static func makeLive() throws -> AppContainer {
         let modelContainer = try ModelContainerFactory.makeDefaultContainer()
@@ -41,6 +42,7 @@ struct AppContainer {
             scheduledBlockRepository: scheduledBlockRepository,
             taskRepository: taskRepository
         )
+        let calendarChangeObserver = calendarEventStore
 
         _ = try settingsRepository.loadSettings()
 
@@ -53,7 +55,8 @@ struct AppContainer {
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,
             calendarWriter: calendarWriter,
-            calendarReconciler: calendarReconciler
+            calendarReconciler: calendarReconciler,
+            calendarChangeObserver: calendarChangeObserver
         )
     }
 
@@ -73,6 +76,7 @@ struct AppContainer {
         let calendarReader = StubCalendarReader()
         let calendarWriter = StubCalendarWriter()
         let calendarReconciler = StubCalendarReconciler()
+        let calendarChangeObserver = StubCalendarChangeObserver()
 
         _ = try? settingsRepository.loadSettings()
 
@@ -89,7 +93,8 @@ struct AppContainer {
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,
             calendarWriter: calendarWriter,
-            calendarReconciler: calendarReconciler
+            calendarReconciler: calendarReconciler,
+            calendarChangeObserver: calendarChangeObserver
         )
     }
 }

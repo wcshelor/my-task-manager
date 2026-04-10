@@ -65,6 +65,33 @@ struct TaskListViewModelTests {
         #expect(savedTask.completedAt == nil)
         #expect(viewModel.tasks.first?.status == .archived)
     }
+
+    @Test func sceneActivationReloadsTasksAfterAnExternalRepositoryChange() throws {
+        let originalTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174010")!,
+            title: "Inbox task",
+            status: .active,
+            createdAt: Date(timeIntervalSince1970: 1_000),
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let syncedTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174011")!,
+            title: "Added on another device",
+            status: .inbox,
+            createdAt: Date(timeIntervalSince1970: 2_000),
+            updatedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        let repository = FakeTaskRepository(tasks: [originalTask])
+        let viewModel = TaskListViewModel(taskRepository: repository)
+
+        viewModel.loadTasks()
+        repository.replaceTasks(with: [originalTask, syncedTask])
+
+        viewModel.handleSceneDidBecomeActive()
+
+        #expect(viewModel.tasks.count == 2)
+        #expect(viewModel.tasks.contains(syncedTask))
+    }
 }
 
 @MainActor
@@ -89,5 +116,9 @@ private final class FakeTaskRepository: TaskRepository {
 
     func deleteTask(withID id: UUID) throws {
         tasks.deleteTask(withID: id)
+    }
+
+    func replaceTasks(with tasks: [MyTask]) {
+        self.tasks = tasks
     }
 }

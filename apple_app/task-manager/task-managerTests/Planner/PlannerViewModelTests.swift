@@ -98,6 +98,107 @@ struct PlannerViewModelTests {
         #expect(reader.requestedWindows == [DateInterval(start: expectedDayStart, end: expectedDayEnd)])
     }
 
+    @Test func observedCalendarStoreChangeRefreshesPlannerDataWhileObservationIsEnabled() async {
+        let calendar = makeUTCGregorianCalendar()
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let dayStart = calendar.startOfDay(for: now)
+        let initialEvent = CalendarEventSnapshot(
+            identifier: "meeting-1",
+            title: "Initial Review",
+            start: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart)!,
+            end: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: dayStart)!,
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let updatedEvent = CalendarEventSnapshot(
+            identifier: "meeting-2",
+            title: "Updated Review",
+            start: calendar.date(bySettingHour: 11, minute: 0, second: 0, of: dayStart)!,
+            end: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)!,
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let listingService = FakeCalendarListingService(result: .success([
+            ReadableCalendar(
+                id: "work",
+                title: "Work",
+                allowsContentModifications: true,
+                isExcludedBySettings: false
+            )
+        ]))
+        let reader = FakeCalendarReader(result: .success([initialEvent]))
+        let changeObserver = FakeCalendarChangeObserver()
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: FakeSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: listingService,
+            calendarReader: reader,
+            calendarWriter: FakeCalendarWriter(),
+            calendarChangeObserver: changeObserver,
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        await viewModel.loadIfNeeded()
+        viewModel.setCalendarStoreChangeObservationEnabled(true)
+        reader.result = .success([updatedEvent])
+
+        await changeObserver.triggerChange()
+
+        #expect(changeObserver.observeCallCount == 1)
+        #expect(reader.fetchCallCount == 2)
+        #expect(viewModel.calendarEvents == [updatedEvent])
+    }
+
+    @Test func disablingCalendarStoreObservationStopsAutomaticRefreshes() async {
+        let calendar = makeUTCGregorianCalendar()
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let dayStart = calendar.startOfDay(for: now)
+        let initialEvent = CalendarEventSnapshot(
+            identifier: "meeting-1",
+            title: "Initial Review",
+            start: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart)!,
+            end: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: dayStart)!,
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let updatedEvent = CalendarEventSnapshot(
+            identifier: "meeting-2",
+            title: "Updated Review",
+            start: calendar.date(bySettingHour: 11, minute: 0, second: 0, of: dayStart)!,
+            end: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)!,
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let reader = FakeCalendarReader(result: .success([initialEvent]))
+        let changeObserver = FakeCalendarChangeObserver()
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: FakeSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: FakeCalendarListingService(result: .success([])),
+            calendarReader: reader,
+            calendarWriter: FakeCalendarWriter(),
+            calendarChangeObserver: changeObserver,
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        await viewModel.loadIfNeeded()
+        viewModel.setCalendarStoreChangeObservationEnabled(true)
+        viewModel.setCalendarStoreChangeObservationEnabled(false)
+        reader.result = .success([updatedEvent])
+
+        await changeObserver.triggerChange()
+
+        #expect(changeObserver.invalidateCallCount == 1)
+        #expect(reader.fetchCallCount == 1)
+        #expect(viewModel.calendarEvents == [initialEvent])
+    }
+
     @Test func acceptedScheduledBlocksRemainVisibleAndHideMirroredWriteCalendarEvents() async {
         let task = MyTask(
             title: "Deep Work",
@@ -984,7 +1085,7 @@ private final class FakeCalendarPermissionProvider: CalendarPermissionProviding 
 
 @MainActor
 private final class FakeCalendarListingService: CalendarListing {
-    let result: Result<[ReadableCalendar], Error>
+    var result: Result<[ReadableCalendar], Error>
     private(set) var fetchCallCount = 0
 
     init(result: Result<[ReadableCalendar], Error>) {
@@ -1003,7 +1104,7 @@ private final class FakeCalendarListingService: CalendarListing {
 
 @MainActor
 private final class FakeCalendarReader: CalendarReading {
-    let result: Result<[CalendarEventSnapshot], Error>
+    var result: Result<[CalendarEventSnapshot], Error>
     private(set) var fetchCallCount = 0
     private(set) var requestedWindows: [DateInterval] = []
 
@@ -1065,6 +1166,52 @@ private final class FakeCalendarWriter: CalendarWriting {
     func deleteEvent(for block: ScheduledBlock) async throws {
         deleteEventCallCount += 1
         _ = try deleteEventResult.get()
+    }
+}
+
+@MainActor
+private final class FakeCalendarChangeObserver: CalendarChangeObserving {
+    private(set) var observeCallCount = 0
+    private(set) var invalidateCallCount = 0
+    private var onChange: (@MainActor @Sendable () -> Void)?
+
+    func observeStoreChanges(
+        _ onChange: @escaping @MainActor @Sendable () -> Void
+    ) -> any CalendarChangeObservation {
+        observeCallCount += 1
+        self.onChange = onChange
+        return FakeCalendarChangeObservation { [weak self] in
+            self?.invalidateCallCount += 1
+            self?.onChange = nil
+        }
+    }
+
+    func triggerChange() async {
+        onChange?()
+        await Task.yield()
+        await Task.yield()
+    }
+}
+
+private final class FakeCalendarChangeObservation: CalendarChangeObservation {
+    private let onInvalidate: () -> Void
+    private var isInvalidated = false
+
+    init(onInvalidate: @escaping () -> Void) {
+        self.onInvalidate = onInvalidate
+    }
+
+    func invalidate() {
+        guard isInvalidated == false else {
+            return
+        }
+
+        isInvalidated = true
+        onInvalidate()
+    }
+
+    deinit {
+        invalidate()
     }
 }
 

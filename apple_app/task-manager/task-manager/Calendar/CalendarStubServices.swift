@@ -82,3 +82,16 @@ final class StubCalendarReconciler: CalendarReconciling {
         .empty
     }
 }
+
+@MainActor
+final class StubCalendarChangeObserver: CalendarChangeObserving {
+    func observeStoreChanges(
+        _ onChange: @escaping @MainActor @Sendable () -> Void
+    ) -> any CalendarChangeObservation {
+        StubCalendarChangeObservation()
+    }
+}
+
+private final class StubCalendarChangeObservation: CalendarChangeObservation {
+    func invalidate() {}
+}

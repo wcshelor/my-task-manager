@@ -69,14 +69,21 @@ cat > "$notes_path" <<EOF
 
 Use this template for repo-wide audit sessions. Mark items \`N/A\` when they are out of scope.
 
+Use \`README.md\`, \`concrete_plan.md\`, and \`docs/product_direction.md\` as the expected-behavior references for the session.
+
 ## Session Meta
 
 - Date: $(date '+%Y-%m-%d %H:%M:%S')
 - Tester:
 - Branch or commit:
-- Swift test command:
-- Swift test result:
+- Swift macOS test command:
+- Swift macOS test result:
+- iPhone simulator build command:
+- iPhone simulator build result:
 - Swift app launched in Xcode:
+- Simulator runtime available:
+- Simulator or device used:
+- EventKit account used:
 - Conda env: $conda_env
 - Python version: $python_version
 - Pytest command: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests
@@ -90,13 +97,16 @@ Use this template for repo-wide audit sessions. Mark items \`N/A\` when they are
 
 - [ ] Backed up \`data/*.json\`
 - [ ] Ran \`xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test\`
+- [ ] Ran \`xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build\` if iPhone work is in scope
+- [ ] Ran \`xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing\` if iPhone work is in scope
 - [ ] Activated \`task-manager-test\` if Python checks are in scope
 - [ ] Ran \`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests\` if Python checks are in scope
 - [ ] Ran \`python scripts/core_smoke_check.py\` if Python checks are in scope
 - [ ] Reviewed any failing automated checks before manual exploration
+- [ ] Reviewed \`docs/testing_workflow.md\` for the current planner/EventKit checklist
 - [ ] Opened this note before deeper exploration
 
-## Swift App Checklist
+## Swift Task Checklist
 
 - [ ] Opened \`apple_app/task-manager/task-manager.xcodeproj\`
 - [ ] Ran the \`task-manager\` scheme
@@ -108,15 +118,42 @@ Use this template for repo-wide audit sessions. Mark items \`N/A\` when they are
 - [ ] Checked task sort behavior
 - [ ] Checked task grouping behavior
 - [ ] Verified task-form validation for blank title / invalid UUID / duplicate UUID / estimated minutes when relevant
+- [ ] Checked quick complete / reopen / archive actions when relevant
+- [ ] Checked the iPhone quick-add flow if a simulator or device is available
+- [ ] Checked iPhone swipe actions if a simulator or device is available
+
+## Planner And EventKit Checklist
+
 - [ ] Verified the \`Calendar\` tab loads
-- [ ] Confirmed the Calendar permission state text looks correct for the machine under test
+- [ ] Confirmed the Calendar permission-state text looks correct for the machine under test
 - [ ] Exercised \`Request Calendar Access\` if safe for the session
 - [ ] Checked denied / restricted / write-only / not-determined messaging if those states are reachable
 - [ ] Checked readable-calendar listing if full access is granted
 - [ ] Confirmed excluded calendars are labeled \`Excluded\` when applicable
-- [ ] Switched between \`Today\` and \`Next 7 Days\`
-- [ ] Checked read-only event loading if full access is granted
-- [ ] Checked empty and error states for the Calendar tab
+- [ ] Checked selected-day timeline rendering if full access is granted
+- [ ] Created a selected slot from the timeline
+- [ ] Drag-expanded the selected slot in 15-minute increments
+- [ ] Generated suggestions for a selected slot
+- [ ] Generated suggestions with a horizon preset
+- [ ] Accepted a suggestion and confirmed the event was written to the configured calendar
+- [ ] Rejected a suggestion and confirmed it disappears from the current planner session
+- [ ] Edited an accepted block
+- [ ] Rescheduled an accepted block
+- [ ] Canceled an accepted block
+- [ ] Deleted an accepted block
+- [ ] Moved the linked event externally and checked reconciliation
+- [ ] Deleted the linked event externally and checked reconciliation
+- [ ] Checked missing / ambiguous / non-writable write-calendar handling when reachable
+
+## iPhone Runtime Checklist
+
+- [ ] Confirmed \`xcrun simctl list runtimes\` returns at least one installed runtime if simulator work is in scope
+- [ ] Confirmed \`xcrun simctl list devices available\` returns at least one available device if simulator work is in scope
+- [ ] Launched the app on an iPhone simulator or device if runtime testing is in scope
+- [ ] Verified narrow-width task layout
+- [ ] Verified narrow-width planner layout
+- [ ] Verified selected-slot interactions on phone layout
+- [ ] Verified permission-state copy on phone layout
 
 ## Python Checklist
 
@@ -126,7 +163,7 @@ Use this template for repo-wide audit sessions. Mark items \`N/A\` when they are
 - [ ] Calendar record parsing looks plausible
 - [ ] Persistence helpers checked if in scope
 - [ ] Scheduler compatibility checked if in scope
-- [ ] Findings mapped back to README model expectations
+- [ ] Findings mapped back to README expectations
 
 ## Issues Found
 
@@ -170,6 +207,7 @@ echo "  $notes_path"
 echo
 echo "Recommended next steps:"
 echo "  1. Open the note above and capture any issues from the automated output."
-echo "  2. If Swift work is in scope, run the xcodebuild test command and launch the Xcode app target."
-echo "  3. Re-run: python scripts/core_smoke_check.py"
-echo "  4. For interactive Python exploration: ipython"
+echo "  2. Run the macOS xcodebuild test command if Swift behavior is in scope."
+echo "  3. If an iPhone runtime is installed, run the simulator builds and launch the app in the simulator."
+echo "  4. If real calendar behavior is in scope, use the Planner and EventKit checklist in the generated note."
+echo "  5. For deeper Python follow-up, re-run: python scripts/core_smoke_check.py"
