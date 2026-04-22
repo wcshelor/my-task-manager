@@ -78,6 +78,7 @@ nonisolated struct ScheduledBlock: Identifiable, Equatable, Sendable {
 
 nonisolated struct AppSettings: Equatable, Sendable {
     var excludedReadCalendarTitles: [String]
+    var writeCalendarIdentifier: String
     var writeCalendarTitle: String
     var minimumGapMinutes: Int
     private var storedDefaultAssumedDurationMinutes: Int
@@ -94,24 +95,35 @@ nonisolated struct AppSettings: Equatable, Sendable {
 
     init(
         excludedReadCalendarTitles: [String],
+        writeCalendarIdentifier: String = "",
         writeCalendarTitle: String,
         minimumGapMinutes: Int,
         defaultAssumedDurationMinutes: Int,
         plannerSuggestionCap: Int
     ) {
         self.excludedReadCalendarTitles = excludedReadCalendarTitles
-        self.writeCalendarTitle = writeCalendarTitle
+        self.writeCalendarIdentifier = Self.normalizedCalendarValue(writeCalendarIdentifier)
+        self.writeCalendarTitle = Self.normalizedCalendarValue(writeCalendarTitle)
         self.minimumGapMinutes = max(1, minimumGapMinutes)
         self.storedDefaultAssumedDurationMinutes =
             TaskDurationRules.cleanedDefaultAssumedDurationMinutes(defaultAssumedDurationMinutes)
         self.plannerSuggestionCap = max(0, plannerSuggestionCap)
     }
 
+    var hasConfiguredWriteCalendar: Bool {
+        writeCalendarIdentifier.isEmpty == false
+    }
+
     static let mvpDefault = AppSettings(
         excludedReadCalendarTitles: ["Birthdays"],
-        writeCalendarTitle: "Important",
+        writeCalendarIdentifier: "",
+        writeCalendarTitle: "",
         minimumGapMinutes: 15,
         defaultAssumedDurationMinutes: 30,
         plannerSuggestionCap: 5
     )
+
+    private static func normalizedCalendarValue(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

@@ -86,29 +86,10 @@ struct TaskFormView: View {
         )
     }
 
-    private var showsIdentifierEditor: Bool {
-        #if os(macOS)
-        true
-        #else
-        false
-        #endif
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Form {
                 Section("Task Details") {
-                    if showsIdentifierEditor {
-                        HStack {
-                            TextField("ID", text: $formData.idText)
-                                .font(.system(.body, design: .monospaced))
-
-                            Button("Generate ID") {
-                                formData.generateNewID()
-                            }
-                        }
-                    }
-
                     TextField("Title", text: $formData.title)
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -215,7 +196,6 @@ struct TaskFormView: View {
                 Button(mode.saveButtonTitle) {
                     saveTask()
                 }
-                .taskFormDefaultActionShortcut()
                 .disabled(validationMessage != nil)
             }
         }
@@ -247,20 +227,6 @@ struct TaskFormView: View {
         dismiss()
     }
 }
-
-#if os(macOS)
-private extension View {
-    func taskFormDefaultActionShortcut() -> some View {
-        keyboardShortcut(.defaultAction)
-    }
-}
-#else
-private extension View {
-    func taskFormDefaultActionShortcut() -> some View {
-        self
-    }
-}
-#endif
 
 #Preview {
     TaskFormView(mode: .create) { _ in }

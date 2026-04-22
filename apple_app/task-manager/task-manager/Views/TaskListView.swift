@@ -1,4 +1,3 @@
-import CoreData
 import SwiftUI
 
 struct TaskListView: View {
@@ -50,35 +49,17 @@ struct TaskListView: View {
         )
     }
 
-    private var shouldShowQuickAddBar: Bool {
-        #if os(iOS)
-        true
-        #else
-        false
-        #endif
-    }
-
     var body: some View {
         NavigationStack(path: $path) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Tasks")
                         .font(.title2)
-
-                    Spacer()
-
-                    if shouldShowQuickAddBar == false {
-                        Button("New Task") {
-                            path.append(.newTask)
-                        }
-                    }
                 }
 
-                if shouldShowQuickAddBar {
-                    Text("Quick Add is optimized for fast phone capture. Open any task for full editing.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Quick Add is optimized for fast phone capture. Open any task for full editing.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
@@ -145,19 +126,7 @@ struct TaskListView: View {
 
                 viewModel.handleSceneDidBecomeActive()
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: .NSPersistentStoreRemoteChange
-                )
-            ) { _ in
-                guard scenePhase == .active else {
-                    return
-                }
-
-                viewModel.loadTasks()
-            }
             .toolbar {
-                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Quick Add") {
@@ -171,7 +140,6 @@ struct TaskListView: View {
                         Image(systemName: "plus")
                     }
                 }
-                #endif
             }
             .sheet(item: $presentedSheet) { destination in
                 NavigationStack {
@@ -197,23 +165,20 @@ struct TaskListView: View {
                         }
                     }
                 }
-                .macSheetFrame(minWidth: 500, minHeight: 640)
             }
             .safeAreaInset(edge: .bottom) {
-                if shouldShowQuickAddBar {
-                    Button {
-                        presentQuickAdd()
-                    } label: {
-                        Label("Quick Add Task", systemImage: "plus.circle.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    .background(.thinMaterial)
+                Button {
+                    presentQuickAdd()
+                } label: {
+                    Label("Quick Add Task", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
                 }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .background(.thinMaterial)
             }
             .navigationDestination(for: Destination.self) { destination in
                 switch destination {

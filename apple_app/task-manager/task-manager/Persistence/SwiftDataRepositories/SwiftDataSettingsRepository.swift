@@ -49,7 +49,9 @@ final class SwiftDataSettingsRepository: SettingsRepository {
         _ record: AppSettingsRecord,
         normalizedSettings: AppSettings
     ) -> Bool {
-        record.minimumGapMinutes != normalizedSettings.minimumGapMinutes
+        record.writeCalendarIdentifier != normalizedSettings.writeCalendarIdentifier
+            || record.writeCalendarTitle != normalizedSettings.writeCalendarTitle
+            || record.minimumGapMinutes != normalizedSettings.minimumGapMinutes
             || record.defaultAssumedDurationMinutes != normalizedSettings.defaultAssumedDurationMinutes
             || record.plannerSuggestionCap != normalizedSettings.plannerSuggestionCap
     }

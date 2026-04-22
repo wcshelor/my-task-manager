@@ -163,7 +163,7 @@ struct EventKitCalendarServicesTests {
         }
     }
 
-    @Test func calendarWriterValidatesConfiguredWritableCalendarByExactTitle() async throws {
+    @Test func calendarWriterValidatesConfiguredWritableCalendarByIdentifier() async throws {
         let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
         store.calendars = [
             EventStoreCalendarDescriptor(
@@ -174,7 +174,12 @@ struct EventKitCalendarServicesTests {
         ]
         let service = EventKitCalendarWriter(
             eventStore: store,
-            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+            settingsRepository: FakeSettingsRepository(
+                settings: makeConfiguredSettings(
+                    writeCalendarIdentifier: "important",
+                    writeCalendarTitle: "Important"
+                )
+            )
         )
 
         let calendarTitle = try await service.validateWriteCalendar()
@@ -193,12 +198,41 @@ struct EventKitCalendarServicesTests {
         ]
         let service = EventKitCalendarWriter(
             eventStore: store,
-            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+            settingsRepository: FakeSettingsRepository(
+                settings: makeConfiguredSettings(
+                    writeCalendarIdentifier: "important",
+                    writeCalendarTitle: "Important"
+                )
+            )
         )
 
         await #expect(throws: CalendarWriteError.missingWriteCalendar("Important")) {
             try await service.validateWriteCalendar()
         }
+    }
+
+    @Test func calendarWriterMigratesLegacyTitleSelectionToIdentifier() async throws {
+        let store = FakeCalendarEventStore(authorizationStatus: .fullAccess)
+        store.calendars = [
+            EventStoreCalendarDescriptor(
+                id: "important",
+                title: "Important",
+                allowsContentModifications: true
+            )
+        ]
+        let settingsRepository = FakeSettingsRepository(
+            settings: makeConfiguredSettings(writeCalendarTitle: "Important")
+        )
+        let service = EventKitCalendarWriter(
+            eventStore: store,
+            settingsRepository: settingsRepository
+        )
+
+        let calendarTitle = try await service.validateWriteCalendar()
+
+        #expect(calendarTitle == "Important")
+        #expect(settingsRepository.settings.writeCalendarIdentifier == "important")
+        #expect(settingsRepository.settings.writeCalendarTitle == "Important")
     }
 
     @Test func calendarWriterCreatesEventInConfiguredCalendarWithConsistentTitle() async throws {
@@ -222,7 +256,12 @@ struct EventKitCalendarServicesTests {
         )
         let service = EventKitCalendarWriter(
             eventStore: store,
-            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+            settingsRepository: FakeSettingsRepository(
+                settings: makeConfiguredSettings(
+                    writeCalendarIdentifier: "important",
+                    writeCalendarTitle: "Important"
+                )
+            )
         )
         let task = MyTask(title: "Draft roadmap", estimatedMinutes: 30)
         let block = ScheduledBlock(
@@ -264,7 +303,12 @@ struct EventKitCalendarServicesTests {
         )
         let service = EventKitCalendarWriter(
             eventStore: store,
-            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+            settingsRepository: FakeSettingsRepository(
+                settings: makeConfiguredSettings(
+                    writeCalendarIdentifier: "important",
+                    writeCalendarTitle: "Important"
+                )
+            )
         )
         let task = MyTask(title: "Draft roadmap", estimatedMinutes: 30)
         let block = ScheduledBlock(
@@ -298,7 +342,12 @@ struct EventKitCalendarServicesTests {
         ]
         let service = EventKitCalendarWriter(
             eventStore: store,
-            settingsRepository: FakeSettingsRepository(settings: .mvpDefault)
+            settingsRepository: FakeSettingsRepository(
+                settings: makeConfiguredSettings(
+                    writeCalendarIdentifier: "important",
+                    writeCalendarTitle: "Important"
+                )
+            )
         )
         let block = ScheduledBlock(
             taskID: UUID(),
@@ -515,6 +564,20 @@ private final class FakeSettingsRepository: SettingsRepository {
     func saveSettings(_ settings: AppSettings) throws {
         self.settings = settings
     }
+}
+
+private func makeConfiguredSettings(
+    writeCalendarIdentifier: String = "",
+    writeCalendarTitle: String = ""
+) -> AppSettings {
+    AppSettings(
+        excludedReadCalendarTitles: [],
+        writeCalendarIdentifier: writeCalendarIdentifier,
+        writeCalendarTitle: writeCalendarTitle,
+        minimumGapMinutes: 15,
+        defaultAssumedDurationMinutes: 30,
+        plannerSuggestionCap: 5
+    )
 }
 
 @MainActor

@@ -98,6 +98,35 @@ struct PlannerViewModelTests {
         #expect(reader.requestedWindows == [DateInterval(start: expectedDayStart, end: expectedDayEnd)])
     }
 
+    @Test func selectingWriteCalendarPersistsIdentifierBackedSelection() async {
+        let settingsRepository = FakeSettingsRepository()
+        let listingService = FakeCalendarListingService(result: .success([
+            ReadableCalendar(
+                id: "planner",
+                title: "Planner",
+                allowsContentModifications: true,
+                isExcludedBySettings: false
+            )
+        ]))
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: settingsRepository,
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: listingService,
+            calendarReader: FakeCalendarReader(result: .success([])),
+            calendarWriter: FakeCalendarWriter()
+        )
+
+        await viewModel.loadIfNeeded()
+        viewModel.selectWriteCalendar(withID: "planner")
+
+        #expect(viewModel.selectedWriteCalendarIdentifier == "planner")
+        #expect(viewModel.selectedWriteCalendarTitle == "Planner")
+        #expect(settingsRepository.settings.writeCalendarIdentifier == "planner")
+        #expect(settingsRepository.settings.writeCalendarTitle == "Planner")
+    }
+
     @Test func observedCalendarStoreChangeRefreshesPlannerDataWhileObservationIsEnabled() async {
         let calendar = makeUTCGregorianCalendar()
         let now = Date(timeIntervalSince1970: 1_710_000_000)
@@ -1041,7 +1070,7 @@ private final class FakeScheduledBlockRepository: ScheduledBlockRepository {
 
 @MainActor
 private final class FakeSettingsRepository: SettingsRepository {
-    private let settings: AppSettings
+    var settings: AppSettings
 
     init(settings: AppSettings = .mvpDefault) {
         self.settings = settings
@@ -1051,7 +1080,9 @@ private final class FakeSettingsRepository: SettingsRepository {
         settings
     }
 
-    func saveSettings(_ settings: AppSettings) throws {}
+    func saveSettings(_ settings: AppSettings) throws {
+        self.settings = settings
+    }
 }
 
 @MainActor
@@ -1131,11 +1162,11 @@ private final class FakeCalendarWriter: CalendarWriting {
     private(set) var deleteEventCallCount = 0
 
     init(
-        validatedCalendarTitle: String = AppSettings.mvpDefault.writeCalendarTitle,
+        validatedCalendarTitle: String = "Important",
         createEventResult: Result<CalendarWriteResult, Error> = .success(
             CalendarWriteResult(
                 eventIdentifier: "fake-event",
-                calendarTitle: AppSettings.mvpDefault.writeCalendarTitle,
+                calendarTitle: "Important",
                 eventTitle: "Task: Fake"
             )
         ),

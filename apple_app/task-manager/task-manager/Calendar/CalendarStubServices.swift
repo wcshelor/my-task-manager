@@ -49,7 +49,7 @@ final class StubCalendarReader: CalendarReading {
 final class StubCalendarWriter: CalendarWriting {
     private let validatedCalendarTitle: String
 
-    init(validatedCalendarTitle: String = AppSettings.mvpDefault.writeCalendarTitle) {
+    init(validatedCalendarTitle: String = "Important") {
         self.validatedCalendarTitle = validatedCalendarTitle
     }
 

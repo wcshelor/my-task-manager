@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class PlannerViewModel: ObservableObject {
     @Published private(set) var permissionStatus: CalendarPermissionStatus
+    @Published private(set) var settings: AppSettings
     @Published private(set) var calendars: [ReadableCalendar] = []
     @Published private(set) var calendarEvents: [CalendarEventSnapshot] = []
     @Published private(set) var scheduledBlocks: [ScheduledBlock] = []
@@ -71,6 +72,7 @@ final class PlannerViewModel: ObservableObject {
         self.selectedPlanningHorizon = selectedPlanningHorizon
         self.filterState = filterState
         self.permissionStatus = calendarPermissionProvider.currentStatus()
+        self.settings = .mvpDefault
     }
 
     var visibleDayInterval: DateInterval {
@@ -160,6 +162,28 @@ final class PlannerViewModel: ObservableObject {
         WorkModeKind.allCases
     }
 
+    var writableCalendars: [ReadableCalendar] {
+        calendars.filter(\.allowsContentModifications)
+    }
+
+    var selectedWriteCalendarIdentifier: String {
+        settings.writeCalendarIdentifier
+    }
+
+    var selectedWriteCalendarTitle: String? {
+        if let matchedCalendar = writableCalendars.first(where: {
+            $0.id == settings.writeCalendarIdentifier
+        }) {
+            return matchedCalendar.title
+        }
+
+        guard settings.writeCalendarTitle.isEmpty == false else {
+            return nil
+        }
+
+        return settings.writeCalendarTitle
+    }
+
     var visibleSuggestionItems: [PlannerSuggestionItem] {
         suggestionItems.filter { $0.interval.overlaps(visibleDayInterval) }
     }
@@ -209,6 +233,7 @@ final class PlannerViewModel: ObservableObject {
 
         loadTasks()
         loadScheduledBlocks()
+        loadSettings()
 
         guard permissionStatus == .fullAccessGranted else {
             calendars = []
@@ -263,6 +288,29 @@ final class PlannerViewModel: ObservableObject {
         }
 
         await refresh()
+    }
+
+    func selectWriteCalendar(withID calendarID: String) {
+        errorMessage = nil
+
+        guard calendarID.isEmpty == false else {
+            return
+        }
+
+        guard let selectedCalendar = writableCalendars.first(where: { $0.id == calendarID }) else {
+            recordError("The selected write calendar is no longer available.")
+            return
+        }
+
+        do {
+            var updatedSettings = settings
+            updatedSettings.writeCalendarIdentifier = selectedCalendar.id
+            updatedSettings.writeCalendarTitle = selectedCalendar.title
+            try settingsRepository.saveSettings(updatedSettings)
+            settings = updatedSettings
+        } catch {
+            recordError("Unable to save calendar settings: \(error.localizedDescription)")
+        }
     }
 
     func goToPreviousDay() async {
@@ -679,12 +727,22 @@ final class PlannerViewModel: ObservableObject {
             loadScheduledBlocks()
             loadTasks()
             calendars = try await calendarListingService.fetchReadableCalendars()
+            try syncWriteCalendarSelectionIfNeeded(using: calendars)
             calendarEvents = try await calendarReader.fetchEvents(in: visibleDayInterval)
             applyReconciliationReport(reconciliationReport)
         } catch {
             calendars = []
             calendarEvents = []
             recordError(error.localizedDescription)
+        }
+    }
+
+    private func loadSettings() {
+        do {
+            settings = try settingsRepository.loadSettings()
+        } catch {
+            settings = .mvpDefault
+            recordError("Unable to load settings: \(error.localizedDescription)")
         }
     }
 
@@ -704,6 +762,35 @@ final class PlannerViewModel: ObservableObject {
             scheduledBlocks = []
             recordError("Unable to load scheduled blocks: \(error.localizedDescription)")
         }
+    }
+
+    private func syncWriteCalendarSelectionIfNeeded(
+        using calendars: [ReadableCalendar]
+    ) throws {
+        var updatedSettings = settings
+
+        if updatedSettings.writeCalendarIdentifier.isEmpty {
+            let matchingCalendars = calendars.filter { calendar in
+                calendar.allowsContentModifications
+                    && calendar.title == updatedSettings.writeCalendarTitle
+            }
+
+            if matchingCalendars.count == 1 {
+                updatedSettings.writeCalendarIdentifier = matchingCalendars[0].id
+                updatedSettings.writeCalendarTitle = matchingCalendars[0].title
+            }
+        } else if let selectedCalendar = calendars.first(where: {
+            $0.id == updatedSettings.writeCalendarIdentifier
+        }) {
+            updatedSettings.writeCalendarTitle = selectedCalendar.title
+        }
+
+        guard updatedSettings != settings else {
+            return
+        }
+
+        try settingsRepository.saveSettings(updatedSettings)
+        settings = updatedSettings
     }
 
     private func currentScheduledBlock(withID id: UUID) throws -> ScheduledBlock? {

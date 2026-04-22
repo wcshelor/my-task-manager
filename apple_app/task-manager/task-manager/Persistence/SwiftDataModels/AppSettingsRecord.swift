@@ -7,6 +7,7 @@ final class AppSettingsRecord {
 
     var id: String = AppSettingsRecord.singletonID
     var excludedReadCalendarTitlesText: String = ""
+    var writeCalendarIdentifier: String = ""
     var writeCalendarTitle: String = ""
     var minimumGapMinutes: Int = AppSettings.mvpDefault.minimumGapMinutes
     var defaultAssumedDurationMinutes: Int = AppSettings.mvpDefault.defaultAssumedDurationMinutes
@@ -18,6 +19,7 @@ final class AppSettingsRecord {
     ) {
         self.id = id
         self.excludedReadCalendarTitlesText = Self.encodeTitles(settings.excludedReadCalendarTitles)
+        self.writeCalendarIdentifier = settings.writeCalendarIdentifier
         self.writeCalendarTitle = settings.writeCalendarTitle
         self.minimumGapMinutes = settings.minimumGapMinutes
         self.defaultAssumedDurationMinutes = settings.defaultAssumedDurationMinutes
@@ -27,6 +29,7 @@ final class AppSettingsRecord {
     var settings: AppSettings {
         AppSettings(
             excludedReadCalendarTitles: Self.decodeTitles(excludedReadCalendarTitlesText),
+            writeCalendarIdentifier: writeCalendarIdentifier,
             writeCalendarTitle: writeCalendarTitle,
             minimumGapMinutes: minimumGapMinutes,
             defaultAssumedDurationMinutes: defaultAssumedDurationMinutes,
@@ -36,6 +39,7 @@ final class AppSettingsRecord {
 
     func update(from settings: AppSettings) {
         excludedReadCalendarTitlesText = Self.encodeTitles(settings.excludedReadCalendarTitles)
+        writeCalendarIdentifier = settings.writeCalendarIdentifier
         writeCalendarTitle = settings.writeCalendarTitle
         minimumGapMinutes = settings.minimumGapMinutes
         defaultAssumedDurationMinutes = settings.defaultAssumedDurationMinutes
