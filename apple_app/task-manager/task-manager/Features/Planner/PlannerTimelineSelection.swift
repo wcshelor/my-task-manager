@@ -72,6 +72,19 @@ struct PlannerDayTimelineMetrics: Equatable, Sendable {
             && point.y >= topInset
             && point.y <= totalHeight
     }
+
+    static let compactPhone = PlannerDayTimelineMetrics(
+        hourHeight: 48,
+        timeColumnWidth: 44,
+        contentLeadingInset: 8,
+        topInset: 8,
+        laneSpacing: 4
+    )
+}
+
+enum PlannerSelectionResizeEdge: Equatable, Sendable {
+    case top
+    case bottom
 }
 
 enum PlannerTimelineGrid {
@@ -147,6 +160,28 @@ enum PlannerTimelineGrid {
             ?? dayStart.addingTimeInterval(TimeInterval(clampedBoundary * slotMinutes * 60))
     }
 
+    static func slotBoundaryIndex(
+        for date: Date,
+        on day: Date,
+        calendar: Calendar
+    ) -> Int {
+        let dayStart = calendar.startOfDay(for: day)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)
+            ?? dayStart.addingTimeInterval(86_400)
+
+        if date <= dayStart {
+            return 0
+        }
+
+        if date >= dayEnd {
+            return slotsPerDay
+        }
+
+        let secondsFromStart = date.timeIntervalSince(dayStart)
+        let minutesFromStart = Int(secondsFromStart / 60)
+        return min(max(minutesFromStart / slotMinutes, 0), slotsPerDay)
+    }
+
     static func selectedRange(
         anchorSlotIndex: Int,
         currentSlotIndex: Int,
@@ -206,6 +241,61 @@ enum PlannerTimelineGrid {
         }
 
         return selection
+    }
+
+    static func resizedRange(
+        _ range: PlannerSelectedTimeRange,
+        edge: PlannerSelectionResizeEdge,
+        point: CGPoint,
+        in size: CGSize,
+        metrics: PlannerDayTimelineMetrics,
+        day: Date,
+        calendar: Calendar,
+        occupiedIntervals: [DateInterval]
+    ) -> PlannerSelectedTimeRange? {
+        let draggedSlotIndex = dragSlotIndex(
+            for: point,
+            in: size,
+            metrics: metrics
+        )
+        let startSlotIndex = slotBoundaryIndex(for: range.start, on: day, calendar: calendar)
+        let endSlotBoundaryIndex = slotBoundaryIndex(for: range.end, on: day, calendar: calendar)
+
+        let startBoundaryIndex: Int
+        let endBoundaryIndex: Int
+
+        switch edge {
+        case .top:
+            startBoundaryIndex = min(draggedSlotIndex, endSlotBoundaryIndex - 1)
+            endBoundaryIndex = endSlotBoundaryIndex
+        case .bottom:
+            startBoundaryIndex = startSlotIndex
+            endBoundaryIndex = max(draggedSlotIndex + 1, startSlotIndex + 1)
+        }
+
+        let start = boundaryDate(
+            forSlotBoundaryIndex: startBoundaryIndex,
+            on: day,
+            calendar: calendar
+        )
+        let end = boundaryDate(
+            forSlotBoundaryIndex: endBoundaryIndex,
+            on: day,
+            calendar: calendar
+        )
+
+        guard let resizedRange = PlannerSelectedTimeRange(start: start, end: end) else {
+            return nil
+        }
+
+        let blockingIntervals = occupiedIntervals.filter { occupiedInterval in
+            occupiedInterval.overlaps(range.interval) == false
+        }
+        guard blockingIntervals.contains(where: { $0.overlaps(resizedRange.interval) }) == false else {
+            return nil
+        }
+
+        return resizedRange
     }
 }
 

@@ -43,6 +43,7 @@ struct TaskFormView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var formData: MyTaskFormData
     @State private var isShowingDeleteConfirmation = false
 
@@ -84,6 +85,10 @@ struct TaskFormView: View {
             get: { formData.estimatedMinutesSelection },
             set: { formData.estimatedMinutesSelection = $0 }
         )
+    }
+
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
     }
 
     var body: some View {
@@ -199,7 +204,7 @@ struct TaskFormView: View {
                 .disabled(validationMessage != nil)
             }
         }
-        .padding()
+        .padding(isCompactWidth ? 16 : 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle(mode.title)
         .alert("Delete Task?", isPresented: $isShowingDeleteConfirmation) {

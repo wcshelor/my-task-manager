@@ -48,6 +48,10 @@ private struct TaskManagerTabShell: View {
                 Label("Calendar", systemImage: "calendar")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #if os(iOS)
+        .background(Color(uiColor: .systemBackground))
+        #endif
     }
 }
 

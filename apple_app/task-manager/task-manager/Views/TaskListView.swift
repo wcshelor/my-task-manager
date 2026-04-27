@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskListView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private enum Destination: Hashable {
         case newTask
@@ -49,12 +50,16 @@ struct TaskListView: View {
         )
     }
 
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: isCompactWidth ? 12 : 16) {
                 HStack {
                     Text("Tasks")
-                        .font(.title2)
+                        .font(isCompactWidth ? .title3.weight(.semibold) : .title2)
                 }
 
                 Text("Quick Add is optimized for fast phone capture. Open any task for full editing.")
@@ -114,7 +119,7 @@ struct TaskListView: View {
                     .listStyle(.plain)
                 }
             }
-            .padding()
+            .padding(isCompactWidth ? 16 : 20)
             .searchable(text: $searchText, prompt: "Search title, notes, or tags")
             .task {
                 viewModel.loadTasksIfNeeded()
@@ -173,10 +178,10 @@ struct TaskListView: View {
                     Label("Quick Add Task", systemImage: "plus.circle.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, isCompactWidth ? 12 : 14)
                 }
                 .buttonStyle(.borderedProminent)
-                .padding(.horizontal)
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
                 .padding(.top, 8)
                 .background(.thinMaterial)
             }

@@ -346,6 +346,7 @@
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -382,6 +383,7 @@
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Task Manager reads your calendars to find busy time and suggest task slots.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

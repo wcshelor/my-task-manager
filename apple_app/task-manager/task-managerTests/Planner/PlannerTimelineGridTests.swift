@@ -144,6 +144,100 @@ struct PlannerTimelineGridTests {
 
         #expect(selection == nil)
     }
+
+    @Test func resizingTopEdgeKeepsEndFixed() throws {
+        let originalStart = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        )!
+        let originalEnd = calendar.date(
+            bySettingHour: 10,
+            minute: 0,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        )!
+        let originalRange = try #require(
+            PlannerSelectedTimeRange(start: originalStart, end: originalEnd)
+        )
+        let size = CGSize(width: 320, height: metrics.totalHeight)
+        let dragPoint = CGPoint(
+            x: metrics.contentStartX + 18,
+            y: metrics.topInset + metrics.slotHeight * 34 + 1
+        )
+
+        let resizedRange = try #require(
+            PlannerTimelineGrid.resizedRange(
+                originalRange,
+                edge: .top,
+                point: dragPoint,
+                in: size,
+                metrics: metrics,
+                day: day,
+                calendar: calendar,
+                occupiedIntervals: []
+            )
+        )
+
+        let expectedStart = calendar.date(
+            bySettingHour: 8,
+            minute: 30,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        )!
+        let expectedRange = try #require(
+            PlannerSelectedTimeRange(start: expectedStart, end: originalEnd)
+        )
+        #expect(resizedRange == expectedRange)
+    }
+
+    @Test func resizingBottomEdgeKeepsStartFixed() throws {
+        let originalStart = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        )!
+        let originalEnd = calendar.date(
+            bySettingHour: 10,
+            minute: 0,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        )!
+        let originalRange = try #require(
+            PlannerSelectedTimeRange(start: originalStart, end: originalEnd)
+        )
+        let size = CGSize(width: 320, height: metrics.totalHeight)
+        let dragPoint = CGPoint(
+            x: metrics.contentStartX + 18,
+            y: metrics.topInset + metrics.slotHeight * 43 + 1
+        )
+
+        let resizedRange = try #require(
+            PlannerTimelineGrid.resizedRange(
+                originalRange,
+                edge: .bottom,
+                point: dragPoint,
+                in: size,
+                metrics: metrics,
+                day: day,
+                calendar: calendar,
+                occupiedIntervals: []
+            )
+        )
+
+        let expectedEnd = calendar.date(
+            bySettingHour: 11,
+            minute: 0,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        )!
+        let expectedRange = try #require(
+            PlannerSelectedTimeRange(start: originalStart, end: expectedEnd)
+        )
+        #expect(resizedRange == expectedRange)
+    }
 }
 
 private func makeUTCGregorianCalendar() -> Calendar {

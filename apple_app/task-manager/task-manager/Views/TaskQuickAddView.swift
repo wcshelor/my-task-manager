@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskQuickAddView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @FocusState private var focusedField: Field?
     @State private var formData: MyTaskFormData
 
@@ -32,9 +33,13 @@ struct TaskQuickAddView: View {
         formData.validationMessage(reservedTaskIDs: reservedTaskIDs)
     }
 
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: isCompactWidth ? 20 : 24) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Title")
                         .font(.headline)
@@ -118,11 +123,11 @@ struct TaskQuickAddView: View {
                         .foregroundStyle(.red)
                 }
             }
-            .padding(20)
+            .padding(isCompactWidth ? 16 : 20)
         }
         .navigationTitle("Quick Add")
         .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 12) {
+            HStack(spacing: isCompactWidth ? 10 : 12) {
                 Button("Cancel") {
                     dismiss()
                 }
@@ -141,7 +146,7 @@ struct TaskQuickAddView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(validationMessage != nil)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, isCompactWidth ? 16 : 20)
             .padding(.vertical, 12)
             .background(.thinMaterial)
         }

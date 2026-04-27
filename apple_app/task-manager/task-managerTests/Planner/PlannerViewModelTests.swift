@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct PlannerViewModelTests {
-    @Test func loadIfNeededSkipsCalendarReadsWithoutFullAccessAndLoadsTasks() async {
+    @Test func loadIfNeededAutomaticallyChecksCalendarAccessBeforeSkippingReads() async {
         let taskRepository = FakeTaskRepository(tasks: [
             MyTask(title: "Write brief", priority: .high)
         ])
@@ -41,12 +41,62 @@ struct PlannerViewModelTests {
 
         await viewModel.loadIfNeeded()
 
+        #expect(permissionProvider.requestCallCount == 1)
         #expect(viewModel.permissionStatus == .notDetermined)
         #expect(viewModel.tasks.count == 1)
         #expect(viewModel.calendars.isEmpty)
         #expect(viewModel.calendarEvents.isEmpty)
         #expect(listingService.fetchCallCount == 0)
         #expect(reader.fetchCallCount == 0)
+    }
+
+    @Test func loadIfNeededAutomaticallyRequestsCalendarAccessAndLoadsCalendarDataOnGrant() async {
+        let permissionProvider = FakeCalendarPermissionProvider(
+            currentStatus: .notDetermined,
+            requestedStatus: .fullAccessGranted
+        )
+        let listingService = FakeCalendarListingService(result: .success([
+            ReadableCalendar(
+                id: "personal",
+                title: "Personal",
+                allowsContentModifications: true,
+                isExcludedBySettings: false
+            )
+        ]))
+        let expectedEvent = CalendarEventSnapshot(
+            identifier: "meeting-1",
+            title: "Design Review",
+            start: Date(timeIntervalSince1970: 1_710_032_400),
+            end: Date(timeIntervalSince1970: 1_710_036_000),
+            isAllDay: false,
+            calendarTitle: "Personal"
+        )
+        let reader = FakeCalendarReader(result: .success([expectedEvent]))
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let calendar = makeUTCGregorianCalendar()
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: FakeSettingsRepository(),
+            calendarPermissionProvider: permissionProvider,
+            calendarListingService: listingService,
+            calendarReader: reader,
+            calendarWriter: FakeCalendarWriter(),
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        await viewModel.loadIfNeeded()
+
+        let expectedDayStart = calendar.startOfDay(for: now)
+        let expectedDayEnd = calendar.date(byAdding: .day, value: 1, to: expectedDayStart)
+            ?? expectedDayStart.addingTimeInterval(86_400)
+
+        #expect(permissionProvider.requestCallCount == 1)
+        #expect(viewModel.permissionStatus == .fullAccessGranted)
+        #expect(viewModel.calendars == listingService.calendars)
+        #expect(viewModel.calendarEvents == [expectedEvent])
+        #expect(reader.requestedWindows == [DateInterval(start: expectedDayStart, end: expectedDayEnd)])
     }
 
     @Test func requestCalendarAccessLoadsCalendarsAndSelectedDayEventsOnGrant() async {

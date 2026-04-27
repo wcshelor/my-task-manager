@@ -39,6 +39,7 @@ final class PlannerViewModel: ObservableObject {
     private var isCalendarStoreObservationEnabled = false
     private var isRefreshingObservedCalendarStoreChange = false
     private var hasPendingObservedCalendarStoreChange = false
+    private var hasAttemptedAutomaticCalendarAccessRequest = false
 
     init(
         taskRepository: any TaskRepository,
@@ -235,6 +236,12 @@ final class PlannerViewModel: ObservableObject {
         loadScheduledBlocks()
         loadSettings()
 
+        if permissionStatus == .notDetermined,
+            hasAttemptedAutomaticCalendarAccessRequest == false {
+            await requestCalendarAccess(triggeredAutomatically: true)
+            return
+        }
+
         guard permissionStatus == .fullAccessGranted else {
             calendars = []
             calendarEvents = []
@@ -276,13 +283,20 @@ final class PlannerViewModel: ObservableObject {
     }
 
     func requestCalendarAccess() async {
+        await requestCalendarAccess(triggeredAutomatically: false)
+    }
+
+    private func requestCalendarAccess(triggeredAutomatically: Bool) async {
+        hasAttemptedAutomaticCalendarAccessRequest = true
         let requestedStatus = await calendarPermissionProvider.requestFullAccess()
         permissionStatus = requestedStatus
 
         if case .error(let message) = requestedStatus {
             calendars = []
             calendarEvents = []
-            recordError(message)
+            if triggeredAutomatically == false {
+                recordError(message)
+            }
             hasLoaded = true
             return
         }
@@ -324,6 +338,34 @@ final class PlannerViewModel: ObservableObject {
         await selectDay(
             calendar.date(byAdding: .day, value: 1, to: selectedDay)
                 ?? selectedDay.addingTimeInterval(86_400)
+        )
+    }
+
+    func goToPreviousWeek() async {
+        await selectDay(
+            calendar.date(byAdding: .day, value: -7, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(-7 * 86_400)
+        )
+    }
+
+    func goToNextWeek() async {
+        await selectDay(
+            calendar.date(byAdding: .day, value: 7, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(7 * 86_400)
+        )
+    }
+
+    func goToPreviousMonth() async {
+        await selectDay(
+            calendar.date(byAdding: .month, value: -1, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(-30 * 86_400)
+        )
+    }
+
+    func goToNextMonth() async {
+        await selectDay(
+            calendar.date(byAdding: .month, value: 1, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(30 * 86_400)
         )
     }
 
