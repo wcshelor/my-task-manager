@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 private enum PlannerCalendarDisplayMode: String, CaseIterable, Identifiable {
     case day
@@ -138,6 +141,35 @@ struct PlannerView: View {
                         activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
                         onSelectionChange: { selection in
                             viewModel.updateSelectedTimeRange(selection)
+                        },
+                        onClearSelection: {
+                            viewModel.clearSelectedTimeRange()
+                        },
+                        onAcceptSuggestion: { suggestionID in
+                            Task {
+                                await viewModel.acceptSuggestion(withID: suggestionID)
+                            }
+                        },
+                        onRejectSuggestion: { suggestionID in
+                            viewModel.rejectSuggestion(withID: suggestionID)
+                        }
+                    )
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+
+                    PlannerManualSlotFillerCard(
+                        viewModel: viewModel,
+                        selectedDay: viewModel.selectedDay,
+                        selectedTimeRange: viewModel.selectedTimeRange,
+                        suggestionItems: viewModel.selectedSlotSuggestionItems,
+                        hasGeneratedSuggestions: viewModel.hasGeneratedSuggestionsForSelectedTimeRange,
+                        activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
+                        onSelectRange: { selection in
+                            viewModel.updateSelectedTimeRange(selection)
+                        },
+                        onGenerateSuggestions: {
+                            Task {
+                                await viewModel.generatePlanForSelectedTimeRange()
+                            }
                         },
                         onClearSelection: {
                             viewModel.clearSelectedTimeRange()
@@ -884,10 +916,25 @@ private struct PlannerDayCalendarSection: View {
             height: timelineMetrics.totalHeight
         )
 
+        #if os(iOS)
+        PlannerSelectionGestureOverlay(
+            contentSize: contentSize,
+            minimumPressDuration: selectionHoldDuration,
+            allowableMovement: selectionScrollTolerance
+        ) { anchorPoint, currentPoint in
+            updateSelection(
+                anchorPoint: anchorPoint,
+                currentPoint: currentPoint,
+                in: contentSize
+            )
+        }
+        .frame(width: totalWidth, height: timelineMetrics.totalHeight)
+        #else
         Color.clear
             .frame(width: totalWidth, height: timelineMetrics.totalHeight)
             .contentShape(Rectangle())
             .simultaneousGesture(selectionGesture(in: contentSize))
+        #endif
     }
 
     private func selectionGesture(in contentSize: CGSize) -> some Gesture {
@@ -1079,6 +1126,102 @@ private struct PlannerDayCalendarSection: View {
         #endif
     }
 }
+
+#if os(iOS)
+private struct PlannerSelectionGestureOverlay: UIViewRepresentable {
+    let contentSize: CGSize
+    let minimumPressDuration: TimeInterval
+    let allowableMovement: CGFloat
+    let onSelectionChange: (CGPoint, CGPoint) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = true
+
+        let recognizer = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        recognizer.minimumPressDuration = minimumPressDuration
+        recognizer.allowableMovement = allowableMovement
+        recognizer.cancelsTouchesInView = false
+        recognizer.delaysTouchesBegan = false
+        recognizer.delaysTouchesEnded = false
+        recognizer.delegate = context.coordinator
+        view.addGestureRecognizer(recognizer)
+
+        context.coordinator.contentSize = contentSize
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.contentSize = contentSize
+        context.coordinator.onSelectionChange = onSelectionChange
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(contentSize: contentSize, onSelectionChange: onSelectionChange)
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var contentSize: CGSize
+        var onSelectionChange: (CGPoint, CGPoint) -> Void
+        private var anchorPoint: CGPoint?
+
+        init(
+            contentSize: CGSize,
+            onSelectionChange: @escaping (CGPoint, CGPoint) -> Void
+        ) {
+            self.contentSize = contentSize
+            self.onSelectionChange = onSelectionChange
+        }
+
+        @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            guard let view = recognizer.view else {
+                return
+            }
+
+            let currentPoint = clampedPoint(recognizer.location(in: view))
+
+            switch recognizer.state {
+            case .began:
+                anchorPoint = currentPoint
+                onSelectionChange(currentPoint, currentPoint)
+            case .changed:
+                guard let anchorPoint else {
+                    return
+                }
+
+                onSelectionChange(anchorPoint, currentPoint)
+            case .ended:
+                if let anchorPoint {
+                    onSelectionChange(anchorPoint, currentPoint)
+                }
+                anchorPoint = nil
+            case .cancelled, .failed:
+                anchorPoint = nil
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        private func clampedPoint(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: min(max(point.x, 0), contentSize.width),
+                y: min(max(point.y, 0), contentSize.height)
+            )
+        }
+    }
+}
+#endif
 
 private struct PlannerSelectedSlotActionBar: View {
     let selectedTimeRange: PlannerSelectedTimeRange
@@ -1621,6 +1764,275 @@ private struct PlannerSelectionResizeHandle: View {
                         onResize(value.location)
                     }
             )
+    }
+}
+
+private struct PlannerManualSlotFillerCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    @ObservedObject var viewModel: PlannerViewModel
+    let selectedDay: Date
+    let selectedTimeRange: PlannerSelectedTimeRange?
+    let suggestionItems: [PlannerSuggestionItem]
+    let hasGeneratedSuggestions: Bool
+    let activeSuggestionOperationIDs: Set<UUID>
+    let onSelectRange: (PlannerSelectedTimeRange?) -> Void
+    let onGenerateSuggestions: () -> Void
+    let onClearSelection: () -> Void
+    let onAcceptSuggestion: (UUID) -> Void
+    let onRejectSuggestion: (UUID) -> Void
+
+    @State private var draftStart = Date.now
+    @State private var draftEnd = Date.now.addingTimeInterval(60 * 60)
+
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
+    private var draftRange: PlannerSelectedTimeRange? {
+        PlannerSelectedTimeRange(start: draftStart, end: draftEnd)
+    }
+
+    private var validationMessage: String? {
+        guard draftRange != nil else {
+            return "End time must be after start time."
+        }
+
+        return nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompactWidth ? 14 : 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Detailed Task Filler")
+                        .font(.headline)
+
+                    Text(selectedRangeSummary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                if selectedTimeRange != nil {
+                    Button("Clear", action: onClearSelection)
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .disabled(viewModel.isLoading)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                DatePicker(
+                    "Start",
+                    selection: $draftStart,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+
+                DatePicker(
+                    "End",
+                    selection: $draftEnd,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+            }
+
+            ViewThatFits {
+                HStack(alignment: .center, spacing: 12) {
+                    filterControls
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    filterControls
+                }
+            }
+
+            if viewModel.availableTags.isEmpty == false {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tags")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.availableTags, id: \.self) { tag in
+                                PlannerFilterTagChip(
+                                    title: tag,
+                                    isSelected: viewModel.filterState.selectedTags.contains(tag)
+                                ) {
+                                    let isEnabled = viewModel.filterState.selectedTags.contains(tag) == false
+                                    viewModel.setSelectedTag(tag, isEnabled: isEnabled)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let validationMessage {
+                Text(validationMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            ViewThatFits {
+                HStack(spacing: 12) {
+                    actionButtons
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    actionButtons
+                }
+            }
+
+            if hasGeneratedSuggestions {
+                if suggestionItems.isEmpty {
+                    Text("No matching tasks fit this time span.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(suggestionItems.count == 1 ? "Suggested Task" : "Suggested Tasks")
+                            .font(.subheadline.weight(.medium))
+
+                        ForEach(suggestionItems) { suggestion in
+                            PlannerSuggestionCard(
+                                suggestion: suggestion,
+                                isProcessingSuggestion: activeSuggestionOperationIDs.contains(suggestion.id),
+                                onAcceptSuggestion: onAcceptSuggestion,
+                                onRejectSuggestion: onRejectSuggestion
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .padding(isCompactWidth ? 16 : 18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.08),
+                    Color.orange.opacity(0.08)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .onAppear(perform: syncDraftWithSelectionOrDay)
+        .onChange(of: selectedDay) { _, _ in
+            syncDraftWithSelectionOrDay()
+        }
+        .onChange(of: selectedTimeRange) { _, newSelection in
+            guard let newSelection else {
+                return
+            }
+
+            draftStart = newSelection.start
+            draftEnd = newSelection.end
+        }
+    }
+
+    @ViewBuilder
+    private var filterControls: some View {
+        LabeledContent("Mode") {
+            Picker("Work Mode", selection: selectedWorkModeBinding) {
+                Text("Any").tag(nil as WorkModeKind?)
+
+                ForEach(viewModel.availableWorkModes, id: \.self) { workMode in
+                    Text(workMode.displayName).tag(Optional(workMode))
+                }
+            }
+            .pickerStyle(.menu)
+        }
+
+        LabeledContent("Priority") {
+            Picker("Priority Emphasis", selection: selectedPriorityEmphasisBinding) {
+                ForEach(PlannerPriorityEmphasis.allCases) { emphasis in
+                    Text(emphasis.title).tag(emphasis)
+                }
+            }
+            .pickerStyle(.menu)
+        }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        Button("Use Time Span") {
+            onSelectRange(draftRange)
+        }
+        .buttonStyle(.bordered)
+        .disabled(viewModel.isLoading || validationMessage != nil)
+
+        Button("Fill Tasks") {
+            onSelectRange(draftRange)
+            onGenerateSuggestions()
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(
+            viewModel.isLoading
+                || validationMessage != nil
+                || viewModel.permissionStatus != .fullAccessGranted
+        )
+    }
+
+    private var selectedWorkModeBinding: Binding<WorkModeKind?> {
+        Binding {
+            viewModel.filterState.workMode
+        } set: { workMode in
+            viewModel.filterState.workMode = workMode
+        }
+    }
+
+    private var selectedPriorityEmphasisBinding: Binding<PlannerPriorityEmphasis> {
+        Binding {
+            viewModel.filterState.priorityEmphasis
+        } set: { emphasis in
+            viewModel.filterState.priorityEmphasis = emphasis
+        }
+    }
+
+    private var selectedRangeSummary: String {
+        if let selectedTimeRange {
+            return "\(selectedTimeRange.interval.timelineLabel) selected"
+        }
+
+        return "Choose an exact time span, then narrow the kind of task you want."
+    }
+
+    private func syncDraftWithSelectionOrDay() {
+        if let selectedTimeRange {
+            draftStart = selectedTimeRange.start
+            draftEnd = selectedTimeRange.end
+            return
+        }
+
+        let calendar = viewModel.timelineCalendar
+        let dayStart = calendar.startOfDay(for: selectedDay)
+        let now = Date.now
+
+        let defaultStart: Date
+        if calendar.isDate(selectedDay, inSameDayAs: now), now > dayStart {
+            let minute = calendar.component(.minute, from: now)
+            let minutesToNextSlot = PlannerTimelineGrid.slotMinutes - (minute % PlannerTimelineGrid.slotMinutes)
+            defaultStart = calendar.date(
+                byAdding: .minute,
+                value: minutesToNextSlot == PlannerTimelineGrid.slotMinutes ? 0 : minutesToNextSlot,
+                to: now
+            ) ?? now
+        } else {
+            defaultStart = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart)
+                ?? dayStart.addingTimeInterval(9 * 60 * 60)
+        }
+
+        draftStart = defaultStart
+        draftEnd = defaultStart.addingTimeInterval(60 * 60)
     }
 }
 

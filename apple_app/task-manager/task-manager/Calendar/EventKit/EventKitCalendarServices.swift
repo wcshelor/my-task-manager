@@ -232,14 +232,7 @@ final class EventKitCalendarWriter: CalendarWriting {
 
         let settings = try settingsRepository.loadSettings()
         let calendars = eventStore.fetchEventCalendars()
-        guard let writeCalendar = try resolveConfiguredWriteCalendar(
-            from: settings,
-            calendars: calendars
-        ) else {
-            throw CalendarWriteError.saveFailed(
-                "Choose a write calendar in Planner before writing calendar events."
-            )
-        }
+        let writeCalendar = try resolveTasksWriteCalendar(calendars: calendars)
 
         if settings.writeCalendarIdentifier != writeCalendar.id
             || settings.writeCalendarTitle != writeCalendar.title {
@@ -252,69 +245,28 @@ final class EventKitCalendarWriter: CalendarWriting {
         return writeCalendar
     }
 
-    private func resolveConfiguredWriteCalendar(
-        from settings: AppSettings,
+    private func resolveTasksWriteCalendar(
         calendars: [EventStoreCalendarDescriptor]
-    ) throws -> EventStoreCalendarDescriptor? {
-        let configuredIdentifier = settings.writeCalendarIdentifier
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if configuredIdentifier.isEmpty == false {
-            guard let writeCalendar = calendars.first(where: { $0.id == configuredIdentifier }) else {
-                throw CalendarWriteError.missingWriteCalendar(
-                    configuredWriteCalendarLabel(from: settings)
-                )
-            }
-
-            guard writeCalendar.allowsContentModifications else {
-                throw CalendarWriteError.writeCalendarNotWritable(
-                    configuredWriteCalendarLabel(from: settings)
-                )
-            }
-
-            return writeCalendar
-        }
-
-        let configuredTitle = settings.writeCalendarTitle
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard configuredTitle.isEmpty == false else {
-            return nil
-        }
-
+    ) throws -> EventStoreCalendarDescriptor {
+        let targetTitle = AppSettings.defaultWriteCalendarTitle
         let matchingCalendars = calendars.filter { descriptor in
-            descriptor.title == configuredTitle
+            descriptor.title == targetTitle
         }
 
         guard matchingCalendars.isEmpty == false else {
-            throw CalendarWriteError.missingWriteCalendar(configuredTitle)
+            throw CalendarWriteError.missingWriteCalendar(targetTitle)
         }
 
         guard matchingCalendars.count == 1 else {
-            throw CalendarWriteError.ambiguousWriteCalendar(configuredTitle)
+            throw CalendarWriteError.ambiguousWriteCalendar(targetTitle)
         }
 
         let writeCalendar = matchingCalendars[0]
         guard writeCalendar.allowsContentModifications else {
-            throw CalendarWriteError.writeCalendarNotWritable(configuredTitle)
+            throw CalendarWriteError.writeCalendarNotWritable(targetTitle)
         }
 
         return writeCalendar
-    }
-
-    private func configuredWriteCalendarLabel(from settings: AppSettings) -> String {
-        let configuredTitle = settings.writeCalendarTitle
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if configuredTitle.isEmpty == false {
-            return configuredTitle
-        }
-
-        let configuredIdentifier = settings.writeCalendarIdentifier
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if configuredIdentifier.isEmpty == false {
-            return configuredIdentifier
-        }
-
-        return "selected calendar"
     }
 
     private func requireEventIdentifier(from block: ScheduledBlock) throws -> String {

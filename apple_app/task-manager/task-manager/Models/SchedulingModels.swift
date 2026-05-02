@@ -77,6 +77,8 @@ nonisolated struct ScheduledBlock: Identifiable, Equatable, Sendable {
 }
 
 nonisolated struct AppSettings: Equatable, Sendable {
+    static let defaultWriteCalendarTitle = "Tasks"
+
     var excludedReadCalendarTitles: [String]
     var writeCalendarIdentifier: String
     var writeCalendarTitle: String
@@ -117,7 +119,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
     static let mvpDefault = AppSettings(
         excludedReadCalendarTitles: ["Birthdays"],
         writeCalendarIdentifier: "",
-        writeCalendarTitle: "",
+        writeCalendarTitle: defaultWriteCalendarTitle,
         minimumGapMinutes: 15,
         defaultAssumedDurationMinutes: 30,
         plannerSuggestionCap: 5

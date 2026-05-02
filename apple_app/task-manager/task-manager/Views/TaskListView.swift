@@ -10,8 +10,7 @@ struct TaskListView: View {
     }
 
     private enum SheetDestination: String, Identifiable {
-        case quickAdd
-        case detailedCreate
+        case addTask
 
         var id: String { rawValue }
     }
@@ -24,9 +23,17 @@ struct TaskListView: View {
     @State private var sortMode: TaskListSortMode = .createdDate
     @State private var groupMode: TaskListGroupMode = .none
 
-    init(taskRepository: any TaskRepository) {
+    init(
+        taskRepository: any TaskRepository,
+        scheduledBlockRepository: (any ScheduledBlockRepository)? = nil,
+        calendarWriter: (any CalendarWriting)? = nil
+    ) {
         _viewModel = StateObject(
-            wrappedValue: TaskListViewModel(taskRepository: taskRepository)
+            wrappedValue: TaskListViewModel(
+                taskRepository: taskRepository,
+                scheduledBlockRepository: scheduledBlockRepository,
+                calendarWriter: calendarWriter
+            )
         )
     }
 
@@ -54,6 +61,12 @@ struct TaskListView: View {
         horizontalSizeClass == .compact
     }
 
+    private var taskGroups: [String] {
+        Array(Set(viewModel.tasks.compactMap(\.taskGroup))).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             VStack(alignment: .leading, spacing: isCompactWidth ? 12 : 16) {
@@ -62,7 +75,7 @@ struct TaskListView: View {
                         .font(isCompactWidth ? .title3.weight(.semibold) : .title2)
                 }
 
-                Text("Quick Add is optimized for fast phone capture. Open any task for full editing.")
+                Text("Add tasks with only a title, or include optional details when they help.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -122,48 +135,33 @@ struct TaskListView: View {
             .padding(isCompactWidth ? 16 : 20)
             .searchable(text: $searchText, prompt: "Search title, notes, or tags")
             .task {
-                viewModel.loadTasksIfNeeded()
+                await viewModel.loadTasksIfNeeded()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else {
                     return
                 }
 
-                viewModel.handleSceneDidBecomeActive()
+                Task {
+                    await viewModel.handleSceneDidBecomeActive()
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("Quick Add") {
-                            presentQuickAdd()
-                        }
-
-                        Button("Detailed Task") {
-                            presentDetailedCreate()
-                        }
+                    Button {
+                        presentAddTask()
                     } label: {
-                        Image(systemName: "plus")
+                        Label("Add Task", systemImage: "plus")
                     }
                 }
             }
             .sheet(item: $presentedSheet) { destination in
                 NavigationStack {
                     switch destination {
-                    case .quickAdd:
+                    case .addTask:
                         TaskQuickAddView(
                             initialFormData: newTaskDraft,
-                            reservedTaskIDs: reservedTaskIDs
-                        ) { task in
-                            viewModel.saveTask(task)
-                        } onOpenDetailedCreate: { draft in
-                            newTaskDraft = draft
-                            presentedSheet = .detailedCreate
-                        }
-
-                    case .detailedCreate:
-                        TaskFormView(
-                            mode: .create,
-                            initialFormData: newTaskDraft,
+                            taskGroups: taskGroups,
                             reservedTaskIDs: reservedTaskIDs
                         ) { task in
                             viewModel.saveTask(task)
@@ -173,9 +171,9 @@ struct TaskListView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 Button {
-                    presentQuickAdd()
+                    presentAddTask()
                 } label: {
-                    Label("Quick Add Task", systemImage: "plus.circle.fill")
+                    Label("Add Task", systemImage: "plus.circle.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, isCompactWidth ? 12 : 14)
@@ -215,7 +213,29 @@ struct TaskListView: View {
                     }
                 }
             }
+            .alert(item: overdueCompletionPromptBinding) { prompt in
+                Alert(
+                    title: Text("Did you finish \(prompt.taskTitle)?"),
+                    primaryButton: .default(Text("Yes")) {
+                        Task {
+                            await viewModel.answerOverdueCompletionPrompt(finished: true)
+                        }
+                    },
+                    secondaryButton: .cancel(Text("No")) {
+                        Task {
+                            await viewModel.answerOverdueCompletionPrompt(finished: false)
+                        }
+                    }
+                )
+            }
         }
+    }
+
+    private var overdueCompletionPromptBinding: Binding<ScheduledTaskCompletionPrompt?> {
+        Binding(
+            get: { viewModel.overdueCompletionPrompt },
+            set: { _ in }
+        )
     }
 
     private var sortPicker: some View {
@@ -279,16 +299,20 @@ struct TaskListView: View {
                     viewModel.reopenTask(withID: task.id)
                 }
                 .tint(.blue)
-            } else if task.status != .scheduled && task.status != .archived {
+            } else if task.status != .archived {
                 Button("Complete") {
-                    viewModel.markTaskCompleted(withID: task.id)
+                    Task {
+                        await viewModel.markTaskCompleted(withID: task.id)
+                    }
                 }
                 .tint(.green)
 
-                Button("Archive") {
-                    viewModel.archiveTask(withID: task.id)
+                if task.status != .scheduled {
+                    Button("Archive") {
+                        viewModel.archiveTask(withID: task.id)
+                    }
+                    .tint(.orange)
                 }
-                .tint(.orange)
             }
         }
         .swipeActions(edge: .trailing) {
@@ -298,14 +322,9 @@ struct TaskListView: View {
         }
     }
 
-    private func presentQuickAdd() {
+    private func presentAddTask() {
         newTaskDraft = MyTaskFormData()
-        presentedSheet = .quickAdd
-    }
-
-    private func presentDetailedCreate() {
-        newTaskDraft = MyTaskFormData()
-        presentedSheet = .detailedCreate
+        presentedSheet = .addTask
     }
 
     private func taskStatusIconName(for task: MyTask) -> String {
@@ -360,6 +379,10 @@ struct TaskListView: View {
             items.append("\(estimatedMinutes)m")
         }
 
+        if let taskGroup = task.taskGroup {
+            items.append(taskGroup)
+        }
+
         if let priority = task.priority {
             items.append(priority.displayName)
         }
@@ -382,5 +405,10 @@ struct TaskListView: View {
 }
 
 #Preview {
-    TaskListView(taskRepository: AppContainer.makePreview().taskRepository)
+    let container = AppContainer.makePreview()
+    TaskListView(
+        taskRepository: container.taskRepository,
+        scheduledBlockRepository: container.scheduledBlockRepository,
+        calendarWriter: container.calendarWriter
+    )
 }

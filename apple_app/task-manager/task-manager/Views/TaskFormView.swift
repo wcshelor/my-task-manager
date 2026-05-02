@@ -168,6 +168,8 @@ struct TaskFormView: View {
                             Text(workMode.displayName).tag(workMode as WorkModeKind?)
                         }
                     }
+
+                    TextField("Task Group", text: $formData.taskGroupText)
                 }
 
                 Section("Tags") {

@@ -28,7 +28,11 @@ private struct TaskManagerTabShell: View {
 
     var body: some View {
         TabView {
-            TaskListView(taskRepository: appEnvironment.taskRepository)
+            TaskListView(
+                taskRepository: appEnvironment.taskRepository,
+                scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
+                calendarWriter: appEnvironment.calendarWriter
+            )
                 .tabItem {
                     Label("Tasks", systemImage: "checklist")
                 }

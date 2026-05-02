@@ -810,6 +810,15 @@ final class PlannerViewModel: ObservableObject {
         using calendars: [ReadableCalendar]
     ) throws {
         var updatedSettings = settings
+        let tasksCalendars = calendars.filter { calendar in
+            calendar.allowsContentModifications
+                && calendar.title == AppSettings.defaultWriteCalendarTitle
+        }
+
+        if tasksCalendars.count == 1 {
+            updatedSettings.writeCalendarIdentifier = tasksCalendars[0].id
+            updatedSettings.writeCalendarTitle = tasksCalendars[0].title
+        }
 
         if updatedSettings.writeCalendarIdentifier.isEmpty {
             let matchingCalendars = calendars.filter { calendar in

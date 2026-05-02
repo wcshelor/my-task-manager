@@ -46,6 +46,17 @@ struct TaskListPresentationTests {
         #expect(results.map(\.title) == ["Deep work block"])
     }
 
+    @Test func searchMatchesTaskGroup() {
+        let tasks = [
+            makeTask(id: 1, title: "Storyboard", taskGroup: "Launch"),
+            makeTask(id: 2, title: "Invoices", taskGroup: "Finance"),
+        ]
+
+        let results = TaskListOrganizer.filteredTasks(from: tasks, searchText: "launch")
+
+        #expect(results.map(\.title) == ["Storyboard"])
+    }
+
     @Test func searchIsCaseInsensitiveAndTrimsWhitespace() {
         let tasks = [
             makeTask(id: 1, title: "Focus Session"),
@@ -162,6 +173,24 @@ struct TaskListPresentationTests {
         #expect(sections[1].tasks.map(\.title) == ["Scheduled first", "Scheduled later"])
     }
 
+    @Test func groupingByTaskGroupCreatesDynamicSections() {
+        let tasks = [
+            makeTask(id: 1, title: "No group"),
+            makeTask(id: 2, title: "Launch plan", taskGroup: "Launch"),
+            makeTask(id: 3, title: "Finance review", taskGroup: "Finance"),
+        ]
+
+        let sections = TaskListOrganizer.groupedSections(
+            from: tasks,
+            groupMode: .taskGroup,
+            sortMode: .createdDate,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        #expect(sections.map(\.title) == ["Finance", "Launch", "No Task Group"])
+    }
+
     private func makeTask(
         id: Int,
         title: String,
@@ -171,6 +200,7 @@ struct TaskListPresentationTests {
         dueDate: Date? = nil,
         priority: PriorityLevel? = nil,
         workMode: WorkModeKind? = nil,
+        taskGroup: String? = nil,
         tags: [String] = []
     ) -> MyTask {
         let createdAt = Date(timeIntervalSince1970: TimeInterval(1_000 + id))
@@ -184,6 +214,7 @@ struct TaskListPresentationTests {
             dueDate: dueDate,
             priority: priority,
             workMode: workMode,
+            taskGroup: taskGroup,
             tags: tags,
             createdAt: createdAt,
             updatedAt: createdAt

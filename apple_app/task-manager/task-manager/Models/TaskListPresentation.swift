@@ -45,6 +45,7 @@ enum TaskListGroupMode: String, CaseIterable, Identifiable {
     case priority
     case dueDateCategory
     case workMode
+    case taskGroup
 
     var id: Self { self }
 
@@ -60,6 +61,8 @@ enum TaskListGroupMode: String, CaseIterable, Identifiable {
             return "Due Date"
         case .workMode:
             return "Work Mode"
+        case .taskGroup:
+            return "Task Group"
         }
     }
 }
@@ -99,6 +102,7 @@ enum TaskListOrganizer {
         case priority(PriorityLevel?)
         case dueDateCategory(TaskDueDateCategory)
         case workMode(WorkModeKind?)
+        case taskGroup(String?)
     }
 
     static func filteredTasks(
@@ -114,6 +118,7 @@ enum TaskListOrganizer {
         return tasks.filter { task in
             task.title.localizedCaseInsensitiveContains(trimmedQuery)
                 || (task.notes?.localizedCaseInsensitiveContains(trimmedQuery) ?? false)
+                || (task.taskGroup?.localizedCaseInsensitiveContains(trimmedQuery) ?? false)
                 || task.tags.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
         }
     }
@@ -147,18 +152,15 @@ enum TaskListOrganizer {
             )
         }
 
-        return orderedGroupKeys(
-            for: groupMode
-        ).compactMap { key in
-            guard let tasksInGroup = groupedTasks[key], tasksInGroup.isEmpty == false else {
-                return nil
+        let orderedKeys = orderedGroupKeys(for: groupMode)
+        let sectionKeys = orderedKeys.isEmpty
+            ? groupedTasks.keys.sorted { leftKey, rightKey in
+                compareGroupKeys(leftKey, rightKey)
             }
+            : orderedKeys
 
-            return TaskListSection(
-                id: sectionID(for: key),
-                title: sectionTitle(for: key),
-                tasks: sortedTasks(tasksInGroup, by: sortMode)
-            )
+        return sectionKeys.compactMap { key in
+            makeSection(for: key, groupedTasks: groupedTasks, sortMode: sortMode)
         }
     }
 
@@ -209,7 +211,25 @@ enum TaskListOrganizer {
             )
         case .workMode:
             return .workMode(task.workMode)
+        case .taskGroup:
+            return .taskGroup(task.taskGroup)
         }
+    }
+
+    private static func makeSection(
+        for key: GroupKey,
+        groupedTasks: [GroupKey: [MyTask]],
+        sortMode: TaskListSortMode
+    ) -> TaskListSection? {
+        guard let tasksInGroup = groupedTasks[key], tasksInGroup.isEmpty == false else {
+            return nil
+        }
+
+        return TaskListSection(
+            id: sectionID(for: key),
+            title: sectionTitle(for: key),
+            tasks: sortedTasks(tasksInGroup, by: sortMode)
+        )
     }
 
     private static func orderedGroupKeys(
@@ -227,6 +247,8 @@ enum TaskListOrganizer {
         case .workMode:
             let workModeKeys = WorkModeKind.allCases.map(GroupKey.workMode)
             return workModeKeys + [.workMode(nil)]
+        case .taskGroup:
+            return []
         }
     }
 
@@ -240,6 +262,8 @@ enum TaskListOrganizer {
             return "due-\(category.rawValue)"
         case .workMode(let workMode):
             return "workmode-\(workMode?.rawValue ?? "none")"
+        case .taskGroup(let taskGroup):
+            return "taskgroup-\(taskGroup ?? "none")"
         }
     }
 
@@ -253,7 +277,14 @@ enum TaskListOrganizer {
             return category.displayName
         case .workMode(let workMode):
             return workMode?.displayName ?? "No Work Mode"
+        case .taskGroup(let taskGroup):
+            return taskGroup ?? "No Task Group"
         }
+    }
+
+    private static func compareGroupKeys(_ leftKey: GroupKey, _ rightKey: GroupKey) -> Bool {
+        sectionTitle(for: leftKey).localizedCaseInsensitiveCompare(sectionTitle(for: rightKey))
+            == .orderedAscending
     }
 
     private static func compare(

@@ -12,6 +12,7 @@ final class TaskRecord {
     var priorityRawValue: String?
     var energyLevelRawValue: String?
     var workModeRawValue: String?
+    var taskGroup: String?
     var tagsText: String = ""
     var createdAt: Date = Date.distantPast
     var updatedAt: Date = Date.distantPast
@@ -27,6 +28,7 @@ final class TaskRecord {
         self.priorityRawValue = task.priority?.rawValue
         self.energyLevelRawValue = task.energyLevel?.rawValue
         self.workModeRawValue = task.workMode?.rawValue
+        self.taskGroup = task.taskGroup
         self.tagsText = Self.encodeTags(task.tags)
         self.createdAt = task.createdAt
         self.updatedAt = task.updatedAt
@@ -44,6 +46,7 @@ final class TaskRecord {
             priority: priorityRawValue.flatMap(PriorityLevel.init(rawValue:)),
             energyLevel: energyLevelRawValue.flatMap(EnergyLevel.init(rawValue:)),
             workMode: workModeRawValue.flatMap(WorkModeKind.init(rawValue:)),
+            taskGroup: taskGroup,
             tags: MyTask.cleanedTags(from: tagsText),
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -61,6 +64,7 @@ final class TaskRecord {
         priorityRawValue = task.priority?.rawValue
         energyLevelRawValue = task.energyLevel?.rawValue
         workModeRawValue = task.workMode?.rawValue
+        taskGroup = task.taskGroup
         tagsText = Self.encodeTags(task.tags)
         createdAt = task.createdAt
         updatedAt = task.updatedAt

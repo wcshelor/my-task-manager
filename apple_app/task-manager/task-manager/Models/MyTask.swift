@@ -124,6 +124,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
     var priority: PriorityLevel?
     var energyLevel: EnergyLevel?
     var workMode: WorkModeKind?
+    var taskGroup: String?
     var tags: [String]
     let createdAt: Date
     var updatedAt: Date
@@ -143,6 +144,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         priority: PriorityLevel? = nil,
         energyLevel: EnergyLevel? = nil,
         workMode: WorkModeKind? = nil,
+        taskGroup: String? = nil,
         tags: [String] = [],
         createdAt: Date = .now,
         updatedAt: Date? = nil,
@@ -159,6 +161,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         self.priority = priority
         self.energyLevel = energyLevel
         self.workMode = workMode
+        self.taskGroup = Self.cleanedOptionalText(from: taskGroup)
         self.tags = Self.cleanedTags(from: tags)
         self.createdAt = createdAt
         self.updatedAt = cleanedUpdatedAt
@@ -175,30 +178,91 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
 
     static let sampleTasks = [
         MyTask(
-            title: "Buy groceries",
-            notes: "Milk, eggs, and fruit",
+            title: "Draft client launch brief",
+            notes: "Clarify milestones, owners, and Friday review questions.",
             status: .active,
+            estimatedMinutes: 90,
+            dueDate: .now.addingTimeInterval(2 * 86_400),
+            priority: .high,
+            energyLevel: .high,
+            workMode: .deepWork,
+            taskGroup: "Work",
+            tags: ["client", "writing", "planning"]
+        ),
+        MyTask(
+            title: "Clear finance inbox",
+            notes: "File receipts and reply to the accountant.",
+            status: .inbox,
+            estimatedMinutes: 30,
+            priority: .medium,
+            energyLevel: .low,
+            workMode: .shallowAdmin,
+            taskGroup: "Admin",
+            tags: ["finance", "email"]
+        ),
+        MyTask(
+            title: "Buy groceries for the week",
+            notes: "Produce, coffee, lunch staples, and dishwasher tabs.",
+            status: .active,
+            estimatedMinutes: 45,
             priority: .medium,
             energyLevel: .low,
             workMode: .errand,
-            tags: ["home", "shopping"]
+            taskGroup: "Home",
+            tags: ["home", "shopping", "errand"]
         ),
         MyTask(
-            title: "Reply to emails",
-            notes: "Inbox zero for client follow-ups",
+            title: "Reply to partner follow-ups",
+            notes: "Send short answers and move anything complex to the brief.",
             status: .completed,
             estimatedMinutes: 30,
             priority: .low,
+            energyLevel: .medium,
             workMode: .shallowAdmin,
-            tags: ["work", "admin"]
+            taskGroup: "Work",
+            tags: ["work", "admin", "email"]
         ),
         MyTask(
-            title: "Walk the dog",
+            title: "Practice presentation run-through",
             status: .active,
-            dueDate: .now.addingTimeInterval(60 * 60),
+            estimatedMinutes: 60,
+            dueDate: .now.addingTimeInterval(5 * 60 * 60),
+            priority: .urgent,
             energyLevel: .medium,
+            workMode: .practice,
+            taskGroup: "Work",
+            tags: ["presentation", "practice"]
+        ),
+        MyTask(
+            title: "Sketch onboarding flow ideas",
+            notes: "Capture three variants before turning them into tickets.",
+            status: .inbox,
+            estimatedMinutes: 75,
+            priority: .medium,
+            energyLevel: .high,
+            workMode: .creative,
+            taskGroup: "Product",
+            tags: ["design", "creative"]
+        ),
+        MyTask(
+            title: "Schedule dentist appointment",
+            status: .inbox,
+            estimatedMinutes: 15,
+            priority: .low,
+            energyLevel: .low,
             workMode: .flexible,
-            tags: ["personal"]
+            taskGroup: "Personal",
+            tags: ["health", "phone"]
+        ),
+        MyTask(
+            title: "Archive old project notes",
+            status: .archived,
+            estimatedMinutes: 45,
+            priority: .low,
+            energyLevel: .low,
+            workMode: .shallowAdmin,
+            taskGroup: "Admin",
+            tags: ["cleanup"]
         )
     ]
 

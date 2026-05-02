@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 
 struct AppContainer {
@@ -46,6 +47,10 @@ struct AppContainer {
 
         _ = try settingsRepository.loadSettings()
 
+        #if DEBUG
+        try seedDevelopmentTasksIfNeeded(taskRepository: taskRepository)
+        #endif
+
         return AppContainer(
             modelContainer: modelContainer,
             taskRepository: taskRepository,
@@ -59,6 +64,26 @@ struct AppContainer {
             calendarChangeObserver: calendarChangeObserver
         )
     }
+
+    #if DEBUG
+    private static func seedDevelopmentTasksIfNeeded(
+        taskRepository: any TaskRepository
+    ) throws {
+        let seedKey = "com.camp.task-manager.dev.seeded-realistic-test-tasks.v1"
+        guard UserDefaults.standard.bool(forKey: seedKey) == false else {
+            return
+        }
+
+        let existingTasks = try taskRepository.fetchTasks()
+        let existingTitles = Set(existingTasks.map { $0.title.lowercased() })
+
+        for task in MyTask.sampleTasks where existingTitles.contains(task.title.lowercased()) == false {
+            try taskRepository.saveTask(task, replacingTaskWithID: nil)
+        }
+
+        UserDefaults.standard.set(true, forKey: seedKey)
+    }
+    #endif
 
     static func makePreview(
         seedTasks: [MyTask] = MyTask.sampleTasks
