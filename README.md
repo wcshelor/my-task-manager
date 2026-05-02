@@ -7,6 +7,49 @@ This repo currently has two active code paths:
 
 The Swift app is the real product path. The Python code is still useful as a reference implementation and regression surface, but it is not wired into the Swift UI.
 
+## Product Direction
+
+The app is currently implemented as a task and planner app, and is evolving toward a modular Life Assistant / personal planning hub.
+
+The product framing is:
+
+> The app is a personal planning hub for capturing obligations, planning time, executing routines, tracking personal growth, and noticing useful life patterns.
+
+The current product spine is:
+
+- Capture - get obligations, ideas, errands, and admin out of my head
+- Plan - turn tasks into realistic time blocks around my calendar
+- Execute - help me actually do the next thing
+- Recover - help me reset when tired, scattered, behind, or low-energy
+- Understand patterns - track useful signals across sleep, routines, practice, workouts, mood, etc.
+
+Currently implemented in the Swift app:
+
+- Tasks
+- Planner / Calendar
+- SwiftData persistence for app-owned tasks, scheduled blocks, and settings
+- EventKit integration for calendar permission, reads, writes, and reconciliation
+
+Planned future modules include:
+
+- Routines
+- Today dashboard
+- Sleep / PVT
+- Piano practice
+- workout, food, reflection, and general life logs
+
+Not implemented yet:
+
+- full routines
+- PVT integration
+- practice logging
+- workout tracking
+- food tracking
+- reflection mode
+- CloudKit sync
+
+The broader direction is documented in `docs/life_assistant_vision.md`. A repo-root `brainstorm.md` may also exist as an optional product-vision scratchpad; this checkout currently has `life_assistant_app_brainstorm.md`.
+
 ## Verification Snapshot
 
 This README was updated against the repo state in this checkout on April 10, 2026.
@@ -44,6 +87,7 @@ Not manually verified during this update:
 - `tests/`: Python pytest suite
 - `scripts/`: smoke checks and manual-session helpers
 - `docs/`: product direction, testing notes, planner notes, and archived manual sessions
+- `docs/domains/`: lightweight planning notes for future Life Assistant domains
 - `data/`: local JSON data and manual-test backups
 - `concrete_plan.md`: current implementation status and ordered next steps
 
@@ -205,6 +249,11 @@ Relevant folders:
 - `apple_app/task-manager/task-manager/Planner/`: planner domain contracts and pure Swift planner engine
 - `apple_app/task-manager/task-manager/Features/Tasks/`: task list view model
 - `apple_app/task-manager/task-manager/Features/Planner/`: planner presentation models and planner view model
+- `apple_app/task-manager/task-manager/Features/Today/`: scaffold for a future Today dashboard
+- `apple_app/task-manager/task-manager/Features/Routines/`: scaffold for a future routines domain
+- `apple_app/task-manager/task-manager/Features/Practice/`: scaffold for a future piano practice domain
+- `apple_app/task-manager/task-manager/Features/Logs/`: scaffold for future workout, food, mood, and general logs
+- `apple_app/task-manager/task-manager/Features/Reflection/`: scaffold for future structured reflection
 - `apple_app/task-manager/task-manager/Views/`: task and planner SwiftUI views
 
 Boundary intent in the current Swift app:
@@ -359,6 +408,8 @@ Implemented and verified:
 
 Still intentionally deferred:
 
+- full Life Assistant modules beyond Tasks and Planner / Calendar
+- routines, PVT, piano practice, workout tracking, food tracking, and reflection mode
 - real manual EventKit validation of permission states, excluded calendars, write-calendar selection, accept flow, lifecycle actions, and error handling
 - a broader manual iPhone workflow pass after the April 10, 2026 simulator launch smoke
 - persistent rejected suggestions
@@ -369,6 +420,10 @@ Still intentionally deferred:
 ## Related Docs
 
 - `concrete_plan.md`: current repo status and next steps
+- `docs/life_assistant_vision.md`: Life Assistant product direction and architecture guidance
+- `docs/domains/`: lightweight planning docs for future life domains
+- `life_assistant_app_brainstorm.md`: current repo-root brainstorm source in this checkout
+- `brainstorm.md`: optional expected repo-root brainstorm scratchpad when present
 - `docs/iphone_product_scope.md`: frozen scope for the first macOS+iPhone migration pass
 - `docs/iphone_readiness_audit.md`: platform audit and sequencing notes for the iPhone migration
 - `docs/product_direction.md`: frozen product responsibilities and target workflow

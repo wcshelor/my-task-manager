@@ -24,6 +24,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EFB03DFC2F75B96200C78316 /* task-manager */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				EFA000012F87000000C78316 /* Exceptions for "task-manager" folder in "task-manager" target */,
+			);
 			path = "task-manager";
 			sourceTree = "<group>";
 		};
@@ -33,6 +36,20 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		EFA000012F87000000C78316 /* Exceptions for "task-manager" folder in "task-manager" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Features/Logs/LogsFeatureNotes.md,
+				Features/Practice/PracticeFeatureNotes.md,
+				Features/Reflection/ReflectionFeatureNotes.md,
+				Features/Routines/RoutinesFeatureNotes.md,
+				Features/Today/TodayFeatureNotes.md,
+			);
+			target = EFB03DF92F75B96200C78316 /* task-manager */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		EFB03DF72F75B96200C78316 /* Frameworks */ = {
