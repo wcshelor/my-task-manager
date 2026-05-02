@@ -69,7 +69,7 @@ protocol CalendarEventStore {
 }
 
 @MainActor
-final class EventKitCalendarEventStore: CalendarEventStore {
+final class EventKitCalendarEventStore: CalendarEventStore, CalendarChangeObserving {
     private let eventStore: EKEventStore
 
     init(eventStore: EKEventStore = EKEventStore()) {
@@ -224,6 +224,15 @@ final class EventKitCalendarEventStore: CalendarEventStore {
         }
     }
 
+    func observeStoreChanges(
+        _ onChange: @escaping @MainActor @Sendable () -> Void
+    ) -> any CalendarChangeObservation {
+        EventKitCalendarChangeObservation(
+            eventStore: eventStore,
+            onChange: onChange
+        )
+    }
+
     private static func mapAuthorizationStatus(
         _ status: EKAuthorizationStatus
     ) -> EventStoreAuthorizationStatus {
@@ -243,6 +252,41 @@ final class EventKitCalendarEventStore: CalendarEventStore {
         @unknown default:
             return .unknown
         }
+    }
+}
+
+private final class EventKitCalendarChangeObservation: CalendarChangeObservation {
+    private let notificationCenter: NotificationCenter
+    private var token: NSObjectProtocol?
+
+    init(
+        eventStore: EKEventStore,
+        notificationCenter: NotificationCenter = .default,
+        onChange: @escaping @MainActor @Sendable () -> Void
+    ) {
+        self.notificationCenter = notificationCenter
+        self.token = notificationCenter.addObserver(
+            forName: .EKEventStoreChanged,
+            object: eventStore,
+            queue: nil
+        ) { _ in
+            Task { @MainActor in
+                onChange()
+            }
+        }
+    }
+
+    func invalidate() {
+        guard let token else {
+            return
+        }
+
+        notificationCenter.removeObserver(token)
+        self.token = nil
+    }
+
+    deinit {
+        invalidate()
     }
 }
 

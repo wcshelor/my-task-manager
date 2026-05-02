@@ -3,20 +3,20 @@ import SwiftData
 
 @Model
 final class ScheduledBlockRecord {
-    @Attribute(.unique) var id: UUID
-    var taskID: UUID
-    var start: Date
-    var end: Date
-    var statusRawValue: String
-    var calendarLinkStateRawValue: String
+    var id: UUID = UUID()
+    var taskID: UUID = UUID()
+    var start: Date = Date.distantPast
+    var end: Date = Date.distantPast
+    var statusRawValue: String = ScheduledBlockStatus.proposed.rawValue
+    var calendarLinkStateRawValue: String = CalendarLinkState.notWritten.rawValue
     var calendarEventIdentifier: String?
     var calendarTitle: String?
     var eventTitleSnapshot: String?
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date.distantPast
+    var updatedAt: Date = Date.distantPast
     var lastSyncedAt: Date?
     var syncErrorMessage: String?
-    var isAllDay: Bool
+    var isAllDay: Bool = false
 
     init(block: ScheduledBlock) {
         self.id = block.id

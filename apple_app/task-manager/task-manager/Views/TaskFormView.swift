@@ -43,6 +43,7 @@ struct TaskFormView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var formData: MyTaskFormData
     @State private var isShowingDeleteConfirmation = false
 
@@ -86,19 +87,14 @@ struct TaskFormView: View {
         )
     }
 
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Form {
                 Section("Task Details") {
-                    HStack {
-                        TextField("ID", text: $formData.idText)
-                            .font(.system(.body, design: .monospaced))
-
-                        Button("Generate ID") {
-                            formData.generateNewID()
-                        }
-                    }
-
                     TextField("Title", text: $formData.title)
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -172,6 +168,8 @@ struct TaskFormView: View {
                             Text(workMode.displayName).tag(workMode as WorkModeKind?)
                         }
                     }
+
+                    TextField("Task Group", text: $formData.taskGroupText)
                 }
 
                 Section("Tags") {
@@ -205,11 +203,10 @@ struct TaskFormView: View {
                 Button(mode.saveButtonTitle) {
                     saveTask()
                 }
-                .keyboardShortcut(.defaultAction)
                 .disabled(validationMessage != nil)
             }
         }
-        .padding()
+        .padding(isCompactWidth ? 16 : 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle(mode.title)
         .alert("Delete Task?", isPresented: $isShowingDeleteConfirmation) {

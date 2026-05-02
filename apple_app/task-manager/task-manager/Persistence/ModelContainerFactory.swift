@@ -17,7 +17,9 @@ enum ModelContainerFactory {
             ScheduledBlockRecord.self,
             AppSettingsRecord.self,
         ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: isStoredInMemoryOnly)
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: isStoredInMemoryOnly
+        )
 
         return try ModelContainer(for: schema, configurations: configuration)
     }

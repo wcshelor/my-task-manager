@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class PlannerViewModel: ObservableObject {
     @Published private(set) var permissionStatus: CalendarPermissionStatus
+    @Published private(set) var settings: AppSettings
     @Published private(set) var calendars: [ReadableCalendar] = []
     @Published private(set) var calendarEvents: [CalendarEventSnapshot] = []
     @Published private(set) var scheduledBlocks: [ScheduledBlock] = []
@@ -28,11 +29,17 @@ final class PlannerViewModel: ObservableObject {
     private let calendarReader: any CalendarReading
     private let calendarWriter: any CalendarWriting
     private let calendarReconciler: (any CalendarReconciling)?
+    private let calendarChangeObserver: (any CalendarChangeObserving)?
     private let plannerEngine: PlannerEngine
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
     private var hasLoaded = false
     private var rejectedSuggestionFingerprints: Set<SuggestionFingerprint> = []
+    private var calendarStoreChangeObservation: (any CalendarChangeObservation)?
+    private var isCalendarStoreObservationEnabled = false
+    private var isRefreshingObservedCalendarStoreChange = false
+    private var hasPendingObservedCalendarStoreChange = false
+    private var hasAttemptedAutomaticCalendarAccessRequest = false
 
     init(
         taskRepository: any TaskRepository,
@@ -43,6 +50,7 @@ final class PlannerViewModel: ObservableObject {
         calendarReader: any CalendarReading,
         calendarWriter: any CalendarWriting,
         calendarReconciler: (any CalendarReconciling)? = nil,
+        calendarChangeObserver: (any CalendarChangeObserving)? = nil,
         plannerEngine: PlannerEngine = PlannerEngine(),
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = Date.init,
@@ -57,6 +65,7 @@ final class PlannerViewModel: ObservableObject {
         self.calendarReader = calendarReader
         self.calendarWriter = calendarWriter
         self.calendarReconciler = calendarReconciler
+        self.calendarChangeObserver = calendarChangeObserver
         self.plannerEngine = plannerEngine
         self.calendar = calendar
         self.nowProvider = nowProvider
@@ -64,6 +73,7 @@ final class PlannerViewModel: ObservableObject {
         self.selectedPlanningHorizon = selectedPlanningHorizon
         self.filterState = filterState
         self.permissionStatus = calendarPermissionProvider.currentStatus()
+        self.settings = .mvpDefault
     }
 
     var visibleDayInterval: DateInterval {
@@ -153,6 +163,28 @@ final class PlannerViewModel: ObservableObject {
         WorkModeKind.allCases
     }
 
+    var writableCalendars: [ReadableCalendar] {
+        calendars.filter(\.allowsContentModifications)
+    }
+
+    var selectedWriteCalendarIdentifier: String {
+        settings.writeCalendarIdentifier
+    }
+
+    var selectedWriteCalendarTitle: String? {
+        if let matchedCalendar = writableCalendars.first(where: {
+            $0.id == settings.writeCalendarIdentifier
+        }) {
+            return matchedCalendar.title
+        }
+
+        guard settings.writeCalendarTitle.isEmpty == false else {
+            return nil
+        }
+
+        return settings.writeCalendarTitle
+    }
+
     var visibleSuggestionItems: [PlannerSuggestionItem] {
         suggestionItems.filter { $0.interval.overlaps(visibleDayInterval) }
     }
@@ -202,6 +234,13 @@ final class PlannerViewModel: ObservableObject {
 
         loadTasks()
         loadScheduledBlocks()
+        loadSettings()
+
+        if permissionStatus == .notDetermined,
+            hasAttemptedAutomaticCalendarAccessRequest == false {
+            await requestCalendarAccess(triggeredAutomatically: true)
+            return
+        }
 
         guard permissionStatus == .fullAccessGranted else {
             calendars = []
@@ -220,19 +259,72 @@ final class PlannerViewModel: ObservableObject {
         await refresh()
     }
 
+    func setCalendarStoreChangeObservationEnabled(_ isEnabled: Bool) {
+        guard isCalendarStoreObservationEnabled != isEnabled else {
+            return
+        }
+
+        isCalendarStoreObservationEnabled = isEnabled
+
+        if isEnabled {
+            guard calendarStoreChangeObservation == nil else {
+                return
+            }
+
+            calendarStoreChangeObservation = calendarChangeObserver?.observeStoreChanges { [weak self] in
+                self?.queueObservedCalendarStoreChangeRefresh()
+            }
+            return
+        }
+
+        hasPendingObservedCalendarStoreChange = false
+        calendarStoreChangeObservation?.invalidate()
+        calendarStoreChangeObservation = nil
+    }
+
     func requestCalendarAccess() async {
+        await requestCalendarAccess(triggeredAutomatically: false)
+    }
+
+    private func requestCalendarAccess(triggeredAutomatically: Bool) async {
+        hasAttemptedAutomaticCalendarAccessRequest = true
         let requestedStatus = await calendarPermissionProvider.requestFullAccess()
         permissionStatus = requestedStatus
 
         if case .error(let message) = requestedStatus {
             calendars = []
             calendarEvents = []
-            recordError(message)
+            if triggeredAutomatically == false {
+                recordError(message)
+            }
             hasLoaded = true
             return
         }
 
         await refresh()
+    }
+
+    func selectWriteCalendar(withID calendarID: String) {
+        errorMessage = nil
+
+        guard calendarID.isEmpty == false else {
+            return
+        }
+
+        guard let selectedCalendar = writableCalendars.first(where: { $0.id == calendarID }) else {
+            recordError("The selected write calendar is no longer available.")
+            return
+        }
+
+        do {
+            var updatedSettings = settings
+            updatedSettings.writeCalendarIdentifier = selectedCalendar.id
+            updatedSettings.writeCalendarTitle = selectedCalendar.title
+            try settingsRepository.saveSettings(updatedSettings)
+            settings = updatedSettings
+        } catch {
+            recordError("Unable to save calendar settings: \(error.localizedDescription)")
+        }
     }
 
     func goToPreviousDay() async {
@@ -246,6 +338,34 @@ final class PlannerViewModel: ObservableObject {
         await selectDay(
             calendar.date(byAdding: .day, value: 1, to: selectedDay)
                 ?? selectedDay.addingTimeInterval(86_400)
+        )
+    }
+
+    func goToPreviousWeek() async {
+        await selectDay(
+            calendar.date(byAdding: .day, value: -7, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(-7 * 86_400)
+        )
+    }
+
+    func goToNextWeek() async {
+        await selectDay(
+            calendar.date(byAdding: .day, value: 7, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(7 * 86_400)
+        )
+    }
+
+    func goToPreviousMonth() async {
+        await selectDay(
+            calendar.date(byAdding: .month, value: -1, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(-30 * 86_400)
+        )
+    }
+
+    func goToNextMonth() async {
+        await selectDay(
+            calendar.date(byAdding: .month, value: 1, to: selectedDay)
+                ?? selectedDay.addingTimeInterval(30 * 86_400)
         )
     }
 
@@ -587,6 +707,50 @@ final class PlannerViewModel: ObservableObject {
         await refreshCalendarDataIfPermitted()
     }
 
+    private func queueObservedCalendarStoreChangeRefresh() {
+        guard isCalendarStoreObservationEnabled else {
+            return
+        }
+
+        hasPendingObservedCalendarStoreChange = true
+
+        guard isRefreshingObservedCalendarStoreChange == false else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            await self?.drainObservedCalendarStoreChangeRefreshQueue()
+        }
+    }
+
+    private func drainObservedCalendarStoreChangeRefreshQueue() async {
+        guard isRefreshingObservedCalendarStoreChange == false else {
+            return
+        }
+
+        isRefreshingObservedCalendarStoreChange = true
+        defer {
+            isRefreshingObservedCalendarStoreChange = false
+        }
+
+        while hasPendingObservedCalendarStoreChange {
+            hasPendingObservedCalendarStoreChange = false
+
+            guard isCalendarStoreObservationEnabled, hasLoaded else {
+                continue
+            }
+
+            permissionStatus = calendarPermissionProvider.currentStatus()
+            guard permissionStatus == .fullAccessGranted else {
+                calendars = []
+                calendarEvents = []
+                continue
+            }
+
+            await refresh()
+        }
+    }
+
     private func refreshCalendarDataIfPermitted() async {
         guard permissionStatus == .fullAccessGranted else {
             return
@@ -605,12 +769,22 @@ final class PlannerViewModel: ObservableObject {
             loadScheduledBlocks()
             loadTasks()
             calendars = try await calendarListingService.fetchReadableCalendars()
+            try syncWriteCalendarSelectionIfNeeded(using: calendars)
             calendarEvents = try await calendarReader.fetchEvents(in: visibleDayInterval)
             applyReconciliationReport(reconciliationReport)
         } catch {
             calendars = []
             calendarEvents = []
             recordError(error.localizedDescription)
+        }
+    }
+
+    private func loadSettings() {
+        do {
+            settings = try settingsRepository.loadSettings()
+        } catch {
+            settings = .mvpDefault
+            recordError("Unable to load settings: \(error.localizedDescription)")
         }
     }
 
@@ -630,6 +804,44 @@ final class PlannerViewModel: ObservableObject {
             scheduledBlocks = []
             recordError("Unable to load scheduled blocks: \(error.localizedDescription)")
         }
+    }
+
+    private func syncWriteCalendarSelectionIfNeeded(
+        using calendars: [ReadableCalendar]
+    ) throws {
+        var updatedSettings = settings
+        let tasksCalendars = calendars.filter { calendar in
+            calendar.allowsContentModifications
+                && calendar.title == AppSettings.defaultWriteCalendarTitle
+        }
+
+        if tasksCalendars.count == 1 {
+            updatedSettings.writeCalendarIdentifier = tasksCalendars[0].id
+            updatedSettings.writeCalendarTitle = tasksCalendars[0].title
+        }
+
+        if updatedSettings.writeCalendarIdentifier.isEmpty {
+            let matchingCalendars = calendars.filter { calendar in
+                calendar.allowsContentModifications
+                    && calendar.title == updatedSettings.writeCalendarTitle
+            }
+
+            if matchingCalendars.count == 1 {
+                updatedSettings.writeCalendarIdentifier = matchingCalendars[0].id
+                updatedSettings.writeCalendarTitle = matchingCalendars[0].title
+            }
+        } else if let selectedCalendar = calendars.first(where: {
+            $0.id == updatedSettings.writeCalendarIdentifier
+        }) {
+            updatedSettings.writeCalendarTitle = selectedCalendar.title
+        }
+
+        guard updatedSettings != settings else {
+            return
+        }
+
+        try settingsRepository.saveSettings(updatedSettings)
+        settings = updatedSettings
     }
 
     private func currentScheduledBlock(withID id: UUID) throws -> ScheduledBlock? {

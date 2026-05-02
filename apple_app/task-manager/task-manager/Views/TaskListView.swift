@@ -1,20 +1,39 @@
 import SwiftUI
 
 struct TaskListView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     private enum Destination: Hashable {
         case newTask
         case existingTask(UUID)
     }
 
+    private enum SheetDestination: String, Identifiable {
+        case addTask
+
+        var id: String { rawValue }
+    }
+
     @StateObject private var viewModel: TaskListViewModel
     @State private var path: [Destination] = []
+    @State private var presentedSheet: SheetDestination?
+    @State private var newTaskDraft = MyTaskFormData()
     @State private var searchText = ""
     @State private var sortMode: TaskListSortMode = .createdDate
     @State private var groupMode: TaskListGroupMode = .none
 
-    init(taskRepository: any TaskRepository) {
+    init(
+        taskRepository: any TaskRepository,
+        scheduledBlockRepository: (any ScheduledBlockRepository)? = nil,
+        calendarWriter: (any CalendarWriting)? = nil
+    ) {
         _viewModel = StateObject(
-            wrappedValue: TaskListViewModel(taskRepository: taskRepository)
+            wrappedValue: TaskListViewModel(
+                taskRepository: taskRepository,
+                scheduledBlockRepository: scheduledBlockRepository,
+                calendarWriter: calendarWriter
+            )
         )
     }
 
@@ -38,19 +57,27 @@ struct TaskListView: View {
         )
     }
 
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
+    private var taskGroups: [String] {
+        Array(Set(viewModel.tasks.compactMap(\.taskGroup))).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: isCompactWidth ? 12 : 16) {
                 HStack {
                     Text("Tasks")
-                        .font(.title2)
-
-                    Spacer()
-
-                    Button("New Task") {
-                        path.append(.newTask)
-                    }
+                        .font(isCompactWidth ? .title3.weight(.semibold) : .title2)
                 }
+
+                Text("Add tasks with only a title, or include optional details when they help.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
@@ -105,10 +132,56 @@ struct TaskListView: View {
                     .listStyle(.plain)
                 }
             }
-            .padding()
+            .padding(isCompactWidth ? 16 : 20)
             .searchable(text: $searchText, prompt: "Search title, notes, or tags")
             .task {
-                viewModel.loadTasksIfNeeded()
+                await viewModel.loadTasksIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else {
+                    return
+                }
+
+                Task {
+                    await viewModel.handleSceneDidBecomeActive()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        presentAddTask()
+                    } label: {
+                        Label("Add Task", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(item: $presentedSheet) { destination in
+                NavigationStack {
+                    switch destination {
+                    case .addTask:
+                        TaskQuickAddView(
+                            initialFormData: newTaskDraft,
+                            taskGroups: taskGroups,
+                            reservedTaskIDs: reservedTaskIDs
+                        ) { task in
+                            viewModel.saveTask(task)
+                        }
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    presentAddTask()
+                } label: {
+                    Label("Add Task", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, isCompactWidth ? 12 : 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
+                .padding(.top, 8)
+                .background(.thinMaterial)
             }
             .navigationDestination(for: Destination.self) { destination in
                 switch destination {
@@ -140,7 +213,29 @@ struct TaskListView: View {
                     }
                 }
             }
+            .alert(item: overdueCompletionPromptBinding) { prompt in
+                Alert(
+                    title: Text("Did you finish \(prompt.taskTitle)?"),
+                    primaryButton: .default(Text("Yes")) {
+                        Task {
+                            await viewModel.answerOverdueCompletionPrompt(finished: true)
+                        }
+                    },
+                    secondaryButton: .cancel(Text("No")) {
+                        Task {
+                            await viewModel.answerOverdueCompletionPrompt(finished: false)
+                        }
+                    }
+                )
+            }
         }
+    }
+
+    private var overdueCompletionPromptBinding: Binding<ScheduledTaskCompletionPrompt?> {
+        Binding(
+            get: { viewModel.overdueCompletionPrompt },
+            set: { _ in }
+        )
     }
 
     private var sortPicker: some View {
@@ -167,26 +262,153 @@ struct TaskListView: View {
 
     private func taskRow(for task: MyTask) -> some View {
         NavigationLink(value: Destination.existingTask(task.id)) {
-            HStack(spacing: 12) {
-                Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(task.isDone ? .green : .secondary)
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: taskStatusIconName(for: task))
+                    .foregroundStyle(taskStatusIconColor(for: task))
+                    .font(.title3)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(task.title)
+                        .font(.body.weight(.medium))
                         .foregroundStyle(task.isDone ? .secondary : .primary)
                         .strikethrough(task.isDone)
+                        .lineLimit(2)
 
-                    Text(task.createdAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let notes = task.notes {
+                        Text(notes)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    if let metadataSummary = metadataSummary(for: task) {
+                        Text(metadataSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
 
                 Spacer()
             }
+            .padding(.vertical, 4)
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if task.status == .completed {
+                Button("Reopen") {
+                    viewModel.reopenTask(withID: task.id)
+                }
+                .tint(.blue)
+            } else if task.status != .archived {
+                Button("Complete") {
+                    Task {
+                        await viewModel.markTaskCompleted(withID: task.id)
+                    }
+                }
+                .tint(.green)
+
+                if task.status != .scheduled {
+                    Button("Archive") {
+                        viewModel.archiveTask(withID: task.id)
+                    }
+                    .tint(.orange)
+                }
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            Button("Delete", role: .destructive) {
+                viewModel.deleteTask(withID: task.id)
+            }
+        }
+    }
+
+    private func presentAddTask() {
+        newTaskDraft = MyTaskFormData()
+        presentedSheet = .addTask
+    }
+
+    private func taskStatusIconName(for task: MyTask) -> String {
+        switch task.status {
+        case .inbox:
+            return "tray.fill"
+        case .active:
+            return "circle"
+        case .scheduled:
+            return "calendar.badge.clock"
+        case .completed:
+            return "checkmark.circle.fill"
+        case .archived:
+            return "archivebox.fill"
+        }
+    }
+
+    private func taskStatusIconColor(for task: MyTask) -> Color {
+        switch task.status {
+        case .inbox:
+            return .blue
+        case .active:
+            return .secondary
+        case .scheduled:
+            return .orange
+        case .completed:
+            return .green
+        case .archived:
+            return .secondary
+        }
+    }
+
+    private func metadataSummary(for task: MyTask) -> String? {
+        var items: [String] = []
+
+        switch task.status {
+        case .inbox:
+            items.append("Inbox")
+        case .scheduled:
+            items.append("Scheduled")
+        case .archived:
+            items.append("Archived")
+        case .active, .completed:
+            break
+        }
+
+        if let dueDate = task.dueDate {
+            items.append(dueDateSummary(for: task, dueDate: dueDate))
+        }
+
+        if let estimatedMinutes = task.estimatedMinutes {
+            items.append("\(estimatedMinutes)m")
+        }
+
+        if let taskGroup = task.taskGroup {
+            items.append(taskGroup)
+        }
+
+        if let priority = task.priority {
+            items.append(priority.displayName)
+        }
+
+        return items.isEmpty ? nil : items.joined(separator: " • ")
+    }
+
+    private func dueDateSummary(for task: MyTask, dueDate: Date) -> String {
+        switch TaskListOrganizer.dueDateCategory(for: task) {
+        case .overdue:
+            return "Overdue"
+        case .today:
+            return "Due Today \(dueDate.formatted(date: .omitted, time: .shortened))"
+        case .upcoming, .later:
+            return "Due \(dueDate.formatted(date: .abbreviated, time: .shortened))"
+        case .noDueDate:
+            return "No Due Date"
         }
     }
 }
 
 #Preview {
-    TaskListView(taskRepository: AppContainer.makePreview().taskRepository)
+    let container = AppContainer.makePreview()
+    TaskListView(
+        taskRepository: container.taskRepository,
+        scheduledBlockRepository: container.scheduledBlockRepository,
+        calendarWriter: container.calendarWriter
+    )
 }

@@ -15,6 +15,7 @@ struct SwiftDataSettingsRepositoryTests {
         let repository = try makeRepository()
         let updatedSettings = AppSettings(
             excludedReadCalendarTitles: ["Birthdays", "Holidays"],
+            writeCalendarIdentifier: "planner",
             writeCalendarTitle: "Important",
             minimumGapMinutes: 20,
             defaultAssumedDurationMinutes: 45,
@@ -32,6 +33,7 @@ struct SwiftDataSettingsRepositoryTests {
         let repository = try makeRepository()
         let updatedSettings = AppSettings(
             excludedReadCalendarTitles: [],
+            writeCalendarIdentifier: "planner",
             writeCalendarTitle: "Important",
             minimumGapMinutes: 15,
             defaultAssumedDurationMinutes: 37,

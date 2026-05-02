@@ -3,18 +3,19 @@ import SwiftData
 
 @Model
 final class TaskRecord {
-    @Attribute(.unique) var id: UUID
-    var title: String
+    var id: UUID = UUID()
+    var title: String = ""
     var notes: String?
-    var statusRawValue: String
+    var statusRawValue: String = TaskStatus.active.rawValue
     var estimatedMinutes: Int?
     var dueDate: Date?
     var priorityRawValue: String?
     var energyLevelRawValue: String?
     var workModeRawValue: String?
-    var tagsText: String
-    var createdAt: Date
-    var updatedAt: Date
+    var taskGroup: String?
+    var tagsText: String = ""
+    var createdAt: Date = Date.distantPast
+    var updatedAt: Date = Date.distantPast
     var completedAt: Date?
 
     init(task: MyTask) {
@@ -27,6 +28,7 @@ final class TaskRecord {
         self.priorityRawValue = task.priority?.rawValue
         self.energyLevelRawValue = task.energyLevel?.rawValue
         self.workModeRawValue = task.workMode?.rawValue
+        self.taskGroup = task.taskGroup
         self.tagsText = Self.encodeTags(task.tags)
         self.createdAt = task.createdAt
         self.updatedAt = task.updatedAt
@@ -44,6 +46,7 @@ final class TaskRecord {
             priority: priorityRawValue.flatMap(PriorityLevel.init(rawValue:)),
             energyLevel: energyLevelRawValue.flatMap(EnergyLevel.init(rawValue:)),
             workMode: workModeRawValue.flatMap(WorkModeKind.init(rawValue:)),
+            taskGroup: taskGroup,
             tags: MyTask.cleanedTags(from: tagsText),
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -61,6 +64,7 @@ final class TaskRecord {
         priorityRawValue = task.priority?.rawValue
         energyLevelRawValue = task.energyLevel?.rawValue
         workModeRawValue = task.workMode?.rawValue
+        taskGroup = task.taskGroup
         tagsText = Self.encodeTags(task.tags)
         createdAt = task.createdAt
         updatedAt = task.updatedAt

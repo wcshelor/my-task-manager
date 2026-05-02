@@ -35,6 +35,10 @@ final class AppEnvironment {
         container.calendarReconciler
     }
 
+    var calendarChangeObserver: any CalendarChangeObserving {
+        container.calendarChangeObserver
+    }
+
     init(container: AppContainer) {
         self.container = container
     }

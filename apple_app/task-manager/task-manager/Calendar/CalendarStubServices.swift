@@ -49,7 +49,7 @@ final class StubCalendarReader: CalendarReading {
 final class StubCalendarWriter: CalendarWriting {
     private let validatedCalendarTitle: String
 
-    init(validatedCalendarTitle: String = AppSettings.mvpDefault.writeCalendarTitle) {
+    init(validatedCalendarTitle: String = "Important") {
         self.validatedCalendarTitle = validatedCalendarTitle
     }
 
@@ -81,4 +81,17 @@ final class StubCalendarReconciler: CalendarReconciling {
     func reconcileScheduledBlocks() async throws -> ReconciliationReport {
         .empty
     }
+}
+
+@MainActor
+final class StubCalendarChangeObserver: CalendarChangeObserving {
+    func observeStoreChanges(
+        _ onChange: @escaping @MainActor @Sendable () -> Void
+    ) -> any CalendarChangeObservation {
+        StubCalendarChangeObservation()
+    }
+}
+
+private final class StubCalendarChangeObservation: CalendarChangeObservation {
+    func invalidate() {}
 }

@@ -25,6 +25,7 @@ struct SwiftDataTaskRepositoryTests {
             priority: .high,
             energyLevel: .medium,
             workMode: .deepWork,
+            taskGroup: "Launch",
             tags: ["work", "planning"],
             createdAt: Date(timeIntervalSince1970: 1_000),
             updatedAt: Date(timeIntervalSince1970: 2_000)

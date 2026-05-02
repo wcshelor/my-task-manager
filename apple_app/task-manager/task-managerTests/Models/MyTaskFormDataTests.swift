@@ -18,6 +18,7 @@ struct MyTaskFormDataTests {
             priority: .urgent,
             energyLevel: .high,
             workMode: .deepWork,
+            taskGroup: "Launch",
             tags: ["work", "writing"],
             createdAt: createdAt,
             updatedAt: Date(timeIntervalSince1970: 1_260),
@@ -37,6 +38,7 @@ struct MyTaskFormDataTests {
         #expect(formData.priority == .urgent)
         #expect(formData.energyLevel == .high)
         #expect(formData.workMode == .deepWork)
+        #expect(formData.taskGroupText == "Launch")
         #expect(formData.tagsText == "work, writing")
         #expect(formData.createdAt == createdAt)
         #expect(formData.completedAt == completedAt)
@@ -56,6 +58,7 @@ struct MyTaskFormDataTests {
             priority: .high,
             energyLevel: .medium,
             workMode: .creative,
+            taskGroupText: " Launch ",
             tagsText: "work, writing",
             createdAt: Date(timeIntervalSince1970: 1_234)
         )
@@ -71,6 +74,7 @@ struct MyTaskFormDataTests {
         #expect(task?.priority == .high)
         #expect(task?.energyLevel == .medium)
         #expect(task?.workMode == .creative)
+        #expect(task?.taskGroup == "Launch")
         #expect(task?.tags == ["work", "writing"])
         #expect(task?.createdAt == Date(timeIntervalSince1970: 1_234))
         #expect(task?.updatedAt == savedAt)
@@ -120,13 +124,14 @@ struct MyTaskFormDataTests {
 
         let task = formData.makeTask(savedAt: savedAt)
 
-        #expect(task?.status == .active)
+        #expect(task?.status == .inbox)
         #expect(task?.notes == nil)
         #expect(task?.estimatedMinutes == nil)
         #expect(task?.dueDate == nil)
         #expect(task?.priority == nil)
         #expect(task?.energyLevel == nil)
         #expect(task?.workMode == nil)
+        #expect(task?.taskGroup == nil)
         #expect(task?.tags == [])
         #expect(task?.createdAt == savedAt)
         #expect(task?.updatedAt == savedAt)

@@ -90,7 +90,7 @@ struct MyTaskCollectionTests {
         #expect(tasks.last?.energyLevel == .medium)
         #expect(tasks.last?.workMode == .deepWork)
         #expect(tasks.last?.tags == ["work", "planning"])
-        #expect(tasks.last?.status == .active)
+        #expect(tasks.last?.status == .inbox)
         #expect(tasks.last?.createdAt == savedAt)
         #expect(tasks.last?.updatedAt == savedAt)
     }

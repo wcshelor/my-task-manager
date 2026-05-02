@@ -11,11 +11,11 @@ struct MyTaskTests {
         #expect(MyTask.cleanedTitle(from: " \n\t ") == nil)
     }
 
-    @Test func newTaskInitializerStartsActiveWithDefaults() {
+    @Test func newTaskInitializerStartsInInboxWithDefaults() {
         let task = MyTask(newTitle: "Read book")
 
         #expect(task?.title == "Read book")
-        #expect(task?.status == .active)
+        #expect(task?.status == .inbox)
         #expect(task?.tags == [])
         #expect(task?.completedAt == nil)
         #expect(task?.updatedAt == task?.createdAt)
@@ -58,6 +58,7 @@ struct MyTaskTests {
             priority: .urgent,
             energyLevel: .high,
             workMode: .deepWork,
+            taskGroup: " Launch ",
             tags: [" work ", "", "planning "],
             createdAt: createdAt,
             updatedAt: updatedAt
@@ -70,6 +71,7 @@ struct MyTaskTests {
         #expect(task.priority == .urgent)
         #expect(task.energyLevel == .high)
         #expect(task.workMode == .deepWork)
+        #expect(task.taskGroup == "Launch")
         #expect(task.tags == ["work", "planning"])
         #expect(task.createdAt == createdAt)
         #expect(task.updatedAt == updatedAt)

@@ -15,8 +15,24 @@ struct ContentView: View {
     }
 
     var body: some View {
+        TaskManagerTabShell(appEnvironment: appEnvironment)
+    }
+}
+
+private struct TaskManagerTabShell: View {
+    private let appEnvironment: AppEnvironment
+
+    init(appEnvironment: AppEnvironment) {
+        self.appEnvironment = appEnvironment
+    }
+
+    var body: some View {
         TabView {
-            TaskListView(taskRepository: appEnvironment.taskRepository)
+            TaskListView(
+                taskRepository: appEnvironment.taskRepository,
+                scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
+                calendarWriter: appEnvironment.calendarWriter
+            )
                 .tabItem {
                     Label("Tasks", systemImage: "checklist")
                 }
@@ -29,12 +45,17 @@ struct ContentView: View {
                 calendarListingService: appEnvironment.calendarListingService,
                 calendarReader: appEnvironment.calendarReader,
                 calendarWriter: appEnvironment.calendarWriter,
-                calendarReconciler: appEnvironment.calendarReconciler
+                calendarReconciler: appEnvironment.calendarReconciler,
+                calendarChangeObserver: appEnvironment.calendarChangeObserver
             )
             .tabItem {
                 Label("Calendar", systemImage: "calendar")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #if os(iOS)
+        .background(Color(uiColor: .systemBackground))
+        #endif
     }
 }
 

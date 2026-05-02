@@ -1,9 +1,47 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
+
+private enum PlannerCalendarDisplayMode: String, CaseIterable, Identifiable {
+    case day
+    case week
+    case month
+
+    var id: Self {
+        self
+    }
+
+    var title: String {
+        switch self {
+        case .day:
+            return "Day"
+        case .week:
+            return "Week"
+        case .month:
+            return "Month"
+        }
+    }
+
+    var navigationTitle: String {
+        switch self {
+        case .day:
+            return "Day"
+        case .week:
+            return "Week"
+        case .month:
+            return "Month"
+        }
+    }
+}
 
 struct PlannerView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var viewModel: PlannerViewModel
+    @State private var calendarDisplayMode: PlannerCalendarDisplayMode = .day
     @State private var isHorizonPlanSheetPresented = false
+    @State private var isCalendarSetupSheetPresented = false
     @State private var scheduledBlockEditDraft: PlannerScheduledBlockEditDraft?
     @State private var scheduledBlockAlert: PlannerScheduledBlockAlert?
 
@@ -15,7 +53,8 @@ struct PlannerView: View {
         calendarListingService: any CalendarListing,
         calendarReader: any CalendarReading,
         calendarWriter: any CalendarWriting,
-        calendarReconciler: any CalendarReconciling
+        calendarReconciler: any CalendarReconciling,
+        calendarChangeObserver: any CalendarChangeObserving
     ) {
         _viewModel = StateObject(
             wrappedValue: PlannerViewModel(
@@ -26,40 +65,52 @@ struct PlannerView: View {
                 calendarListingService: calendarListingService,
                 calendarReader: calendarReader,
                 calendarWriter: calendarWriter,
-                calendarReconciler: calendarReconciler
+                calendarReconciler: calendarReconciler,
+                calendarChangeObserver: calendarChangeObserver
             )
         )
     }
 
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    PlannerOverviewCard(
-                        permissionStatus: viewModel.permissionStatus,
-                        readableCalendarCount: viewModel.calendars.count,
-                        selectedDay: viewModel.selectedDay,
-                        visibleDayInterval: viewModel.visibleDayInterval,
-                        activePlanningRequestWindow: viewModel.activePlanningRequestWindow,
-                        activePlanningWindow: viewModel.selectedPlanningWindow,
-                        filterState: viewModel.filterState,
-                        suggestionCount: viewModel.suggestionItems.count,
-                        isLoading: viewModel.isLoading,
-                        onRequestAccess: {
-                            Task {
-                                await viewModel.requestCalendarAccess()
-                            }
-                        },
-                        onRefresh: {
-                            Task {
-                                await viewModel.refresh()
-                            }
-                        },
-                        onGeneratePlan: {
-                            isHorizonPlanSheetPresented = true
-                        }
-                    )
+            VStack(alignment: .leading, spacing: 0) {
+                Picker("Calendar View", selection: $calendarDisplayMode) {
+                    ForEach(PlannerCalendarDisplayMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
 
+                PlannerDayNavigationCard(
+                    selectedDay: viewModel.selectedDay,
+                    title: calendarDisplayMode.navigationTitle,
+                    onPreviousDay: {
+                        Task {
+                            await moveCalendarBackward()
+                        }
+                    },
+                    onToday: {
+                        Task {
+                            await viewModel.goToToday()
+                        }
+                    },
+                    onNextDay: {
+                        Task {
+                            await moveCalendarForward()
+                        }
+                    }
+                )
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
+                .padding(.bottom, 12)
+
+                VStack(alignment: .leading, spacing: 8) {
                     if let errorMessage = viewModel.errorMessage {
                         Text(errorMessage)
                             .font(.footnote)
@@ -73,27 +124,12 @@ struct PlannerView: View {
                             .foregroundStyle(.orange)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                }
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
 
-                    PlannerDayNavigationCard(
-                        selectedDay: viewModel.selectedDay,
-                        onPreviousDay: {
-                            Task {
-                                await viewModel.goToPreviousDay()
-                            }
-                        },
-                        onToday: {
-                            Task {
-                                await viewModel.goToToday()
-                            }
-                        },
-                        onNextDay: {
-                            Task {
-                                await viewModel.goToNextDay()
-                            }
-                        }
-                    )
-
+                ScrollView {
                     PlannerDayCalendarSection(
+                        displayMode: calendarDisplayMode,
                         permissionStatus: viewModel.permissionStatus,
                         isLoading: viewModel.isLoading,
                         selectedDay: viewModel.selectedDay,
@@ -118,40 +154,26 @@ struct PlannerView: View {
                             viewModel.rejectSuggestion(withID: suggestionID)
                         }
                     )
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
 
-                    if let selectedTimeRange = viewModel.selectedTimeRange {
-                        PlannerSlotPlanningCard(
-                            viewModel: viewModel,
-                            selectedTimeRange: selectedTimeRange,
-                            suggestionItems: viewModel.selectedSlotSuggestionItems,
-                            hasGeneratedSuggestions: viewModel.hasGeneratedSuggestionsForSelectedTimeRange,
-                            activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
-                            onGenerateSuggestions: {
-                                Task {
-                                    await viewModel.generatePlanForSelectedTimeRange()
-                                }
-                            },
-                            onClearSelection: {
-                                viewModel.clearSelectedTimeRange()
-                            },
-                            onAcceptSuggestion: { suggestionID in
-                                Task {
-                                    await viewModel.acceptSuggestion(withID: suggestionID)
-                                }
-                            },
-                            onRejectSuggestion: { suggestionID in
-                                viewModel.rejectSuggestion(withID: suggestionID)
-                            }
-                        )
-                    }
-
-                    PlannerTimelineSection(
-                        permissionStatus: viewModel.permissionStatus,
-                        isLoading: viewModel.isLoading,
-                        timelineEntries: viewModel.timelineEntries,
-                        activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
-                        activeScheduledBlockOperationIDs: viewModel.activeScheduledBlockOperationIDs,
+                    PlannerManualSlotFillerCard(
+                        viewModel: viewModel,
+                        selectedDay: viewModel.selectedDay,
                         selectedTimeRange: viewModel.selectedTimeRange,
+                        suggestionItems: viewModel.selectedSlotSuggestionItems,
+                        hasGeneratedSuggestions: viewModel.hasGeneratedSuggestionsForSelectedTimeRange,
+                        activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
+                        onSelectRange: { selection in
+                            viewModel.updateSelectedTimeRange(selection)
+                        },
+                        onGenerateSuggestions: {
+                            Task {
+                                await viewModel.generatePlanForSelectedTimeRange()
+                            }
+                        },
+                        onClearSelection: {
+                            viewModel.clearSelectedTimeRange()
+                        },
                         onAcceptSuggestion: { suggestionID in
                             Task {
                                 await viewModel.acceptSuggestion(withID: suggestionID)
@@ -159,36 +181,93 @@ struct PlannerView: View {
                         },
                         onRejectSuggestion: { suggestionID in
                             viewModel.rejectSuggestion(withID: suggestionID)
-                        },
-                        onEditScheduledBlock: { blockID in
-                            scheduledBlockEditDraft = makeScheduledBlockEditDraft(for: blockID)
-                        },
-                        onRescheduleScheduledBlock: { blockID in
+                        }
+                    )
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+                    .padding(.bottom, 20)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .navigationTitle("Calendar")
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await viewModel.refresh()
+                        }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(viewModel.isLoading)
+
+                    Menu {
+                        Button("Plan by Horizon") {
+                            isHorizonPlanSheetPresented = true
+                        }
+
+                        if viewModel.permissionStatus == .fullAccessGranted {
+                            Button("Calendar Setup") {
+                                isCalendarSetupSheetPresented = true
+                            }
+                        }
+
+                        if viewModel.permissionStatus != .fullAccessGranted,
+                           viewModel.permissionStatus != .notDetermined {
+                            Button("Grant Calendar Access") {
+                                Task {
+                                    await viewModel.requestCalendarAccess()
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Calendar Options", systemImage: "ellipsis.circle")
+                    }
+                    .disabled(viewModel.isLoading)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let selectedTimeRange = viewModel.selectedTimeRange {
+                    PlannerSelectedSlotActionBar(
+                        selectedTimeRange: selectedTimeRange,
+                        hasGeneratedSuggestions: viewModel.hasGeneratedSuggestionsForSelectedTimeRange,
+                        suggestionCount: viewModel.selectedSlotSuggestionItems.count,
+                        isLoading: viewModel.isLoading,
+                        canGenerate: viewModel.permissionStatus == .fullAccessGranted,
+                        onGenerateSuggestions: {
                             Task {
-                                await viewModel.rescheduleAcceptedBlockToSelectedTimeRange(withID: blockID)
+                                await viewModel.generatePlanForSelectedTimeRange()
                             }
                         },
-                        onCancelScheduledBlock: { blockID in
-                            scheduledBlockAlert = PlannerScheduledBlockAlert(
-                                blockID: blockID,
-                                action: .cancel
-                            )
-                        },
-                        onDeleteScheduledBlock: { blockID in
-                            scheduledBlockAlert = PlannerScheduledBlockAlert(
-                                blockID: blockID,
-                                action: .delete
-                            )
+                        onClearSelection: {
+                            viewModel.clearSelectedTimeRange()
                         }
                     )
                 }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .navigationTitle("Planner")
         }
         .sheet(isPresented: $isHorizonPlanSheetPresented) {
             HorizonPlanSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isCalendarSetupSheetPresented) {
+            NavigationStack {
+                PlannerCalendarSetupCard(
+                    writableCalendars: viewModel.writableCalendars,
+                    selectedWriteCalendarIdentifier: viewModel.selectedWriteCalendarIdentifier,
+                    selectedWriteCalendarTitle: viewModel.selectedWriteCalendarTitle,
+                    onSelectWriteCalendar: { calendarID in
+                        viewModel.selectWriteCalendar(withID: calendarID)
+                    }
+                )
+                .padding()
+                .navigationTitle("Calendar Setup")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            isCalendarSetupSheetPresented = false
+                        }
+                    }
+                }
+            }
         }
         .sheet(item: $scheduledBlockEditDraft) { draft in
             PlannerScheduledBlockEditSheet(
@@ -236,6 +315,8 @@ struct PlannerView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
+            viewModel.setCalendarStoreChangeObservationEnabled(newPhase == .active)
+
             guard newPhase == .active else {
                 return
             }
@@ -245,7 +326,30 @@ struct PlannerView: View {
             }
         }
         .task {
+            viewModel.setCalendarStoreChangeObservationEnabled(scenePhase == .active)
             await viewModel.loadIfNeeded()
+        }
+    }
+
+    private func moveCalendarBackward() async {
+        switch calendarDisplayMode {
+        case .day:
+            await viewModel.goToPreviousDay()
+        case .week:
+            await viewModel.goToPreviousWeek()
+        case .month:
+            await viewModel.goToPreviousMonth()
+        }
+    }
+
+    private func moveCalendarForward() async {
+        switch calendarDisplayMode {
+        case .day:
+            await viewModel.goToNextDay()
+        case .week:
+            await viewModel.goToNextWeek()
+        case .month:
+            await viewModel.goToNextMonth()
         }
     }
 
@@ -267,7 +371,108 @@ struct PlannerView: View {
     }
 }
 
+private struct PlannerCalendarSetupCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let writableCalendars: [ReadableCalendar]
+    let selectedWriteCalendarIdentifier: String
+    let selectedWriteCalendarTitle: String?
+    let onSelectWriteCalendar: (String) -> Void
+
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Calendar Setup")
+                        .font(.headline)
+
+                    Text(statusMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text(selectedWriteCalendarIdentifier.isEmpty ? "Selection Required" : "Ready")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(selectedWriteCalendarIdentifier.isEmpty ? .orange : .green)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        (selectedWriteCalendarIdentifier.isEmpty ? Color.orange : Color.green)
+                            .opacity(0.12),
+                        in: Capsule()
+                    )
+            }
+
+            if writableCalendars.isEmpty {
+                Text("No writable calendars are available. Create or enable an editable iPhone calendar before accepting planner suggestions.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker(
+                    "Write Accepted Blocks To",
+                    selection: Binding(
+                        get: { selectedWriteCalendarIdentifier },
+                        set: onSelectWriteCalendar
+                    )
+                ) {
+                    Text("Select a Calendar").tag("")
+
+                    ForEach(writableCalendars) { calendar in
+                        Text(calendar.title).tag(calendar.id)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text(helperText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(isCompactWidth ? 16 : 18)
+        .background(
+            Color.primary.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+    }
+
+    private var statusMessage: String {
+        if writableCalendars.isEmpty {
+            return "Planner suggestions can only be written back after you have a writable calendar."
+        }
+
+        if let selectedWriteCalendarTitle, selectedWriteCalendarIdentifier.isEmpty == false {
+            return "Accepted suggestions are written to \(selectedWriteCalendarTitle)."
+        }
+
+        if let selectedWriteCalendarTitle {
+            return "The saved calendar selection \"\(selectedWriteCalendarTitle)\" needs to be confirmed on this device."
+        }
+
+        return "Choose which calendar should receive accepted planner suggestions."
+    }
+
+    private var helperText: String {
+        if selectedWriteCalendarTitle != nil, selectedWriteCalendarIdentifier.isEmpty == false {
+            return "Busy-time reads continue to use every readable calendar that is not excluded by settings."
+        }
+
+        if selectedWriteCalendarTitle != nil {
+            return "Re-select a writable calendar to replace the older title-based setting."
+        }
+
+        return "This is stored by stable calendar identifier, so calendar renames do not break event writes."
+    }
+}
+
 private struct PlannerOverviewCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let permissionStatus: CalendarPermissionStatus
     let readableCalendarCount: Int
     let selectedDay: Date
@@ -281,26 +486,30 @@ private struct PlannerOverviewCard: View {
     let onRefresh: () -> Void
     let onGeneratePlan: () -> Void
 
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: isCompactWidth ? 14 : 16) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Calendar Planner")
-                        .font(.title2.weight(.semibold))
+                        .font(isCompactWidth ? .title3.weight(.semibold) : .title2.weight(.semibold))
 
-                    Text(permissionStatus.detailText)
+                    Text(plannerSummaryText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                Text(permissionStatus.displayTitle)
+                Text(calendarStatusLabel)
                     .font(.callout.weight(.semibold))
-                    .foregroundStyle(permissionStatus.tintColor)
+                    .foregroundStyle(calendarStatusTint)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(permissionStatus.tintColor.opacity(0.12), in: Capsule())
+                    .background(calendarStatusTint.opacity(0.12), in: Capsule())
             }
 
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
@@ -339,31 +548,21 @@ private struct PlannerOverviewCard: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                Button("Plan by Horizon") {
-                    onGeneratePlan()
+            ViewThatFits {
+                HStack(spacing: 12) {
+                    overviewActionButtons
                 }
-                .buttonStyle(.bordered)
-                .disabled(isLoading)
 
-                Button("Request Calendar Access") {
-                    onRequestAccess()
+                VStack(alignment: .leading, spacing: 10) {
+                    overviewActionButtons
                 }
-                .buttonStyle(.bordered)
-                .disabled(isLoading || permissionStatus == .fullAccessGranted)
-
-                Button("Refresh") {
-                    onRefresh()
-                }
-                .buttonStyle(.bordered)
-                .disabled(isLoading)
             }
 
             Text(planningHint)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .padding(18)
+        .padding(isCompactWidth ? 16 : 18)
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
@@ -372,8 +571,64 @@ private struct PlannerOverviewCard: View {
         case .selectedTimeRange:
             return "Selected-slot planning is active below. Use the secondary horizon flow when you want broader suggestions."
         case .horizon(let horizon):
+            #if os(iOS)
+            return "Primary flow: press and hold on open time in the day timeline, then drag to fill that slot. Horizon planning is still available for \(horizon.title.lowercased())."
+            #else
             return "Primary flow: drag across open time in the day timeline, then fill that slot. Horizon planning is still available for \(horizon.title.lowercased())."
+            #endif
         }
+    }
+
+    @ViewBuilder
+    private var overviewActionButtons: some View {
+        Button("Plan by Horizon") {
+            onGeneratePlan()
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoading)
+
+        if permissionStatus != .fullAccessGranted, permissionStatus != .notDetermined {
+            Button("Grant Calendar Access") {
+                onRequestAccess()
+            }
+            .buttonStyle(.bordered)
+            .disabled(isLoading)
+        }
+
+        Button("Refresh") {
+            onRefresh()
+        }
+        .buttonStyle(.bordered)
+        .disabled(isLoading)
+    }
+
+    private var plannerSummaryText: String {
+        switch permissionStatus {
+        case .fullAccessGranted:
+            return "Busy time and accepted planner blocks stay synced with Calendar."
+        case .notDetermined:
+            return "The planner will prompt for Calendar access the first time it needs live busy time."
+        case .writeOnlyGrantedButInsufficient, .denied, .restricted:
+            return "Calendar access still needs attention before the planner can read busy time."
+        case .error(let message):
+            return message
+        }
+    }
+
+    private var calendarStatusLabel: String {
+        if permissionStatus == .fullAccessGranted {
+            return readableCalendarCount == 1 ? "1 Calendar" : "\(readableCalendarCount) Calendars"
+        }
+
+        return permissionStatus.displayTitle
+    }
+
+    private var calendarStatusTint: Color {
+        if permissionStatus == .fullAccessGranted {
+            return .green
+        }
+
+        return permissionStatus.tintColor
     }
 }
 
@@ -393,44 +648,61 @@ private struct PlannerMetricLabel: View {
 
 private struct PlannerDayNavigationCard: View {
     let selectedDay: Date
+    let title: String
     let onPreviousDay: () -> Void
     let onToday: () -> Void
     let onNextDay: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Day Timeline")
-                    .font(.headline)
-
-                Text(selectedDay.formatted(date: .complete, time: .omitted))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        ViewThatFits {
+            HStack(alignment: .center, spacing: 16) {
+                timelineHeading
+                Spacer()
+                dayNavigationButtons
             }
 
-            Spacer()
-
-            HStack(spacing: 10) {
-                Button(action: onPreviousDay) {
-                    Label("Previous Day", systemImage: "chevron.left")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.bordered)
-
-                Button("Today", action: onToday)
-                    .buttonStyle(.bordered)
-
-                Button(action: onNextDay) {
-                    Label("Next Day", systemImage: "chevron.right")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.bordered)
+            VStack(alignment: .leading, spacing: 12) {
+                timelineHeading
+                dayNavigationButtons
             }
+        }
+    }
+
+    private var timelineHeading: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.headline)
+
+            Text(selectedDay.formatted(date: .complete, time: .omitted))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var dayNavigationButtons: some View {
+        HStack(spacing: 10) {
+            Button(action: onPreviousDay) {
+                Label("Previous Day", systemImage: "chevron.left")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+
+            Button("Today", action: onToday)
+                .buttonStyle(.bordered)
+
+            Button(action: onNextDay) {
+                Label("Next Day", systemImage: "chevron.right")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
         }
     }
 }
 
 private struct PlannerDayCalendarSection: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let displayMode: PlannerCalendarDisplayMode
     let permissionStatus: CalendarPermissionStatus
     let isLoading: Bool
     let selectedDay: Date
@@ -445,9 +717,16 @@ private struct PlannerDayCalendarSection: View {
     let onAcceptSuggestion: (UUID) -> Void
     let onRejectSuggestion: (UUID) -> Void
 
-    @State private var activeSelectionAnchor: CGPoint?
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
 
-    private let timelineMetrics = PlannerDayTimelineMetrics()
+    private var timelineMetrics: PlannerDayTimelineMetrics {
+        isCompactWidth ? .compactPhone : PlannerDayTimelineMetrics()
+    }
+
+    private let selectionHoldDuration: TimeInterval = 1.0
+    private let selectionScrollTolerance: CGFloat = 12
 
     private var layout: PlannerDayCalendarLayout {
         PlannerDayCalendarLayout(
@@ -484,7 +763,7 @@ private struct PlannerDayCalendarSection: View {
                         .buttonStyle(.borderless)
                         .font(.caption)
                 } else {
-                    Text("Drag across open time to plan a slot")
+                    Text(selectionHintText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -498,11 +777,19 @@ private struct PlannerDayCalendarSection: View {
                 }
                 .padding(.vertical, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else if permissionStatus == .notDetermined {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Preparing calendar access…")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else if permissionStatus != .fullAccessGranted {
                 ContentUnavailableView(
-                    "Calendar Access Required",
-                    systemImage: "calendar.badge.exclamationmark",
-                    description: Text("Grant full Calendar access to render busy time and generated suggestions in the day calendar.")
+                    "Calendar Access Needed",
+                    systemImage: "calendar",
+                    description: Text("Turn on Calendar access to render busy time and planner suggestions here.")
                 )
                 .frame(maxWidth: .infinity)
             } else {
@@ -518,30 +805,52 @@ private struct PlannerDayCalendarSection: View {
                     }
                 }
 
-                GeometryReader { geometry in
-                    let contentSize = CGSize(
-                        width: geometry.size.width,
-                        height: timelineMetrics.totalHeight
-                    )
-
-                    ScrollView(.vertical, showsIndicators: true) {
-                        dayCalendarCanvas(totalWidth: contentSize.width)
-                            .frame(
-                                width: contentSize.width,
-                                height: contentSize.height,
-                                alignment: .topLeading
-                            )
-                    }
-                }
-                .frame(height: min(timelineMetrics.totalHeight, 520))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
+                calendarContent
                 .animation(.easeInOut(duration: 0.2), value: timelineEntries.map(\.id))
                 .animation(.easeInOut(duration: 0.15), value: selectedTimeRange)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var calendarContent: some View {
+        switch displayMode {
+        case .day:
+            GeometryReader { geometry in
+                let contentSize = CGSize(
+                    width: geometry.size.width,
+                    height: timelineMetrics.totalHeight
+                )
+
+                ScrollView(.vertical, showsIndicators: true) {
+                    dayCalendarCanvas(totalWidth: contentSize.width)
+                        .frame(
+                            width: contentSize.width,
+                            height: contentSize.height,
+                            alignment: .topLeading
+                        )
+                }
+            }
+            .frame(height: min(timelineMetrics.totalHeight, isCompactWidth ? 560 : 620))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+
+        case .week:
+            PlannerWeekGridView(
+                selectedDay: selectedDay,
+                calendar: calendar,
+                entries: timelineEntries
+            )
+
+        case .month:
+            PlannerMonthGridView(
+                selectedDay: selectedDay,
+                calendar: calendar,
+                entries: timelineEntries
+            )
         }
     }
 
@@ -552,20 +861,15 @@ private struct PlannerDayCalendarSection: View {
     }
 
     private func dayCalendarCanvas(totalWidth: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
+        let contentSize = CGSize(
+            width: totalWidth,
+            height: timelineMetrics.totalHeight
+        )
+
+        return ZStack(alignment: .topLeading) {
             dayGridBackground(totalWidth: totalWidth)
 
-            Color.clear
-                .frame(width: totalWidth, height: timelineMetrics.totalHeight)
-                .contentShape(Rectangle())
-                .gesture(
-                    selectionGesture(
-                        in: CGSize(
-                            width: totalWidth,
-                            height: timelineMetrics.totalHeight
-                        )
-                    )
-                )
+            selectionCaptureLayer(totalWidth: totalWidth)
 
             if let selectedTimeRange, shouldShowSelectionOverlay {
                 let metrics = selectionMetrics(
@@ -573,10 +877,17 @@ private struct PlannerDayCalendarSection: View {
                     totalWidth: totalWidth
                 )
 
-                PlannerDaySelectionBlock(selectedTimeRange: selectedTimeRange)
+                PlannerDaySelectionBlock(
+                    selectedTimeRange: selectedTimeRange,
+                    onResizeTop: { point in
+                        resizeSelection(edge: .top, point: point, in: contentSize)
+                    },
+                    onResizeBottom: { point in
+                        resizeSelection(edge: .bottom, point: point, in: contentSize)
+                    }
+                )
                     .frame(width: metrics.width, height: metrics.height)
                     .offset(x: metrics.x, y: metrics.y)
-                    .allowsHitTesting(false)
             }
 
             ForEach(layout.timedEntries) { item in
@@ -595,50 +906,124 @@ private struct PlannerDayCalendarSection: View {
                     .offset(x: metrics.x, y: metrics.y)
             }
         }
+        .coordinateSpace(name: "plannerDayCalendarCanvas")
+    }
+
+    @ViewBuilder
+    private func selectionCaptureLayer(totalWidth: CGFloat) -> some View {
+        let contentSize = CGSize(
+            width: totalWidth,
+            height: timelineMetrics.totalHeight
+        )
+
+        #if os(iOS)
+        PlannerSelectionGestureOverlay(
+            contentSize: contentSize,
+            minimumPressDuration: selectionHoldDuration,
+            allowableMovement: selectionScrollTolerance
+        ) { anchorPoint, currentPoint in
+            updateSelection(
+                anchorPoint: anchorPoint,
+                currentPoint: currentPoint,
+                in: contentSize
+            )
+        }
+        .frame(width: totalWidth, height: timelineMetrics.totalHeight)
+        #else
+        Color.clear
+            .frame(width: totalWidth, height: timelineMetrics.totalHeight)
+            .contentShape(Rectangle())
+            .simultaneousGesture(selectionGesture(in: contentSize))
+        #endif
     }
 
     private func selectionGesture(in contentSize: CGSize) -> some Gesture {
+        #if os(iOS)
+        LongPressGesture(
+            minimumDuration: selectionHoldDuration,
+            maximumDistance: selectionScrollTolerance
+        )
+        .sequenced(before: DragGesture(minimumDistance: 0))
+        .onChanged { value in
+            switch value {
+            case .second(true, let drag?):
+                updateSelection(
+                    anchorPoint: drag.startLocation,
+                    currentPoint: drag.location,
+                    in: contentSize
+                )
+            default:
+                break
+            }
+        }
+        .onEnded { value in
+            switch value {
+            case .second(true, let drag?):
+                updateSelection(
+                    anchorPoint: drag.startLocation,
+                    currentPoint: drag.location,
+                    in: contentSize
+                )
+            default:
+                break
+            }
+        }
+        #else
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                if activeSelectionAnchor == nil {
-                    activeSelectionAnchor = value.startLocation
-                }
-
-                guard let anchorPoint = activeSelectionAnchor else {
-                    return
-                }
-
-                let selection = PlannerTimelineGrid.selectedRange(
-                    anchorPoint: anchorPoint,
+                updateSelection(
+                    anchorPoint: value.startLocation,
                     currentPoint: value.location,
-                    in: contentSize,
-                    metrics: timelineMetrics,
-                    day: selectedDay,
-                    calendar: calendar,
-                    occupiedIntervals: occupiedIntervals
+                    in: contentSize
                 )
-                onSelectionChange(selection)
             }
             .onEnded { value in
-                defer {
-                    activeSelectionAnchor = nil
-                }
-
-                guard let anchorPoint = activeSelectionAnchor else {
-                    return
-                }
-
-                let selection = PlannerTimelineGrid.selectedRange(
-                    anchorPoint: anchorPoint,
+                updateSelection(
+                    anchorPoint: value.startLocation,
                     currentPoint: value.location,
-                    in: contentSize,
-                    metrics: timelineMetrics,
-                    day: selectedDay,
-                    calendar: calendar,
-                    occupiedIntervals: occupiedIntervals
+                    in: contentSize
                 )
-                onSelectionChange(selection)
             }
+        #endif
+    }
+
+    private func updateSelection(
+        anchorPoint: CGPoint,
+        currentPoint: CGPoint,
+        in contentSize: CGSize
+    ) {
+        let selection = PlannerTimelineGrid.selectedRange(
+            anchorPoint: anchorPoint,
+            currentPoint: currentPoint,
+            in: contentSize,
+            metrics: timelineMetrics,
+            day: selectedDay,
+            calendar: calendar,
+            occupiedIntervals: occupiedIntervals
+        )
+        onSelectionChange(selection)
+    }
+
+    private func resizeSelection(
+        edge: PlannerSelectionResizeEdge,
+        point: CGPoint,
+        in contentSize: CGSize
+    ) {
+        guard let selectedTimeRange else {
+            return
+        }
+
+        let selection = PlannerTimelineGrid.resizedRange(
+            selectedTimeRange,
+            edge: edge,
+            point: point,
+            in: contentSize,
+            metrics: timelineMetrics,
+            day: selectedDay,
+            calendar: calendar,
+            occupiedIntervals: occupiedIntervals
+        )
+        onSelectionChange(selection)
     }
 
     private func dayGridBackground(totalWidth: CGFloat) -> some View {
@@ -732,6 +1117,326 @@ private struct PlannerDayCalendarSection: View {
             height: CGFloat(slotCount) * timelineMetrics.slotHeight
         )
     }
+
+    private var selectionHintText: String {
+        #if os(iOS)
+        return "Press and hold on open time, then drag to plan a slot"
+        #else
+        return "Drag across open time to plan a slot"
+        #endif
+    }
+}
+
+#if os(iOS)
+private struct PlannerSelectionGestureOverlay: UIViewRepresentable {
+    let contentSize: CGSize
+    let minimumPressDuration: TimeInterval
+    let allowableMovement: CGFloat
+    let onSelectionChange: (CGPoint, CGPoint) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = true
+
+        let recognizer = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        recognizer.minimumPressDuration = minimumPressDuration
+        recognizer.allowableMovement = allowableMovement
+        recognizer.cancelsTouchesInView = false
+        recognizer.delaysTouchesBegan = false
+        recognizer.delaysTouchesEnded = false
+        recognizer.delegate = context.coordinator
+        view.addGestureRecognizer(recognizer)
+
+        context.coordinator.contentSize = contentSize
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.contentSize = contentSize
+        context.coordinator.onSelectionChange = onSelectionChange
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(contentSize: contentSize, onSelectionChange: onSelectionChange)
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var contentSize: CGSize
+        var onSelectionChange: (CGPoint, CGPoint) -> Void
+        private var anchorPoint: CGPoint?
+
+        init(
+            contentSize: CGSize,
+            onSelectionChange: @escaping (CGPoint, CGPoint) -> Void
+        ) {
+            self.contentSize = contentSize
+            self.onSelectionChange = onSelectionChange
+        }
+
+        @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            guard let view = recognizer.view else {
+                return
+            }
+
+            let currentPoint = clampedPoint(recognizer.location(in: view))
+
+            switch recognizer.state {
+            case .began:
+                anchorPoint = currentPoint
+                onSelectionChange(currentPoint, currentPoint)
+            case .changed:
+                guard let anchorPoint else {
+                    return
+                }
+
+                onSelectionChange(anchorPoint, currentPoint)
+            case .ended:
+                if let anchorPoint {
+                    onSelectionChange(anchorPoint, currentPoint)
+                }
+                anchorPoint = nil
+            case .cancelled, .failed:
+                anchorPoint = nil
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        private func clampedPoint(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: min(max(point.x, 0), contentSize.width),
+                y: min(max(point.y, 0), contentSize.height)
+            )
+        }
+    }
+}
+#endif
+
+private struct PlannerSelectedSlotActionBar: View {
+    let selectedTimeRange: PlannerSelectedTimeRange
+    let hasGeneratedSuggestions: Bool
+    let suggestionCount: Int
+    let isLoading: Bool
+    let canGenerate: Bool
+    let onGenerateSuggestions: () -> Void
+    let onClearSelection: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(selectedTimeRange.interval.timelineLabel)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            Button("Clear", action: onClearSelection)
+                .buttonStyle(.bordered)
+                .disabled(isLoading)
+
+            Button("Fill", action: onGenerateSuggestions)
+                .buttonStyle(.borderedProminent)
+                .disabled(isLoading || canGenerate == false)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    private var statusText: String {
+        if hasGeneratedSuggestions {
+            return suggestionCount == 1 ? "1 suggestion" : "\(suggestionCount) suggestions"
+        }
+
+        return "\(selectedTimeRange.durationMinutes) minutes selected"
+    }
+}
+
+private struct PlannerWeekGridView: View {
+    let selectedDay: Date
+    let calendar: Calendar
+    let entries: [PlannerTimelineEntry]
+
+    private var weekDays: [Date] {
+        let interval = calendar.dateInterval(of: .weekOfYear, for: selectedDay)
+        let start = interval?.start ?? calendar.startOfDay(for: selectedDay)
+
+        return (0..<7).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: start)
+        }
+    }
+
+    var body: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7),
+            spacing: 1
+        ) {
+            ForEach(weekDays, id: \.self) { day in
+                PlannerCalendarDayCell(
+                    day: day,
+                    calendar: calendar,
+                    entries: entriesForDay(day),
+                    isSelected: calendar.isDate(day, inSameDayAs: selectedDay),
+                    isInDisplayedMonth: true
+                )
+                .frame(minHeight: 132)
+            }
+        }
+        .background(Color.primary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func entriesForDay(_ day: Date) -> [PlannerTimelineEntry] {
+        entries.filter { entry in
+            entry.isAllDay
+                ? calendar.isDate(entry.start, inSameDayAs: day)
+                : entry.end > calendar.startOfDay(for: day)
+                    && entry.start < (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day))
+                        ?? calendar.startOfDay(for: day).addingTimeInterval(86_400))
+        }
+    }
+}
+
+private struct PlannerMonthGridView: View {
+    let selectedDay: Date
+    let calendar: Calendar
+    let entries: [PlannerTimelineEntry]
+
+    private var displayedDays: [Date] {
+        let monthInterval = calendar.dateInterval(of: .month, for: selectedDay)
+        let monthStart = monthInterval?.start ?? calendar.startOfDay(for: selectedDay)
+        let gridStart = calendar.dateInterval(of: .weekOfYear, for: monthStart)?.start ?? monthStart
+
+        return (0..<42).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: gridStart)
+        }
+    }
+
+    var body: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7),
+            spacing: 1
+        ) {
+            ForEach(displayedDays, id: \.self) { day in
+                PlannerCalendarDayCell(
+                    day: day,
+                    calendar: calendar,
+                    entries: entriesForDay(day),
+                    isSelected: calendar.isDate(day, inSameDayAs: selectedDay),
+                    isInDisplayedMonth: calendar.isDate(day, equalTo: selectedDay, toGranularity: .month)
+                )
+                .frame(minHeight: 86)
+            }
+        }
+        .background(Color.primary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func entriesForDay(_ day: Date) -> [PlannerTimelineEntry] {
+        entries.filter { entry in
+            entry.isAllDay
+                ? calendar.isDate(entry.start, inSameDayAs: day)
+                : entry.end > calendar.startOfDay(for: day)
+                    && entry.start < (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day))
+                        ?? calendar.startOfDay(for: day).addingTimeInterval(86_400))
+        }
+    }
+}
+
+private struct PlannerCalendarDayCell: View {
+    let day: Date
+    let calendar: Calendar
+    let entries: [PlannerTimelineEntry]
+    let isSelected: Bool
+    let isInDisplayedMonth: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(dayNumber)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(dayNumberStyle)
+                    .frame(width: 24, height: 24)
+                    .background(isSelected ? Color.accentColor : Color.clear, in: Circle())
+
+                Spacer(minLength: 0)
+            }
+
+            ForEach(entries.prefix(3)) { entry in
+                Text(entry.dayCalendarTitle)
+                    .font(.caption2.weight(.medium))
+                    .lineLimit(1)
+                    .foregroundStyle(isInDisplayedMonth ? Color.primary : Color.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(entry.dayCalendarTint.opacity(0.14), in: RoundedRectangle(cornerRadius: 4))
+            }
+
+            if entries.count > 3 {
+                Text("+\(entries.count - 3) more")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(isInDisplayedMonth ? Color.plannerSurfaceBackground : Color.primary.opacity(0.03))
+    }
+
+    private var dayNumber: String {
+        day.formatted(.dateTime.day())
+    }
+
+    private var dayNumberStyle: Color {
+        if isSelected {
+            return .white
+        }
+
+        return isInDisplayedMonth ? .primary : .secondary
+    }
+}
+
+private extension Color {
+    static var plannerSurfaceBackground: Color {
+        #if os(iOS)
+        Color(uiColor: .systemBackground)
+        #else
+        Color(nsColor: .windowBackgroundColor)
+        #endif
+    }
 }
 
 private struct PlannerTimelineSection: View {
@@ -761,11 +1466,19 @@ private struct PlannerTimelineSection: View {
                 }
                 .padding(.vertical, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else if permissionStatus == .notDetermined {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Preparing calendar…")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else if permissionStatus != .fullAccessGranted {
                 ContentUnavailableView(
-                    "Calendar Access Required",
-                    systemImage: "calendar.badge.exclamationmark",
-                    description: Text("Grant full Calendar access to load busy time into the planner.")
+                    "Calendar Access Needed",
+                    systemImage: "calendar",
+                    description: Text("Turn on Calendar access to load busy time into the planner.")
                 )
                 .frame(maxWidth: .infinity)
             } else if timelineEntries.isEmpty {
@@ -992,20 +1705,32 @@ private struct PlannerDayCalendarBlock: View {
 
 private struct PlannerDaySelectionBlock: View {
     let selectedTimeRange: PlannerSelectedTimeRange
+    let onResizeTop: (CGPoint) -> Void
+    let onResizeBottom: (CGPoint) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Fill")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.orange)
+        ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.orange)
 
-            Text(selectedTimeRange.interval.timelineLabel)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+                Text(selectedTimeRange.interval.timelineLabel)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+
+            VStack(spacing: 0) {
+                PlannerSelectionResizeHandle(edge: .top, onResize: onResizeTop)
+
+                Spacer(minLength: 0)
+
+                PlannerSelectionResizeHandle(edge: .bottom, onResize: onResizeBottom)
+            }
         }
-        .padding(10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
@@ -1015,7 +1740,305 @@ private struct PlannerDaySelectionBlock: View {
     }
 }
 
+private struct PlannerSelectionResizeHandle: View {
+    let edge: PlannerSelectionResizeEdge
+    let onResize: (CGPoint) -> Void
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(height: 24)
+            .contentShape(Rectangle())
+            .overlay(alignment: edge == .top ? .top : .bottom) {
+                Capsule()
+                    .fill(Color.orange)
+                    .frame(width: 42, height: 5)
+                    .padding(.vertical, 5)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("plannerDayCalendarCanvas"))
+                    .onChanged { value in
+                        onResize(value.location)
+                    }
+                    .onEnded { value in
+                        onResize(value.location)
+                    }
+            )
+    }
+}
+
+private struct PlannerManualSlotFillerCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    @ObservedObject var viewModel: PlannerViewModel
+    let selectedDay: Date
+    let selectedTimeRange: PlannerSelectedTimeRange?
+    let suggestionItems: [PlannerSuggestionItem]
+    let hasGeneratedSuggestions: Bool
+    let activeSuggestionOperationIDs: Set<UUID>
+    let onSelectRange: (PlannerSelectedTimeRange?) -> Void
+    let onGenerateSuggestions: () -> Void
+    let onClearSelection: () -> Void
+    let onAcceptSuggestion: (UUID) -> Void
+    let onRejectSuggestion: (UUID) -> Void
+
+    @State private var draftStart = Date.now
+    @State private var draftEnd = Date.now.addingTimeInterval(60 * 60)
+
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
+    private var draftRange: PlannerSelectedTimeRange? {
+        PlannerSelectedTimeRange(start: draftStart, end: draftEnd)
+    }
+
+    private var validationMessage: String? {
+        guard draftRange != nil else {
+            return "End time must be after start time."
+        }
+
+        return nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompactWidth ? 14 : 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Detailed Task Filler")
+                        .font(.headline)
+
+                    Text(selectedRangeSummary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                if selectedTimeRange != nil {
+                    Button("Clear", action: onClearSelection)
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .disabled(viewModel.isLoading)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                DatePicker(
+                    "Start",
+                    selection: $draftStart,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+
+                DatePicker(
+                    "End",
+                    selection: $draftEnd,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.compact)
+            }
+
+            ViewThatFits {
+                HStack(alignment: .center, spacing: 12) {
+                    filterControls
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    filterControls
+                }
+            }
+
+            if viewModel.availableTags.isEmpty == false {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tags")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.availableTags, id: \.self) { tag in
+                                PlannerFilterTagChip(
+                                    title: tag,
+                                    isSelected: viewModel.filterState.selectedTags.contains(tag)
+                                ) {
+                                    let isEnabled = viewModel.filterState.selectedTags.contains(tag) == false
+                                    viewModel.setSelectedTag(tag, isEnabled: isEnabled)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let validationMessage {
+                Text(validationMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            ViewThatFits {
+                HStack(spacing: 12) {
+                    actionButtons
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    actionButtons
+                }
+            }
+
+            if hasGeneratedSuggestions {
+                if suggestionItems.isEmpty {
+                    Text("No matching tasks fit this time span.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(suggestionItems.count == 1 ? "Suggested Task" : "Suggested Tasks")
+                            .font(.subheadline.weight(.medium))
+
+                        ForEach(suggestionItems) { suggestion in
+                            PlannerSuggestionCard(
+                                suggestion: suggestion,
+                                isProcessingSuggestion: activeSuggestionOperationIDs.contains(suggestion.id),
+                                onAcceptSuggestion: onAcceptSuggestion,
+                                onRejectSuggestion: onRejectSuggestion
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .padding(isCompactWidth ? 16 : 18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.08),
+                    Color.orange.opacity(0.08)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .onAppear(perform: syncDraftWithSelectionOrDay)
+        .onChange(of: selectedDay) { _, _ in
+            syncDraftWithSelectionOrDay()
+        }
+        .onChange(of: selectedTimeRange) { _, newSelection in
+            guard let newSelection else {
+                return
+            }
+
+            draftStart = newSelection.start
+            draftEnd = newSelection.end
+        }
+    }
+
+    @ViewBuilder
+    private var filterControls: some View {
+        LabeledContent("Mode") {
+            Picker("Work Mode", selection: selectedWorkModeBinding) {
+                Text("Any").tag(nil as WorkModeKind?)
+
+                ForEach(viewModel.availableWorkModes, id: \.self) { workMode in
+                    Text(workMode.displayName).tag(Optional(workMode))
+                }
+            }
+            .pickerStyle(.menu)
+        }
+
+        LabeledContent("Priority") {
+            Picker("Priority Emphasis", selection: selectedPriorityEmphasisBinding) {
+                ForEach(PlannerPriorityEmphasis.allCases) { emphasis in
+                    Text(emphasis.title).tag(emphasis)
+                }
+            }
+            .pickerStyle(.menu)
+        }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        Button("Use Time Span") {
+            onSelectRange(draftRange)
+        }
+        .buttonStyle(.bordered)
+        .disabled(viewModel.isLoading || validationMessage != nil)
+
+        Button("Fill Tasks") {
+            onSelectRange(draftRange)
+            onGenerateSuggestions()
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(
+            viewModel.isLoading
+                || validationMessage != nil
+                || viewModel.permissionStatus != .fullAccessGranted
+        )
+    }
+
+    private var selectedWorkModeBinding: Binding<WorkModeKind?> {
+        Binding {
+            viewModel.filterState.workMode
+        } set: { workMode in
+            viewModel.filterState.workMode = workMode
+        }
+    }
+
+    private var selectedPriorityEmphasisBinding: Binding<PlannerPriorityEmphasis> {
+        Binding {
+            viewModel.filterState.priorityEmphasis
+        } set: { emphasis in
+            viewModel.filterState.priorityEmphasis = emphasis
+        }
+    }
+
+    private var selectedRangeSummary: String {
+        if let selectedTimeRange {
+            return "\(selectedTimeRange.interval.timelineLabel) selected"
+        }
+
+        return "Choose an exact time span, then narrow the kind of task you want."
+    }
+
+    private func syncDraftWithSelectionOrDay() {
+        if let selectedTimeRange {
+            draftStart = selectedTimeRange.start
+            draftEnd = selectedTimeRange.end
+            return
+        }
+
+        let calendar = viewModel.timelineCalendar
+        let dayStart = calendar.startOfDay(for: selectedDay)
+        let now = Date.now
+
+        let defaultStart: Date
+        if calendar.isDate(selectedDay, inSameDayAs: now), now > dayStart {
+            let minute = calendar.component(.minute, from: now)
+            let minutesToNextSlot = PlannerTimelineGrid.slotMinutes - (minute % PlannerTimelineGrid.slotMinutes)
+            defaultStart = calendar.date(
+                byAdding: .minute,
+                value: minutesToNextSlot == PlannerTimelineGrid.slotMinutes ? 0 : minutesToNextSlot,
+                to: now
+            ) ?? now
+        } else {
+            defaultStart = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart)
+                ?? dayStart.addingTimeInterval(9 * 60 * 60)
+        }
+
+        draftStart = defaultStart
+        draftEnd = defaultStart.addingTimeInterval(60 * 60)
+    }
+}
+
 private struct PlannerSlotPlanningCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     @ObservedObject var viewModel: PlannerViewModel
     let selectedTimeRange: PlannerSelectedTimeRange
     let suggestionItems: [PlannerSuggestionItem]
@@ -1025,6 +2048,10 @@ private struct PlannerSlotPlanningCard: View {
     let onClearSelection: () -> Void
     let onAcceptSuggestion: (UUID) -> Void
     let onRejectSuggestion: (UUID) -> Void
+
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1129,7 +2156,7 @@ private struct PlannerSlotPlanningCard: View {
                 }
             }
         }
-        .padding(18)
+        .padding(isCompactWidth ? 16 : 18)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -1321,7 +2348,6 @@ private struct PlannerScheduledBlockEditSheet: View {
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 280)
     }
 }
 
@@ -1477,22 +2503,24 @@ private struct HorizonPlanSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Calendar Access") {
-                    Text(viewModel.permissionStatus.displayTitle)
-                        .font(.headline)
-                        .foregroundStyle(viewModel.permissionStatus.tintColor)
+                if viewModel.permissionStatus != .fullAccessGranted {
+                    Section("Calendar Access") {
+                        Text(viewModel.permissionStatus.displayTitle)
+                            .font(.headline)
+                            .foregroundStyle(viewModel.permissionStatus.tintColor)
 
-                    Text(viewModel.permissionStatus.detailText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        Text(viewModel.permissionStatus.detailText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
-                    if viewModel.permissionStatus != .fullAccessGranted {
-                        Button("Request Calendar Access") {
-                            Task {
-                                await viewModel.requestCalendarAccess()
+                        if viewModel.permissionStatus != .notDetermined {
+                            Button("Grant Calendar Access") {
+                                Task {
+                                    await viewModel.requestCalendarAccess()
+                                }
                             }
+                            .disabled(viewModel.isLoading)
                         }
-                        .disabled(viewModel.isLoading)
                     }
                 }
 
@@ -1556,7 +2584,6 @@ private struct HorizonPlanSheet: View {
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 360)
     }
 
     private var selectedWorkModeBinding: Binding<WorkModeKind?> {
@@ -1622,32 +2649,32 @@ private extension CalendarPermissionStatus {
     var displayTitle: String {
         switch self {
         case .notDetermined:
-            return "Not Determined"
+            return "Preparing Calendar"
         case .fullAccessGranted:
-            return "Full Access Granted"
+            return "Calendar Ready"
         case .writeOnlyGrantedButInsufficient:
-            return "Write-Only Access"
+            return "Needs Full Access"
         case .denied:
-            return "Denied"
+            return "Calendar Access Needed"
         case .restricted:
-            return "Restricted"
+            return "Calendar Restricted"
         case .error:
-            return "Error"
+            return "Calendar Unavailable"
         }
     }
 
     var detailText: String {
         switch self {
         case .notDetermined:
-            return "The planner needs full Calendar access before it can read busy time."
+            return "The planner will ask for Calendar access as soon as it needs live busy time."
         case .fullAccessGranted:
-            return "Real calendar events are shown as busy time, and accepted suggestions are written into the configured write calendar."
+            return "Real calendar events show up as busy time, and accepted suggestions write back to the selected calendar."
         case .writeOnlyGrantedButInsufficient:
-            return "Write-only permission is not enough for planner reads. Full access is required."
+            return "Write-only permission is not enough. The planner needs full access to read busy time."
         case .denied:
-            return "Calendar access is denied. Update the app’s Calendar permission in System Settings."
+            return "Turn Calendar access back on in Settings to show busy time and planner suggestions."
         case .restricted:
-            return "Calendar access is restricted on this Mac."
+            return "Calendar access is restricted on this device."
         case .error(let message):
             return message
         }
@@ -2026,6 +3053,7 @@ private struct PlannerDayCalendarLayoutItem: Identifiable {
             ]
         ),
         calendarWriter: StubCalendarWriter(),
-        calendarReconciler: StubCalendarReconciler()
+        calendarReconciler: StubCalendarReconciler(),
+        calendarChangeObserver: StubCalendarChangeObserver()
     )
 }
