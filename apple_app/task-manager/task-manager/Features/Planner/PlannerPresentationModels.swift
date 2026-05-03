@@ -145,6 +145,53 @@ struct PlannerScheduledBlockItem: Identifiable, Equatable, Sendable {
     }
 }
 
+enum PlannerMorningEnergy: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case low
+    case normal
+    case high
+
+    var id: Self {
+        self
+    }
+
+    var title: String {
+        switch self {
+        case .low:
+            return "Low"
+        case .normal:
+            return "Normal"
+        case .high:
+            return "High"
+        }
+    }
+}
+
+enum PlannerMorningBriefAction: Equatable, Sendable {
+    case requestCalendarAccess
+    case openCalendarSetup
+    case planToday
+    case reviewTasks
+}
+
+struct PlannerMorningBriefMetric: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let value: String
+}
+
+struct PlannerMorningBrief: Equatable, Sendable {
+    let title: String
+    let message: String
+    let calendarStatus: String
+    let scheduledSummary: String
+    let taskSummary: String
+    let actionTitle: String
+    let actionMessage: String
+    let action: PlannerMorningBriefAction
+    let energy: PlannerMorningEnergy?
+    let metrics: [PlannerMorningBriefMetric]
+}
+
 enum PlannerTimelineEntry: Identifiable, Equatable {
     case calendarEvent(CalendarEventSnapshot)
     case scheduledBlock(PlannerScheduledBlockItem)

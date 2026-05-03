@@ -2,13 +2,19 @@
 
 ## Purpose
 
-The Today tab should become the future home screen / secretary dashboard. It should answer: what matters now, what is scheduled, what needs attention, and what recovery path is available if the day is going poorly.
+The Today tab is the app's home screen / secretary dashboard. It answers: what matters now, what is scheduled, what needs attention, and what recovery path is available if the day is going poorly.
 
-## Possible Cards
+## Current Cards
+
+- active promises
+- due promise check-ins
+- routine status
+- simple promise history
+
+## Possible Future Cards
 
 - today's scheduled blocks
 - urgent tasks
-- routine status
 - PVT/check-in status
 - top task suggestion
 - quick brain dump
@@ -21,4 +27,4 @@ Today should aggregate state from other domains instead of becoming the owner of
 
 ## Status
 
-Scaffold only. Do not add an empty visible Today tab until there is enough useful content to avoid broken UX.
+Implemented as the first tab with Promises and Routines content. Today should continue to aggregate domain state instead of owning domain rules.

@@ -6,7 +6,7 @@ This document freezes the intended product behavior while the Swift app catches 
 
 ## Product Responsibilities
 
-The app has three distinct responsibilities:
+The app has four distinct responsibilities:
 
 - task system:
   - the app owns the canonical task list and all task metadata
@@ -15,6 +15,8 @@ The app has three distinct responsibilities:
   - accepted suggested work blocks are written back into calendar
 - planner:
   - the planner combines user-selected planning constraints, calendar availability, and task metadata to generate suggested work blocks
+- daily execution support:
+  - Today surfaces current promises, due check-ins, and active routines without owning their domain rules
 
 ## Source Of Truth Contract
 
@@ -32,25 +34,25 @@ The frozen contract is:
 ## Intended User Workflow
 
 1. User opens the app.
-2. User goes to the `Calendar` screen.
-3. The screen shows a minimal calendar overview of existing events and busy time.
-4. User taps `Generate Plan`.
-5. A lightweight planning input flow appears so the user can choose:
+2. User lands on `Today` to see active promises, due check-ins, and today's routines.
+3. User goes to the `Calendar` screen when planning time.
+4. The screen shows a minimal calendar overview of existing events and busy time.
+5. User taps `Generate Plan`.
+6. A lightweight planning input flow appears so the user can choose:
    - what task types to consider
    - what date range or planning horizon to fill
    - optionally what kinds of work blocks to prefer
-6. The app generates proposed scheduled blocks from the task list.
-7. These proposals appear visually on the calendar as temporary suggestion blocks.
-8. Each suggestion block offers:
+7. The app generates proposed scheduled blocks from the task list.
+8. These proposals appear visually on the calendar as temporary suggestion blocks.
+9. Each suggestion block offers:
    - `Accept`
    - `Reject / Refresh`
-9. `Accept` persists the scheduled block and writes the event into the configured write calendar.
-10. `Reject / Refresh` discards that proposal and generates another option.
-11. Accepted suggestions remain linked to their originating tasks.
+10. `Accept` persists the scheduled block and writes the event into the configured write calendar.
+11. `Reject / Refresh` discards that proposal and generates another option.
+12. Accepted suggestions remain linked to their originating tasks.
 
 ## Implementation Guidance Frozen For Now
 
 - SwiftUI app shell + SwiftData + EventKit is the product path.
-- Python remains a behavioral reference for planner logic until it is ported to Swift.
-- The next implementation milestone is the planner interaction shell in SwiftUI.
-- The first planner shell can use deliberately simple ranking logic as long as the end-to-end user loop works.
+- Planner behavior should live in Swift/domain logic and remain testable outside SwiftUI.
+- New Life Assistant domains should use app-owned SwiftData unless they explicitly need external integration.

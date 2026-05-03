@@ -1,18 +1,18 @@
 # Routines Feature
 
-Scaffold only. No Routines UI, model, persistence, or view model is implemented yet.
+First-pass Routines support is implemented through shared domain models, SwiftData persistence, Today view-model aggregation, and Today UI.
 
 ## Purpose
 
-Future feature area for morning, night, and custom routines with gentle completion tracking.
+Feature area for morning, night, and custom routines with gentle completion tracking.
 
-## Likely Future Objects
+## Current Objects
 
 - `Routine`
 - `RoutineItem`
-- `RoutineCompletion`
-- routines view model
-- routine checklist presentation models
+- `RoutineCompletionLog`
+- `RoutineRepository`
+- `TodayViewModel` routine aggregation
 
 ## Interaction With Tasks / Planner
 

@@ -39,6 +39,7 @@ struct PlannerView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var viewModel: PlannerViewModel
+    private let promiseRepository: (any PromiseRepository)?
     @State private var calendarDisplayMode: PlannerCalendarDisplayMode = .day
     @State private var isHorizonPlanSheetPresented = false
     @State private var isCalendarSetupSheetPresented = false
@@ -54,8 +55,10 @@ struct PlannerView: View {
         calendarReader: any CalendarReading,
         calendarWriter: any CalendarWriting,
         calendarReconciler: any CalendarReconciling,
-        calendarChangeObserver: any CalendarChangeObserving
+        calendarChangeObserver: any CalendarChangeObserving,
+        promiseRepository: (any PromiseRepository)? = nil
     ) {
+        self.promiseRepository = promiseRepository
         _viewModel = StateObject(
             wrappedValue: PlannerViewModel(
                 taskRepository: taskRepository,
@@ -88,6 +91,12 @@ struct PlannerView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 12)
 
+                if let promiseRepository {
+                    PromisePresenceBanner(promiseRepository: promiseRepository)
+                        .padding(.horizontal, isCompactWidth ? 16 : 20)
+                        .padding(.bottom, 12)
+                }
+
                 PlannerDayNavigationCard(
                     selectedDay: viewModel.selectedDay,
                     title: calendarDisplayMode.navigationTitle,
@@ -106,6 +115,17 @@ struct PlannerView: View {
                             await moveCalendarForward()
                         }
                     }
+                )
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
+                .padding(.bottom, 12)
+
+                PlannerMorningBriefCard(
+                    brief: viewModel.morningBrief,
+                    selectedEnergy: viewModel.morningEnergy,
+                    onSelectEnergy: { energy in
+                        viewModel.setMorningEnergy(energy)
+                    },
+                    onAction: handleMorningBriefAction
                 )
                 .padding(.horizontal, isCompactWidth ? 16 : 20)
                 .padding(.bottom, 12)
@@ -368,6 +388,167 @@ struct PlannerView: View {
             start: block.start,
             end: block.end
         )
+    }
+
+    private func handleMorningBriefAction(_ action: PlannerMorningBriefAction) {
+        switch action {
+        case .requestCalendarAccess:
+            Task {
+                await viewModel.requestCalendarAccess()
+            }
+        case .openCalendarSetup:
+            isCalendarSetupSheetPresented = true
+        case .planToday:
+            Task {
+                viewModel.selectedPlanningHorizon = .restOfToday
+                await viewModel.generatePlan()
+            }
+        case .reviewTasks:
+            break
+        }
+    }
+}
+
+private struct PlannerMorningBriefCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let brief: PlannerMorningBrief
+    let selectedEnergy: PlannerMorningEnergy?
+    let onSelectEnergy: (PlannerMorningEnergy?) -> Void
+    let onAction: (PlannerMorningBriefAction) -> Void
+
+    private var isCompactWidth: Bool {
+        horizontalSizeClass == .compact
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompactWidth ? 14 : 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Morning Brief")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(brief.title)
+                        .font(isCompactWidth ? .headline : .title3.weight(.semibold))
+
+                    Text(brief.message)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(minimum: 72), spacing: 10),
+                    count: isCompactWidth ? 3 : min(3, max(1, brief.metrics.count))
+                ),
+                alignment: .leading,
+                spacing: 10
+            ) {
+                ForEach(brief.metrics) { metric in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(metric.title)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Text(metric.value)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label(brief.calendarStatus, systemImage: "calendar.badge.checkmark")
+                Label(brief.scheduledSummary, systemImage: "clock")
+                Label(brief.taskSummary, systemImage: "checklist")
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Energy")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    ForEach(PlannerMorningEnergy.allCases) { energy in
+                        Button {
+                            onSelectEnergy(selectedEnergy == energy ? nil : energy)
+                        } label: {
+                            Text(energy.title)
+                                .font(.caption.weight(.semibold))
+                                .frame(minWidth: 58)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(selectedEnergy == energy ? .accentColor : .secondary)
+                    }
+                }
+            }
+
+            Divider()
+
+            ViewThatFits {
+                HStack(alignment: .center, spacing: 12) {
+                    actionCopy
+                    Spacer(minLength: 0)
+                    actionButton
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    actionCopy
+                    actionButton
+                }
+            }
+        }
+        .padding(isCompactWidth ? 16 : 18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.accentColor.opacity(0.08),
+                    Color.green.opacity(0.07)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var actionCopy: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(brief.actionTitle)
+                .font(.subheadline.weight(.semibold))
+            Text(brief.actionMessage)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var actionButton: some View {
+        switch brief.action {
+        case .requestCalendarAccess, .openCalendarSetup, .planToday:
+            Button(brief.actionTitle) {
+                onAction(brief.action)
+            }
+            .buttonStyle(.borderedProminent)
+        case .reviewTasks:
+            Text("Use the Tasks tab when you are ready.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -2136,7 +2317,7 @@ private struct PlannerSlotPlanningCard: View {
 
             if hasGeneratedSuggestions {
                 if suggestionItems.isEmpty {
-                    Text("No suggestions fit this selected slot with the current filters.")
+                    Text("No tasks fit this selected slot with the current filters. Try a longer slot, fewer filters, or a smaller task.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
@@ -3054,6 +3235,7 @@ private struct PlannerDayCalendarLayoutItem: Identifiable {
         ),
         calendarWriter: StubCalendarWriter(),
         calendarReconciler: StubCalendarReconciler(),
-        calendarChangeObserver: StubCalendarChangeObserver()
+        calendarChangeObserver: StubCalendarChangeObserver(),
+        promiseRepository: previewContainer.promiseRepository
     )
 }

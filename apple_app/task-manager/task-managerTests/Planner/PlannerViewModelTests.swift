@@ -177,6 +177,149 @@ struct PlannerViewModelTests {
         #expect(settingsRepository.settings.writeCalendarTitle == "Planner")
     }
 
+    @Test func morningBriefGuidesCalendarSetupWhenWriteCalendarIsMissing() async {
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(tasks: [
+                MyTask(title: "Write brief", status: .active, priority: .high)
+            ]),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: FakeSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: FakeCalendarListingService(result: .success([
+                ReadableCalendar(
+                    id: "personal",
+                    title: "Personal",
+                    allowsContentModifications: true,
+                    isExcludedBySettings: false
+                )
+            ])),
+            calendarReader: FakeCalendarReader(result: .success([])),
+            calendarWriter: FakeCalendarWriter(),
+            calendar: makeUTCGregorianCalendar(),
+            nowProvider: { Date(timeIntervalSince1970: 1_710_000_000) }
+        )
+
+        await viewModel.loadIfNeeded()
+
+        #expect(viewModel.morningBrief.action == .openCalendarSetup)
+        #expect(viewModel.morningBrief.title == "Calendar setup is almost ready")
+        #expect(viewModel.morningBrief.calendarStatus.contains("Choose a write calendar"))
+    }
+
+    @Test func morningBriefEncouragesCaptureWhenThereAreNoPlannableTasks() async {
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(tasks: [
+                MyTask(title: "Already done", status: .completed)
+            ]),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: configuredPlannerSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: configuredCalendarListingService(),
+            calendarReader: FakeCalendarReader(result: .success([])),
+            calendarWriter: FakeCalendarWriter(),
+            calendar: makeUTCGregorianCalendar(),
+            nowProvider: { Date(timeIntervalSince1970: 1_710_000_000) }
+        )
+
+        await viewModel.loadIfNeeded()
+
+        #expect(viewModel.morningBrief.action == .reviewTasks)
+        #expect(viewModel.morningBrief.title == "Morning is clear for capture")
+        #expect(viewModel.morningBrief.taskSummary == "No unscheduled active tasks.")
+    }
+
+    @Test func morningBriefWarnsWhenTodayHasNoOpenPlanningTime() async {
+        let calendar = makeUTCGregorianCalendar()
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let dayEnd = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: now)
+        )!
+        let blocker = CalendarEventSnapshot(
+            identifier: "packed",
+            title: "Booked",
+            start: now,
+            end: dayEnd,
+            isAllDay: false,
+            calendarTitle: "Work"
+        )
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(tasks: [
+                MyTask(title: "Draft launch notes", status: .active, estimatedMinutes: 60)
+            ]),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: configuredPlannerSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: configuredCalendarListingService(),
+            calendarReader: FakeCalendarReader(result: .success([blocker])),
+            calendarWriter: FakeCalendarWriter(),
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        await viewModel.loadIfNeeded()
+
+        #expect(viewModel.morningBrief.action == .reviewTasks)
+        #expect(viewModel.morningBrief.title == "Today's calendar is tight")
+        #expect(viewModel.morningBrief.actionMessage.contains("manual small task"))
+    }
+
+    @Test func morningBriefSuggestsPlanningWhenThereIsFreeTimeAndActiveWork() async {
+        let task = MyTask(
+            title: "Write architecture notes",
+            status: .active,
+            estimatedMinutes: 45,
+            priority: .high
+        )
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(tasks: [task]),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: configuredPlannerSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: configuredCalendarListingService(),
+            calendarReader: FakeCalendarReader(result: .success([])),
+            calendarWriter: FakeCalendarWriter(),
+            calendar: makeUTCGregorianCalendar(),
+            nowProvider: { Date(timeIntervalSince1970: 1_710_000_000) }
+        )
+
+        await viewModel.loadIfNeeded()
+
+        #expect(viewModel.morningBrief.action == .planToday)
+        #expect(viewModel.morningBrief.title == "You have room to plan")
+        #expect(viewModel.morningBrief.taskSummary.contains(task.title))
+    }
+
+    @Test func lowEnergyMorningBriefBiasesTowardGentlerPlanning() async {
+        let task = MyTask(
+            title: "Clear admin inbox",
+            status: .active,
+            estimatedMinutes: 30,
+            priority: .medium,
+            energyLevel: .low
+        )
+        let viewModel = PlannerViewModel(
+            taskRepository: FakeTaskRepository(tasks: [task]),
+            scheduledBlockRepository: FakeScheduledBlockRepository(),
+            settingsRepository: configuredPlannerSettingsRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(currentStatus: .fullAccessGranted),
+            calendarListingService: configuredCalendarListingService(),
+            calendarReader: FakeCalendarReader(result: .success([])),
+            calendarWriter: FakeCalendarWriter(),
+            calendar: makeUTCGregorianCalendar(),
+            nowProvider: { Date(timeIntervalSince1970: 1_710_000_000) }
+        )
+
+        await viewModel.loadIfNeeded()
+        viewModel.setMorningEnergy(.low)
+
+        #expect(viewModel.morningBrief.action == .planToday)
+        #expect(viewModel.morningBrief.title == "Start gently")
+        #expect(viewModel.morningBrief.actionTitle == "Plan a Low-Energy Slot")
+        #expect(viewModel.morningBrief.message.contains("smaller"))
+    }
+
     @Test func observedCalendarStoreChangeRefreshesPlannerDataWhileObservationIsEnabled() async {
         let calendar = makeUTCGregorianCalendar()
         let now = Date(timeIntervalSince1970: 1_710_000_000)
@@ -661,7 +804,10 @@ struct PlannerViewModelTests {
         await viewModel.generatePlan()
 
         #expect(viewModel.suggestionItems.isEmpty)
-        #expect(viewModel.errorMessage == "No suggestions fit the selected planning window and filters.")
+        #expect(
+            viewModel.errorMessage
+                == "No tasks fit the selected planning window with the current filters. Try a wider window, fewer filters, or a smaller task."
+        )
     }
 
     @Test func acceptingSlotGeneratedSuggestionPersistsLinkedBlockWritesCalendarEventAndRefreshesUI() async throws {
@@ -1054,7 +1200,10 @@ struct PlannerViewModelTests {
 
         #expect(initialInterval != nil)
         #expect(viewModel.suggestionItems.isEmpty)
-        #expect(viewModel.errorMessage == "No suggestions fit the selected slot and filters.")
+        #expect(
+            viewModel.errorMessage
+                == "No tasks fit that slot with the current filters. Try a longer slot, fewer filters, or a smaller task."
+        )
     }
 }
 
@@ -1300,4 +1449,30 @@ private func makeUTCGregorianCalendar() -> Calendar {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
     return calendar
+}
+
+@MainActor
+private func configuredPlannerSettingsRepository() -> FakeSettingsRepository {
+    FakeSettingsRepository(
+        settings: AppSettings(
+            excludedReadCalendarTitles: [],
+            writeCalendarIdentifier: "planner",
+            writeCalendarTitle: "Planner",
+            minimumGapMinutes: 15,
+            defaultAssumedDurationMinutes: 30,
+            plannerSuggestionCap: 3
+        )
+    )
+}
+
+@MainActor
+private func configuredCalendarListingService() -> FakeCalendarListingService {
+    FakeCalendarListingService(result: .success([
+        ReadableCalendar(
+            id: "planner",
+            title: "Planner",
+            allowsContentModifications: true,
+            isExcludedBySettings: false
+        )
+    ]))
 }

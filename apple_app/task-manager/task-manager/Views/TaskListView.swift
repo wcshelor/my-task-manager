@@ -16,6 +16,7 @@ struct TaskListView: View {
     }
 
     @StateObject private var viewModel: TaskListViewModel
+    private let promiseRepository: (any PromiseRepository)?
     @State private var path: [Destination] = []
     @State private var presentedSheet: SheetDestination?
     @State private var newTaskDraft = MyTaskFormData()
@@ -26,8 +27,10 @@ struct TaskListView: View {
     init(
         taskRepository: any TaskRepository,
         scheduledBlockRepository: (any ScheduledBlockRepository)? = nil,
-        calendarWriter: (any CalendarWriting)? = nil
+        calendarWriter: (any CalendarWriting)? = nil,
+        promiseRepository: (any PromiseRepository)? = nil
     ) {
+        self.promiseRepository = promiseRepository
         _viewModel = StateObject(
             wrappedValue: TaskListViewModel(
                 taskRepository: taskRepository,
@@ -78,6 +81,10 @@ struct TaskListView: View {
                 Text("Add tasks with only a title, or include optional details when they help.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+
+                if let promiseRepository {
+                    PromisePresenceBanner(promiseRepository: promiseRepository)
+                }
 
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
@@ -409,6 +416,7 @@ struct TaskListView: View {
     TaskListView(
         taskRepository: container.taskRepository,
         scheduledBlockRepository: container.scheduledBlockRepository,
-        calendarWriter: container.calendarWriter
+        calendarWriter: container.calendarWriter,
+        promiseRepository: container.promiseRepository
     )
 }

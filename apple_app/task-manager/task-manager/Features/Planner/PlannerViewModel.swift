@@ -20,6 +20,7 @@ final class PlannerViewModel: ObservableObject {
     @Published var selectedPlanningHorizon: PlannerHorizon
     @Published var filterState: PlannerFilterState
     @Published private(set) var lastGeneratedRequestWindow: PlannerRequestWindow?
+    @Published private(set) var morningEnergy: PlannerMorningEnergy?
 
     private let taskRepository: any TaskRepository
     private let scheduledBlockRepository: any ScheduledBlockRepository
@@ -74,6 +75,7 @@ final class PlannerViewModel: ObservableObject {
         self.filterState = filterState
         self.permissionStatus = calendarPermissionProvider.currentStatus()
         self.settings = .mvpDefault
+        self.morningEnergy = nil
     }
 
     var visibleDayInterval: DateInterval {
@@ -102,6 +104,10 @@ final class PlannerViewModel: ObservableObject {
 
     var timelineCalendar: Calendar {
         calendar
+    }
+
+    var morningBrief: PlannerMorningBrief {
+        makeMorningBrief()
     }
 
     var timelineEntries: [PlannerTimelineEntry] {
@@ -687,6 +693,10 @@ final class PlannerViewModel: ObservableObject {
         }
     }
 
+    func setMorningEnergy(_ energy: PlannerMorningEnergy?) {
+        morningEnergy = energy
+    }
+
     func updateSelectedTimeRange(_ selectedTimeRange: PlannerSelectedTimeRange?) {
         let didChangeSelection = self.selectedTimeRange != selectedTimeRange
         self.selectedTimeRange = selectedTimeRange
@@ -1006,9 +1016,9 @@ final class PlannerViewModel: ObservableObject {
     private func noSuggestionsMessage(for requestWindow: PlannerRequestWindow) -> String {
         switch requestWindow {
         case .selectedTimeRange:
-            return "No suggestions fit the selected slot and filters."
+            return "No tasks fit that slot with the current filters. Try a longer slot, fewer filters, or a smaller task."
         case .horizon:
-            return "No suggestions fit the selected planning window and filters."
+            return "No tasks fit the selected planning window with the current filters. Try a wider window, fewer filters, or a smaller task."
         }
     }
 
@@ -1035,6 +1045,307 @@ final class PlannerViewModel: ObservableObject {
         }
 
         return "Scheduled Task"
+    }
+
+    private func makeMorningBrief() -> PlannerMorningBrief {
+        let calendarStatus = makeMorningCalendarStatus()
+        let scheduledCount = morningScheduledCount()
+        let plannableTasks = morningPlannableTasks()
+        let freeMinutes = morningAvailablePlanningMinutes()
+        let highAttentionTask = morningHighAttentionTask(from: plannableTasks)
+        let scheduledSummary = scheduledCount == 0
+            ? "Nothing scheduled on this day yet."
+            : "\(scheduledCount) calendar item\(scheduledCount == 1 ? "" : "s") already on the day."
+        let taskSummary = makeMorningTaskSummary(
+            plannableTasks: plannableTasks,
+            highAttentionTask: highAttentionTask
+        )
+        let freeTimeValue = freeMinutes > 0 ? "\(freeMinutes / 60)h \(freeMinutes % 60)m" : "0m"
+        let metrics = [
+            PlannerMorningBriefMetric(
+                id: "scheduled",
+                title: "Scheduled",
+                value: scheduledCount == 0 ? "Open" : "\(scheduledCount)"
+            ),
+            PlannerMorningBriefMetric(
+                id: "tasks",
+                title: "Tasks",
+                value: "\(plannableTasks.count)"
+            ),
+            PlannerMorningBriefMetric(
+                id: "free",
+                title: "Open Time",
+                value: freeTimeValue
+            )
+        ]
+
+        if permissionStatus != .fullAccessGranted {
+            return PlannerMorningBrief(
+                title: "Calendar needs a minute",
+                message: "Once Calendar access is on, I can see the shape of the day and help place tasks around it.",
+                calendarStatus: calendarStatus,
+                scheduledSummary: scheduledSummary,
+                taskSummary: taskSummary,
+                actionTitle: "Grant Calendar Access",
+                actionMessage: "This lets the planner read busy time before suggesting blocks.",
+                action: .requestCalendarAccess,
+                energy: morningEnergy,
+                metrics: metrics
+            )
+        }
+
+        if writableCalendars.isEmpty || selectedWriteCalendarIdentifier.isEmpty {
+            return PlannerMorningBrief(
+                title: "Calendar setup is almost ready",
+                message: "Pick the calendar that should receive accepted task blocks before relying on the planner.",
+                calendarStatus: calendarStatus,
+                scheduledSummary: scheduledSummary,
+                taskSummary: taskSummary,
+                actionTitle: "Choose Write Calendar",
+                actionMessage: "Accepted suggestions will be written only after you choose a writable calendar.",
+                action: .openCalendarSetup,
+                energy: morningEnergy,
+                metrics: metrics
+            )
+        }
+
+        guard plannableTasks.isEmpty == false else {
+            return PlannerMorningBrief(
+                title: "Morning is clear for capture",
+                message: "There are no unscheduled active tasks waiting right now. Add anything that is still in your head before planning.",
+                calendarStatus: calendarStatus,
+                scheduledSummary: scheduledSummary,
+                taskSummary: taskSummary,
+                actionTitle: "Review Tasks",
+                actionMessage: "Capture or reopen tasks before asking the planner to fill time.",
+                action: .reviewTasks,
+                energy: morningEnergy,
+                metrics: metrics
+            )
+        }
+
+        if freeMinutes < settings.minimumGapMinutes {
+            return PlannerMorningBrief(
+                title: morningEnergy == .low ? "Keep today small" : "Today's calendar is tight",
+                message: morningEnergy == .low
+                    ? "There is not much open time, so protect energy and choose one small useful task if you can."
+                    : "There is not enough open time for the planner's current minimum gap. Review the task list and choose a small next action manually.",
+                calendarStatus: calendarStatus,
+                scheduledSummary: scheduledSummary,
+                taskSummary: taskSummary,
+                actionTitle: "Review Tasks",
+                actionMessage: "A manual small task is safer than forcing a calendar block.",
+                action: .reviewTasks,
+                energy: morningEnergy,
+                metrics: metrics
+            )
+        }
+
+        if morningEnergy == .low {
+            return PlannerMorningBrief(
+                title: "Start gently",
+                message: "There is room to plan, but today should start with a smaller, lower-pressure block.",
+                calendarStatus: calendarStatus,
+                scheduledSummary: scheduledSummary,
+                taskSummary: taskSummary,
+                actionTitle: "Plan a Low-Energy Slot",
+                actionMessage: highAttentionTask.map { "Start with something manageable like \($0.title)." }
+                    ?? "Use the planner, but bias toward lower-energy tasks.",
+                action: .planToday,
+                energy: morningEnergy,
+                metrics: metrics
+            )
+        }
+
+        return PlannerMorningBrief(
+            title: "You have room to plan",
+            message: "The calendar has open space and there are tasks ready to place. A short plan can make the day easier to trust.",
+            calendarStatus: calendarStatus,
+            scheduledSummary: scheduledSummary,
+            taskSummary: taskSummary,
+            actionTitle: "Plan Rest of Today",
+            actionMessage: highAttentionTask.map { "A useful candidate to keep in view: \($0.title)." }
+                ?? "Use the planner to fill the next realistic opening.",
+            action: .planToday,
+            energy: morningEnergy,
+            metrics: metrics
+        )
+    }
+
+    private func makeMorningCalendarStatus() -> String {
+        switch permissionStatus {
+        case .fullAccessGranted:
+            if writableCalendars.isEmpty {
+                return "Calendar access is on, but no writable calendar is available."
+            }
+
+            if let selectedWriteCalendarTitle, selectedWriteCalendarIdentifier.isEmpty == false {
+                return "Ready. Accepted task blocks write to \(selectedWriteCalendarTitle)."
+            }
+
+            return "Calendar access is on. Choose a write calendar before accepting suggestions."
+        case .notDetermined:
+            return "Calendar access is not set yet."
+        case .writeOnlyGrantedButInsufficient:
+            return "Calendar is write-only; the planner needs full access to see busy time."
+        case .denied:
+            return "Calendar access is denied."
+        case .restricted:
+            return "Calendar access is restricted on this device."
+        case .error(let message):
+            return "Calendar access error: \(message)"
+        }
+    }
+
+    private func morningScheduledCount() -> Int {
+        timelineEntries.filter { entry in
+            switch entry {
+            case .calendarEvent, .scheduledBlock:
+                return true
+            case .suggestion:
+                return false
+            }
+        }.count
+    }
+
+    private func morningPlannableTasks() -> [MyTask] {
+        tasks.filter { task in
+            switch task.status {
+            case .inbox, .active:
+                return true
+            case .scheduled, .completed, .archived:
+                return false
+            }
+        }
+    }
+
+    private func makeMorningTaskSummary(
+        plannableTasks: [MyTask],
+        highAttentionTask: MyTask?
+    ) -> String {
+        guard plannableTasks.isEmpty == false else {
+            return "No unscheduled active tasks."
+        }
+
+        if let highAttentionTask {
+            return "\(plannableTasks.count) task\(plannableTasks.count == 1 ? "" : "s") ready. Keep an eye on \(highAttentionTask.title)."
+        }
+
+        return "\(plannableTasks.count) task\(plannableTasks.count == 1 ? "" : "s") ready to plan."
+    }
+
+    private func morningHighAttentionTask(from tasks: [MyTask]) -> MyTask? {
+        tasks.sorted { lhs, rhs in
+            let lhsPriority = lhs.priority?.morningBriefRank ?? 0
+            let rhsPriority = rhs.priority?.morningBriefRank ?? 0
+            if lhsPriority != rhsPriority {
+                return lhsPriority > rhsPriority
+            }
+
+            switch (lhs.dueDate, rhs.dueDate) {
+            case let (lhsDate?, rhsDate?):
+                return lhsDate < rhsDate
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                return lhs.createdAt < rhs.createdAt
+            }
+        }.first
+    }
+
+    private func morningAvailablePlanningMinutes() -> Int {
+        let dayStart = visibleDayInterval.start
+        let dayEnd = visibleDayInterval.end
+        let now = nowProvider()
+        let windowStart = calendar.isDate(dayStart, inSameDayAs: now)
+            ? max(now, dayStart)
+            : dayStart
+        let planningWindow = DateInterval(start: windowStart, end: dayEnd)
+        guard planningWindow.duration > 0 else {
+            return 0
+        }
+
+        let busyIntervals = morningBusyIntervals(in: planningWindow)
+        let mergedIntervals = mergedBusyIntervals(busyIntervals)
+
+        var cursor = planningWindow.start
+        var availableSeconds: TimeInterval = 0
+        for interval in mergedIntervals {
+            if interval.start > cursor {
+                availableSeconds += interval.start.timeIntervalSince(cursor)
+            }
+            cursor = max(cursor, interval.end)
+        }
+
+        if cursor < planningWindow.end {
+            availableSeconds += planningWindow.end.timeIntervalSince(cursor)
+        }
+
+        return max(0, Int(availableSeconds / 60))
+    }
+
+    private func morningBusyIntervals(in planningWindow: DateInterval) -> [DateInterval] {
+        let eventIntervals = calendarEvents.compactMap { event -> DateInterval? in
+            guard event.isAllDay == false else {
+                return nil
+            }
+
+            return clampedInterval(
+                DateInterval(start: event.start, end: event.end),
+                to: planningWindow
+            )
+        }
+        let blockIntervals = scheduledBlocks.compactMap { block -> DateInterval? in
+            guard block.isActivelyScheduled, block.isAllDay == false else {
+                return nil
+            }
+
+            return clampedInterval(block.interval, to: planningWindow)
+        }
+
+        return eventIntervals + blockIntervals
+    }
+
+    private func clampedInterval(
+        _ interval: DateInterval,
+        to window: DateInterval
+    ) -> DateInterval? {
+        let start = max(interval.start, window.start)
+        let end = min(interval.end, window.end)
+        guard end > start else {
+            return nil
+        }
+
+        return DateInterval(start: start, end: end)
+    }
+
+    private func mergedBusyIntervals(_ intervals: [DateInterval]) -> [DateInterval] {
+        let sortedIntervals = intervals.sorted { lhs, rhs in
+            if lhs.start != rhs.start {
+                return lhs.start < rhs.start
+            }
+
+            return lhs.end < rhs.end
+        }
+
+        return sortedIntervals.reduce(into: []) { merged, interval in
+            guard let last = merged.last else {
+                merged.append(interval)
+                return
+            }
+
+            guard interval.start <= last.end else {
+                merged.append(interval)
+                return
+            }
+
+            merged[merged.count - 1] = DateInterval(
+                start: last.start,
+                end: max(last.end, interval.end)
+            )
+        }
     }
 }
 
@@ -1103,5 +1414,20 @@ private extension ReconciliationReport {
 private extension DateInterval {
     func overlaps(_ other: DateInterval) -> Bool {
         end > other.start && start < other.end
+    }
+}
+
+private extension PriorityLevel {
+    var morningBriefRank: Int {
+        switch self {
+        case .urgent:
+            return 4
+        case .high:
+            return 3
+        case .medium:
+            return 2
+        case .low:
+            return 1
+        }
     }
 }

@@ -16,6 +16,9 @@ enum ModelContainerFactory {
             TaskRecord.self,
             ScheduledBlockRecord.self,
             AppSettingsRecord.self,
+            PromiseRecord.self,
+            RoutineRecord.self,
+            RoutineCompletionLogRecord.self,
         ])
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: isStoredInMemoryOnly

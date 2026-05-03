@@ -15,6 +15,14 @@ final class AppEnvironment {
         container.settingsRepository
     }
 
+    var promiseRepository: any PromiseRepository {
+        container.promiseRepository
+    }
+
+    var routineRepository: any RoutineRepository {
+        container.routineRepository
+    }
+
     var calendarPermissionProvider: any CalendarPermissionProviding {
         container.calendarPermissionProvider
     }

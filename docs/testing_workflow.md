@@ -1,43 +1,35 @@
 # Testing Workflow
 
-This repo currently has two testable implementation surfaces:
+The SwiftUI Apple app in `apple_app/task-manager/` is the only active implementation surface.
 
-- the shared SwiftUI Apple app in `apple_app/task-manager/`
-- the legacy Python reference surface in `src/` and `tests/`
-
-The Swift app is the product path. Manual testing should now center on the planner-first `Calendar` tab, EventKit integration, and the iPhone task flow, not the earlier read-only calendar shell.
-
-Use `README.md`, `concrete_plan.md`, and `docs/product_direction.md` as the expected-behavior references for each session.
+Use `README.md`, `concrete_plan.md`, `docs/life_assistant_vision.md`, and `docs/product_direction.md` as expected-behavior references for each session.
 
 ## 1. Baseline Automated Checks
 
 From the repo root, run:
 
 ```bash
-xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing
-pytest -q
-python3 scripts/core_smoke_check.py
 ```
 
-Current automated confidence is strongest for:
+Current automated confidence covers:
 
-- Swift task models, repositories, and task-list presentation behavior
-- Swift planner engine ranking, gap handling, and selected-slot behavior
-- Swift planner view-model acceptance, rejection, lifecycle, and reconciliation behavior
+- task models, repositories, and task-list presentation behavior
+- planner engine ranking, gap handling, and selected-slot behavior
+- planner view-model acceptance, rejection, lifecycle, and reconciliation behavior
 - EventKit adapter behavior with mocked stores
-- Python model, planner, gap-detection, compatibility, and smoke surfaces
+- promise models, repositories, and Today aggregation behavior
+- routine models, repositories, and daily completion behavior
 
 ## 2. Focused Swift Runs
 
-Use the full macOS test command above for broad Swift confidence.
-
-When narrowing scope, prefer `-only-testing`, for example:
+Use `-only-testing` when narrowing scope, for example:
 
 ```bash
-xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test -only-testing:task-managerTests/PlannerViewModelTests
-xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=macOS' test -only-testing:task-managerTests/EventKitCalendarServicesTests
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test -only-testing:task-managerTests/PlannerViewModelTests
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test -only-testing:task-managerTests/TodayViewModelTests
 ```
 
 Use the iPhone simulator SDK builds to catch cross-platform compile regressions even when no simulator runtime is installed:
@@ -49,45 +41,7 @@ xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-m
 
 If `xcrun simctl list runtimes` or `xcrun simctl list devices available` is empty, treat iPhone confidence on that machine as build-only confidence.
 
-## 3. Focused Python Runs
-
-Create or update the test environment when Python checks are in scope:
-
-```bash
-mamba env create -f environment.yml
-conda activate task-manager-test
-```
-
-If the env already exists:
-
-```bash
-mamba env update -f environment.yml --prune
-conda activate task-manager-test
-```
-
-Run the full Python suite:
-
-```bash
-pytest -q
-```
-
-Run narrower checks when needed:
-
-```bash
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_models.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_gap_detection.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_planner.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_calendar_read.py
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_compatibility.py
-```
-
-Run the smoke check:
-
-```bash
-python3 scripts/core_smoke_check.py
-```
-
-## 4. Manual Session Helper
+## 3. Manual Session Helper
 
 From the repo root:
 
@@ -97,23 +51,44 @@ bash scripts/manual_test_session.sh
 
 That helper:
 
-- backs up `data/*.json` into `data/manual_test_backups/<timestamp>/`
-- runs `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests` when `pytest` is available
-- runs `python3 scripts/core_smoke_check.py`
-- creates a timestamped note in `docs/test_sessions/` using the current planner-first session template
-- prints the next recommended Swift, EventKit, simulator, and Python validation steps
+- runs Swift tests on an available iOS simulator
+- runs an iPhone simulator build
+- creates a timestamped note in `docs/test_sessions/`
+- prints the next recommended Swift, EventKit, simulator, Today, Promises, and Routines validation steps
 
-Important:
+You still need to launch the Swift app from Xcode for real EventKit or hands-on simulator testing.
 
-- the helper still does not run `xcodebuild` for you
-- you still need to launch the Swift app from Xcode for any real EventKit or simulator pass
-- the generated note is meant to capture both Swift and Python findings in one place
+## 4. Current Manual Surface
 
-## 5. Current Manual Surface
+Split manual testing by area depending on scope.
 
-Split manual testing into four surfaces depending on scope.
+### Today / Promises
 
-### Swift Task Flow
+Validate:
+
+- Today is the first visible tab
+- new promise creation
+- active promise visibility on Today
+- active-promise banner on Tasks and Calendar
+- kept check-in flow
+- missed check-in flow with reflection
+- reset promise creation
+- kept/missed history counts
+- no direct Apple Calendar writes from promises
+
+### Routines
+
+Validate:
+
+- daily routine creation
+- selected-weekday routine creation
+- item ordering
+- Today visibility for routines active today
+- item completion and uncompletion
+- per-day completion persistence after relaunch
+- no direct Apple Calendar writes from routines
+
+### Tasks
 
 Validate:
 
@@ -122,7 +97,7 @@ Validate:
 - quick complete, reopen, and archive flows
 - iPhone quick add and narrow-width task review if a simulator or device is available
 
-### Swift Planner And EventKit Flow
+### Calendar / Planner And EventKit
 
 Validate:
 
@@ -141,23 +116,16 @@ Validate:
 Validate when a simulator runtime exists:
 
 - app launch
+- Today layout
+- promise creation and check-in sheets
+- routine builder and checklist sheets
 - task quick add
 - task edit and swipe actions
 - planner screen layout
 - selected-slot interactions
 - permission-state copy and recovery messaging on phone layout
 
-### Python Reference Pass
-
-Validate:
-
-- model roundtrips
-- gap detection plausibility
-- planner candidate ranking
-- calendar record parsing
-- compatibility helpers that still protect the Swift migration path
-
-## 6. Manual EventKit Checklist
+## 5. Manual EventKit Checklist
 
 Use this checklist when you have a real macOS calendar account available:
 
@@ -193,7 +161,7 @@ Use this checklist when you have a real macOS calendar account available:
   - revoked permission after launch
   - event missing at update or delete time
 
-## 7. Manual Logging Protocol
+## 6. Manual Logging Protocol
 
 For each issue, capture:
 

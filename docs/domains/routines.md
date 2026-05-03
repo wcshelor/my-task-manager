@@ -1,24 +1,27 @@
 # Routines Domain
 
-Routines are likely the first real Life Assistant expansion after the current task/planner hardening work.
+Routines are a first-pass Life Assistant domain in the Swift app.
 
 ## Purpose
 
 Support recurring morning, night, and custom checklists that help the user execute useful habits without turning the app into a guilt system.
 
-## Likely Objects
+## Current Objects
 
 - `Routine`
 - `RoutineItem`
-- `RoutineCompletion`
+- `RoutineCompletionLog`
 
-Possible future fields:
+Current fields include:
 
 - routine name
 - active days or recurrence pattern
 - ordered items
-- optional expected duration
 - item completion state for a date
+
+Possible future fields:
+
+- optional expected duration
 - skip reason or gentle deferral state
 - optional link from a routine item to a task
 
@@ -28,4 +31,4 @@ Routine items may create or link to tasks when they represent concrete obligatio
 
 ## Status
 
-Scaffold only. No Routine model, persistence, view model, or UI exists yet.
+Implemented in Swift as user-authored routines with daily or selected-weekday recurrence, Today visibility, and per-day item-level completion logs.

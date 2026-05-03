@@ -4,7 +4,7 @@ The app is a personal planning hub for capturing obligations, planning time, exe
 
 ## App Identity
 
-This repo is evolving from a task manager into a modular Life Assistant / personal planning hub. The Swift app remains the real product path. The legacy Python prototype remains useful as reference and test material, but it is not the production app path.
+This repo is evolving from a task manager into a modular Life Assistant / personal planning hub. The Swift app is the product path.
 
 The product should feel like a practical personal secretary for daily planning, not a collection of disconnected trackers.
 
@@ -14,6 +14,9 @@ The implemented Swift app currently centers on:
 
 - Tasks
 - Planner / Calendar
+- Today
+- Promises
+- Routines
 
 Current foundations to preserve:
 
@@ -27,8 +30,6 @@ Current foundations to preserve:
 
 Likely future life domains include:
 
-- Today dashboard
-- Routines
 - Sleep / PVT tracker
 - Piano practice mode
 - Workout tracking
@@ -36,7 +37,7 @@ Likely future life domains include:
 - Reflection / anti-spiral journaling
 - General life logs
 
-These are not implemented yet unless the README or feature-specific docs say otherwise.
+Today, Promises, and Routines now have first-pass Swift implementations. The remaining future modules are not implemented yet unless the README or feature-specific docs say otherwise.
 
 ## Product Spine
 
@@ -57,6 +58,8 @@ Future modules should be added as separate life domains. A domain can start as a
 Conceptual domain names:
 
 - `TaskDomain`
+- `TodayDomain`
+- `PromiseDomain`
 - `RoutineDomain`
 - `SleepDomain`
 - `PracticeDomain`
@@ -112,6 +115,7 @@ Examples:
 
 - tasks
 - scheduled blocks
+- promises
 - routine definitions
 - routine completions
 - practice sessions

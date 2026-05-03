@@ -1,14 +1,20 @@
 # Today Feature
 
-Scaffold only. No Today dashboard is implemented yet.
+First-pass Today dashboard support is implemented as the app's first tab.
 
 ## Purpose
 
-Future home screen / secretary dashboard for surfacing what matters today across tasks, scheduled blocks, routines, check-ins, practice, and recovery.
+Home screen / secretary dashboard for surfacing what matters today across promises, routines, tasks, scheduled blocks, practice, and recovery.
 
-## Likely Future Objects
+## Current Objects
 
-- Today summary presentation model
+- `TodayViewModel`
+- `TodayRoutineProgress`
+- `PromisePresenceViewModel`
+
+Future objects may include:
+
+- richer Today summary presentation models
 - dashboard card view models
 - quick-capture state
 
