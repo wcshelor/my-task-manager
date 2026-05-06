@@ -29,6 +29,15 @@ private struct TaskManagerTabShell: View {
     var body: some View {
         TabView {
             TodayView(
+                taskRepository: appEnvironment.taskRepository,
+                scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
+                settingsRepository: appEnvironment.settingsRepository,
+                calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
+                calendarListingService: appEnvironment.calendarListingService,
+                calendarReader: appEnvironment.calendarReader,
+                calendarWriter: appEnvironment.calendarWriter,
+                calendarReconciler: appEnvironment.calendarReconciler,
+                calendarChangeObserver: appEnvironment.calendarChangeObserver,
                 promiseRepository: appEnvironment.promiseRepository,
                 routineRepository: appEnvironment.routineRepository
             )
@@ -45,22 +54,6 @@ private struct TaskManagerTabShell: View {
                 .tabItem {
                     Label("Tasks", systemImage: "checklist")
                 }
-
-            PlannerView(
-                taskRepository: appEnvironment.taskRepository,
-                scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
-                settingsRepository: appEnvironment.settingsRepository,
-                calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
-                calendarListingService: appEnvironment.calendarListingService,
-                calendarReader: appEnvironment.calendarReader,
-                calendarWriter: appEnvironment.calendarWriter,
-                calendarReconciler: appEnvironment.calendarReconciler,
-                calendarChangeObserver: appEnvironment.calendarChangeObserver,
-                promiseRepository: appEnvironment.promiseRepository
-            )
-            .tabItem {
-                Label("Calendar", systemImage: "calendar")
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         #if os(iOS)

@@ -20,6 +20,37 @@ nonisolated struct TodayRoutineProgress: Identifiable, Equatable, Sendable {
     var progressLabel: String {
         "\(completedCount)/\(totalCount)"
     }
+
+    var isComplete: Bool {
+        completionLog?.isComplete(for: routine) ?? false
+    }
+
+    var currentItem: RoutineItem? {
+        routine.orderedItems.first { item in
+            completionLog?.completedItemIDs.contains(item.id) != true
+        }
+    }
+
+    var actionLabel: String {
+        if isComplete {
+            return "Review"
+        }
+
+        return completedCount == 0 ? "Start" : "Continue"
+    }
+}
+
+nonisolated struct TodayCalendarOverview: Equatable, Sendable {
+    let events: [CalendarEventSnapshot]
+    let nextEvent: CalendarEventSnapshot?
+
+    var allDayEvents: [CalendarEventSnapshot] {
+        events.filter(\.isAllDay)
+    }
+
+    var timedEvents: [CalendarEventSnapshot] {
+        events.filter { $0.isAllDay == false }
+    }
 }
 
 @MainActor
@@ -28,22 +59,34 @@ final class TodayViewModel: ObservableObject {
     @Published private(set) var duePromises: [Promise] = []
     @Published private(set) var promiseHistory: [Promise] = []
     @Published private(set) var routineProgress: [TodayRoutineProgress] = []
+    @Published private(set) var tasks: [MyTask] = []
+    @Published private(set) var calendarOverview: TodayCalendarOverview?
+    @Published private(set) var calendarPermissionStatus: CalendarPermissionStatus?
     @Published private(set) var errorMessage: String?
 
+    private let taskRepository: any TaskRepository
     private let promiseRepository: any PromiseRepository
     private let routineRepository: any RoutineRepository
+    private let calendarPermissionProvider: (any CalendarPermissionProviding)?
+    private let calendarReader: (any CalendarReading)?
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
     private var hasLoaded = false
 
     init(
+        taskRepository: any TaskRepository,
         promiseRepository: any PromiseRepository,
         routineRepository: any RoutineRepository,
+        calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
+        calendarReader: (any CalendarReading)? = nil,
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = Date.init
     ) {
+        self.taskRepository = taskRepository
         self.promiseRepository = promiseRepository
         self.routineRepository = routineRepository
+        self.calendarPermissionProvider = calendarPermissionProvider
+        self.calendarReader = calendarReader
         self.calendar = calendar
         self.nowProvider = nowProvider
     }
@@ -54,6 +97,16 @@ final class TodayViewModel: ObservableObject {
 
     var missedCount: Int {
         promiseHistory.filter { $0.outcome == .missed }.count
+    }
+
+    var taskGroups: [String] {
+        Array(Set(tasks.compactMap(\.taskGroup))).sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    var reservedTaskIDs: Set<UUID> {
+        Set(tasks.map(\.id))
     }
 
     func loadIfNeeded() {
@@ -82,12 +135,62 @@ final class TodayViewModel: ObservableObject {
             activePromises = try promiseRepository.fetchActivePromises(at: now)
             duePromises = try promiseRepository.fetchDuePromises(at: now)
             promiseHistory = try promiseRepository.fetchPromiseHistory()
+            tasks = try taskRepository.fetchTasks()
             routineProgress = activeRoutines.map { routine in
                 TodayRoutineProgress(routine: routine, completionLog: logLookup[routine.id])
             }
             errorMessage = nil
             hasLoaded = true
+            Task {
+                await refreshCalendarOverview()
+            }
         } catch {
+            errorMessage = "Unable to load Today: \(error.localizedDescription)"
+        }
+    }
+
+    private func refreshCalendarOverview() async {
+        guard let calendarPermissionProvider, let calendarReader else {
+            calendarPermissionStatus = nil
+            calendarOverview = nil
+            return
+        }
+
+        let permissionStatus = calendarPermissionProvider.currentStatus()
+        calendarPermissionStatus = permissionStatus
+
+        guard permissionStatus == .fullAccessGranted else {
+            calendarOverview = nil
+            return
+        }
+
+        let now = nowProvider()
+        let dayStart = calendar.startOfDay(for: now)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)
+            ?? dayStart.addingTimeInterval(86_400)
+
+        do {
+            let events = try await calendarReader.fetchEvents(
+                in: DateInterval(start: dayStart, end: dayEnd)
+            )
+            .sorted { lhs, rhs in
+                if lhs.isAllDay != rhs.isAllDay {
+                    return lhs.isAllDay && rhs.isAllDay == false
+                }
+
+                if lhs.start != rhs.start {
+                    return lhs.start < rhs.start
+                }
+
+                return lhs.end < rhs.end
+            }
+
+            calendarOverview = TodayCalendarOverview(
+                events: events,
+                nextEvent: events.first(where: { $0.end > now && $0.isAllDay == false })
+            )
+        } catch {
+            calendarOverview = nil
             errorMessage = "Unable to load Today: \(error.localizedDescription)"
         }
     }
@@ -98,6 +201,15 @@ final class TodayViewModel: ObservableObject {
             load()
         } catch {
             errorMessage = "Unable to save promise: \(error.localizedDescription)"
+        }
+    }
+
+    func saveTask(_ task: MyTask, replacingTaskWithID originalID: UUID? = nil) {
+        do {
+            try taskRepository.saveTask(task, replacingTaskWithID: originalID)
+            load()
+        } catch {
+            errorMessage = "Unable to save task: \(error.localizedDescription)"
         }
     }
 
@@ -159,6 +271,18 @@ final class TodayViewModel: ObservableObject {
         } catch {
             errorMessage = "Unable to update routine: \(error.localizedDescription)"
         }
+    }
+
+    func progress(for routineID: UUID) -> TodayRoutineProgress? {
+        routineProgress.first { $0.routine.id == routineID }
+    }
+
+    func completeCurrentRoutineItem(routineID: UUID) {
+        guard let item = progress(for: routineID)?.currentItem else {
+            return
+        }
+
+        setRoutineItem(routineID: routineID, itemID: item.id, completed: true)
     }
 }
 

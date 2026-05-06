@@ -19,6 +19,7 @@ struct TodayViewModelTests {
             completedItemIDs: [item.id]
         )
         let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(promises: [promise]),
             routineRepository: FakeRoutineRepository(routines: [routine], logs: [log]),
             calendar: Calendar(identifier: .gregorian),
@@ -38,6 +39,7 @@ struct TodayViewModelTests {
             Promise(title: "Stay present", startAt: now, checkInAt: now)
         ])
         let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(),
             promiseRepository: promiseRepository,
             routineRepository: FakeRoutineRepository(),
             nowProvider: { now }
@@ -61,6 +63,7 @@ struct TodayViewModelTests {
         let routine = Routine(name: "Morning", items: [item])
         let routineRepository = FakeRoutineRepository(routines: [routine])
         let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(),
             routineRepository: routineRepository,
             calendar: Calendar(identifier: .gregorian),
@@ -71,6 +74,143 @@ struct TodayViewModelTests {
         viewModel.setRoutineItem(routineID: routine.id, itemID: item.id, completed: true)
 
         #expect(viewModel.routineProgress.first?.completedCount == 1)
+    }
+
+    @Test func todayViewModelSavesQuickAddedTask() {
+        let taskRepository = FakeTaskRepository()
+        let viewModel = TodayViewModel(
+            taskRepository: taskRepository,
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository()
+        )
+        let task = MyTask(title: "Send invoice", taskGroup: "Admin")
+
+        viewModel.loadIfNeeded()
+        viewModel.saveTask(task)
+
+        #expect(taskRepository.tasks == [task])
+        #expect(viewModel.tasks == [task])
+        #expect(viewModel.taskGroups == ["Admin"])
+        #expect(viewModel.reservedTaskIDs == [task.id])
+    }
+
+    @Test func todayViewModelExposesCurrentRoutineItemAndAdvances() {
+        let now = Date(timeIntervalSince1970: 1_710_201_600)
+        let firstItem = RoutineItem(title: "Open curtains", position: 0)
+        let secondItem = RoutineItem(title: "Drink water", position: 1)
+        let routine = Routine(name: "Morning", items: [firstItem, secondItem])
+        let routineRepository = FakeRoutineRepository(routines: [routine])
+        let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: routineRepository,
+            calendar: Calendar(identifier: .gregorian),
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.progress(for: routine.id)?.currentItem == firstItem)
+        #expect(viewModel.progress(for: routine.id)?.actionLabel == "Start")
+
+        viewModel.completeCurrentRoutineItem(routineID: routine.id)
+
+        #expect(viewModel.progress(for: routine.id)?.currentItem == secondItem)
+        #expect(viewModel.progress(for: routine.id)?.actionLabel == "Continue")
+
+        viewModel.completeCurrentRoutineItem(routineID: routine.id)
+
+        #expect(viewModel.progress(for: routine.id)?.isComplete == true)
+        #expect(viewModel.progress(for: routine.id)?.actionLabel == "Review")
+    }
+
+    @Test func todayViewModelDoesNotCarryYesterdayRoutineProgressIntoToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let today = calendar.date(from: DateComponents(year: 2026, month: 5, day: 6, hour: 9))!
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today))!
+        let firstItem = RoutineItem(title: "Open curtains", position: 0)
+        let secondItem = RoutineItem(title: "Drink water", position: 1)
+        let routine = Routine(name: "Morning", items: [firstItem, secondItem])
+        let yesterdayLog = RoutineCompletionLog(
+            routineID: routine.id,
+            date: yesterday,
+            completedItemIDs: [firstItem.id]
+        )
+        let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(routines: [routine], logs: [yesterdayLog]),
+            calendar: calendar,
+            nowProvider: { today }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.progress(for: routine.id)?.completedCount == 0)
+        #expect(viewModel.progress(for: routine.id)?.currentItem == firstItem)
+    }
+
+    @Test func todayViewModelLoadsCalendarOverviewWhenAccessIsGranted() async {
+        let now = Date(timeIntervalSince1970: 1_710_201_600)
+        let calendar = Calendar(identifier: .gregorian)
+        let startOfDay = calendar.startOfDay(for: now)
+        let event = CalendarEventSnapshot(
+            identifier: "workout",
+            title: "Workout",
+            start: calendar.date(byAdding: .hour, value: 9, to: startOfDay)!,
+            end: calendar.date(byAdding: .hour, value: 10, to: startOfDay)!,
+            isAllDay: false,
+            calendarTitle: "Personal"
+        )
+        let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(),
+            calendarPermissionProvider: FakeCalendarPermissionProvider(status: .fullAccessGranted),
+            calendarReader: FakeCalendarReader(events: [event]),
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+        await Task.yield()
+        await Task.yield()
+
+        #expect(viewModel.calendarOverview?.events == [event])
+        #expect(viewModel.calendarOverview?.nextEvent == event)
+        #expect(viewModel.calendarPermissionStatus == .fullAccessGranted)
+    }
+}
+
+@MainActor
+private final class FakeTaskRepository: TaskRepository {
+    var tasks: [MyTask]
+
+    init(tasks: [MyTask] = []) {
+        self.tasks = tasks
+    }
+
+    func fetchTasks() throws -> [MyTask] {
+        tasks
+    }
+
+    func task(withID id: UUID) throws -> MyTask? {
+        tasks.first { $0.id == id }
+    }
+
+    func saveTask(_ task: MyTask, replacingTaskWithID originalID: UUID?) throws {
+        let targetID = originalID ?? task.id
+
+        if let index = tasks.firstIndex(where: { $0.id == targetID || $0.id == task.id }) {
+            tasks[index] = task
+        } else {
+            tasks.append(task)
+        }
+    }
+
+    func deleteTask(withID id: UUID) throws {
+        tasks.removeAll { $0.id == id }
     }
 }
 
@@ -190,6 +330,38 @@ private final class FakeRoutineRepository: RoutineRepository {
             logs[index] = log
         } else {
             logs.append(log)
+        }
+    }
+}
+
+@MainActor
+private final class FakeCalendarPermissionProvider: CalendarPermissionProviding {
+    let status: CalendarPermissionStatus
+
+    init(status: CalendarPermissionStatus) {
+        self.status = status
+    }
+
+    func currentStatus() -> CalendarPermissionStatus {
+        status
+    }
+
+    func requestFullAccess() async -> CalendarPermissionStatus {
+        status
+    }
+}
+
+@MainActor
+private final class FakeCalendarReader: CalendarReading {
+    let events: [CalendarEventSnapshot]
+
+    init(events: [CalendarEventSnapshot]) {
+        self.events = events
+    }
+
+    func fetchEvents(in window: DateInterval) async throws -> [CalendarEventSnapshot] {
+        events.filter { event in
+            event.end > window.start && event.start < window.end
         }
     }
 }

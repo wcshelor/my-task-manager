@@ -5,36 +5,73 @@ struct TodayView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private enum SheetDestination: Identifiable {
+        case taskQuickAdd
         case promiseForm
         case promiseCheckIn(Promise)
         case routineBuilder
-        case routineChecklist(TodayRoutineProgress)
+        case routineSession(UUID)
 
         var id: String {
             switch self {
+            case .taskQuickAdd:
+                return "taskQuickAdd"
             case .promiseForm:
                 return "promiseForm"
             case .promiseCheckIn(let promise):
                 return "promiseCheckIn-\(promise.id.uuidString)"
             case .routineBuilder:
                 return "routineBuilder"
-            case .routineChecklist(let progress):
-                return "routineChecklist-\(progress.id.uuidString)"
+            case .routineSession(let routineID):
+                return "routineSession-\(routineID.uuidString)"
             }
         }
     }
 
     @StateObject private var viewModel: TodayViewModel
     @State private var presentedSheet: SheetDestination?
+    @State private var isPlannerPresented = false
+
+    private let taskRepository: any TaskRepository
+    private let scheduledBlockRepository: any ScheduledBlockRepository
+    private let settingsRepository: any SettingsRepository
+    private let calendarPermissionProvider: any CalendarPermissionProviding
+    private let calendarListingService: any CalendarListing
+    private let calendarReader: any CalendarReading
+    private let calendarWriter: any CalendarWriting
+    private let calendarReconciler: any CalendarReconciling
+    private let calendarChangeObserver: any CalendarChangeObserving
+    private let promiseRepository: any PromiseRepository
 
     init(
+        taskRepository: any TaskRepository,
+        scheduledBlockRepository: any ScheduledBlockRepository,
+        settingsRepository: any SettingsRepository,
+        calendarPermissionProvider: any CalendarPermissionProviding,
+        calendarListingService: any CalendarListing,
+        calendarReader: any CalendarReading,
+        calendarWriter: any CalendarWriting,
+        calendarReconciler: any CalendarReconciling,
+        calendarChangeObserver: any CalendarChangeObserving,
         promiseRepository: any PromiseRepository,
         routineRepository: any RoutineRepository
     ) {
+        self.taskRepository = taskRepository
+        self.scheduledBlockRepository = scheduledBlockRepository
+        self.settingsRepository = settingsRepository
+        self.calendarPermissionProvider = calendarPermissionProvider
+        self.calendarListingService = calendarListingService
+        self.calendarReader = calendarReader
+        self.calendarWriter = calendarWriter
+        self.calendarReconciler = calendarReconciler
+        self.calendarChangeObserver = calendarChangeObserver
+        self.promiseRepository = promiseRepository
         _viewModel = StateObject(
             wrappedValue: TodayViewModel(
+                taskRepository: taskRepository,
                 promiseRepository: promiseRepository,
-                routineRepository: routineRepository
+                routineRepository: routineRepository,
+                calendarPermissionProvider: calendarPermissionProvider,
+                calendarReader: calendarReader
             )
         )
     }
@@ -55,6 +92,7 @@ struct TodayView: View {
                             .foregroundStyle(.red)
                     }
 
+                    calendarOverviewSection
                     promiseSection
                     routineSection
                     promiseHistorySection
@@ -64,6 +102,12 @@ struct TodayView: View {
             .navigationTitle("Today")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        presentedSheet = .taskQuickAdd
+                    } label: {
+                        Label("New Task", systemImage: "checklist")
+                    }
+
                     Button {
                         presentedSheet = .routineBuilder
                     } label: {
@@ -80,6 +124,14 @@ struct TodayView: View {
             .sheet(item: $presentedSheet) { destination in
                 NavigationStack {
                     switch destination {
+                    case .taskQuickAdd:
+                        TaskQuickAddView(
+                            taskGroups: viewModel.taskGroups,
+                            reservedTaskIDs: viewModel.reservedTaskIDs
+                        ) { task in
+                            viewModel.saveTask(task)
+                            presentedSheet = nil
+                        }
                     case .promiseForm:
                         PromiseFormView { promise in
                             viewModel.savePromise(promise)
@@ -110,19 +162,28 @@ struct TodayView: View {
                             viewModel.saveRoutine(routine)
                             presentedSheet = nil
                         }
-                    case .routineChecklist(let progress):
-                        RoutineChecklistView(
-                            progress: progress,
-                            onSetItem: { itemID, completed in
-                                viewModel.setRoutineItem(
-                                    routineID: progress.routine.id,
-                                    itemID: itemID,
-                                    completed: completed
-                                )
-                            }
+                    case .routineSession(let routineID):
+                        RoutineSessionView(
+                            viewModel: viewModel,
+                            routineID: routineID
                         )
                     }
                 }
+            }
+            .navigationDestination(isPresented: $isPlannerPresented) {
+                PlannerView(
+                    taskRepository: taskRepository,
+                    scheduledBlockRepository: scheduledBlockRepository,
+                    settingsRepository: settingsRepository,
+                    calendarPermissionProvider: calendarPermissionProvider,
+                    calendarListingService: calendarListingService,
+                    calendarReader: calendarReader,
+                    calendarWriter: calendarWriter,
+                    calendarReconciler: calendarReconciler,
+                    calendarChangeObserver: calendarChangeObserver,
+                    promiseRepository: promiseRepository,
+                    navigationTitle: "Plan the Day"
+                )
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else {
@@ -183,6 +244,20 @@ struct TodayView: View {
         }
     }
 
+    @ViewBuilder
+    private var calendarOverviewSection: some View {
+        if let overview = viewModel.calendarOverview {
+            TodayCalendarOverviewCard(
+                overview: overview,
+                onPlanTheDay: {
+                    isPlannerPresented = true
+                }
+            )
+        } else if viewModel.calendarPermissionStatus != nil {
+            TodayCalendarPermissionCard(status: viewModel.calendarPermissionStatus!)
+        }
+    }
+
     private var routineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -205,13 +280,13 @@ struct TodayView: View {
                 )
                 .frame(maxWidth: .infinity)
             } else {
-                ForEach(viewModel.routineProgress) { progress in
+                ForEach(Array(viewModel.routineProgress), id: \TodayRoutineProgress.id) { (progress: TodayRoutineProgress) in
                     Button {
-                        presentedSheet = .routineChecklist(progress)
+                        presentedSheet = .routineSession(progress.routine.id)
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: progress.completedCount == progress.totalCount ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(progress.completedCount == progress.totalCount ? .green : .secondary)
+                            Image(systemName: progress.isComplete ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(progress.isComplete ? .green : .secondary)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(progress.routine.name)
@@ -222,9 +297,9 @@ struct TodayView: View {
                             }
 
                             Spacer()
-                            Image(systemName: "chevron.right")
+                            Text(progress.actionLabel)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(progress.isComplete ? Color.secondary : Color.blue)
                         }
                         .padding(12)
                         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -261,6 +336,139 @@ struct TodayView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private struct TodayCalendarOverviewCard: View {
+    let overview: TodayCalendarOverview
+    let onPlanTheDay: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Today’s Events", systemImage: "calendar.badge.clock")
+                        .font(.headline)
+
+                    Text(summaryText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if let nextEvent = overview.nextEvent {
+                    Text("Next \(nextEvent.start.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.12), in: Capsule())
+                }
+            }
+
+            if overview.events.isEmpty {
+                Text("No calendar events on the books today.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(overview.events.prefix(3).enumerated()), id: \.offset) { _, event in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(event.isAllDay ? Color.blue : Color.orange)
+                            .frame(width: 8, height: 8)
+                            .padding(.top, 6)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(event.title)
+                                .font(.subheadline.weight(.medium))
+                            Text(eventTimeLabel(for: event))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Text(event.calendarTitle)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if overview.events.count > 3 {
+                    Text("+ \(overview.events.count - 3) more")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button {
+                onPlanTheDay()
+            } label: {
+                Label("Plan the Day", systemImage: "calendar.badge.plus")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(14)
+        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.blue.opacity(0.14), lineWidth: 1)
+        )
+    }
+
+    private var summaryText: String {
+        if overview.events.isEmpty {
+            return "Your day is open so far."
+        }
+
+        if overview.allDayEvents.isEmpty {
+            return overview.events.count == 1 ? "1 event scheduled today." : "\(overview.events.count) events scheduled today."
+        }
+
+        return "\(overview.events.count) events, including \(overview.allDayEvents.count) all-day."
+    }
+
+    private func eventTimeLabel(for event: CalendarEventSnapshot) -> String {
+        if event.isAllDay {
+            return "All day"
+        }
+
+        return "\(event.start.formatted(date: .omitted, time: .shortened)) - \(event.end.formatted(date: .omitted, time: .shortened))"
+    }
+}
+
+private struct TodayCalendarPermissionCard: View {
+    let status: CalendarPermissionStatus
+
+    var body: some View {
+        if status != .fullAccessGranted {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Today’s Events", systemImage: "calendar.badge.exclamationmark")
+                    .font(.headline)
+
+                Text(copyText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private var copyText: String {
+        switch status {
+        case .notDetermined:
+            return "Calendar access is pending, so today’s event overview is not available yet."
+        case .fullAccessGranted:
+            return ""
+        case .writeOnlyGrantedButInsufficient, .denied, .restricted:
+            return "Grant full Calendar access to show today’s event overview here."
+        case .error(let message):
+            return message
         }
     }
 }
@@ -562,29 +770,87 @@ private struct RoutineBuilderView: View {
     }
 }
 
-private struct RoutineChecklistView: View {
+private struct RoutineSessionView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: TodayViewModel
 
-    let progress: TodayRoutineProgress
-    let onSetItem: (UUID, Bool) -> Void
+    let routineID: UUID
 
     var body: some View {
-        List {
-            ForEach(progress.routine.orderedItems) { item in
-                Toggle(
-                    item.title,
-                    isOn: Binding(
-                        get: {
-                            progress.completionLog?.completedItemIDs.contains(item.id) ?? false
-                        },
-                        set: { isCompleted in
-                            onSetItem(item.id, isCompleted)
+        Group {
+            if let progress = viewModel.progress(for: routineID) {
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(progress.progressLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ProgressView(
+                            value: Double(progress.completedCount),
+                            total: Double(max(progress.totalCount, 1))
+                        )
+                    }
+
+                    Spacer()
+
+                    if progress.isComplete {
+                        VStack(alignment: .center, spacing: 16) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 56))
+                                .foregroundStyle(.green)
+
+                            Text("Routine Complete")
+                                .font(.title2.weight(.semibold))
+
+                            Text("All items are done for today.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                    )
+                        .frame(maxWidth: .infinity)
+                    } else if let item = progress.currentItem {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Current Step")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            Text(item.title)
+                                .font(.title2.weight(.semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(18)
+                        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                        Button {
+                            viewModel.completeCurrentRoutineItem(routineID: routineID)
+                        } label: {
+                            Label("Complete Step", systemImage: "checkmark.circle.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+
+                    Spacer()
+
+                    Button("Leave Routine") {
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                }
+                .padding()
+                .navigationTitle(progress.routine.name)
+                .navigationBarTitleDisplayMode(.inline)
+            } else {
+                ContentUnavailableView(
+                    "Routine Not Available",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("This routine is no longer active today.")
                 )
+                .navigationTitle("Routine")
             }
         }
-        .navigationTitle(progress.routine.name)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
@@ -598,6 +864,15 @@ private struct RoutineChecklistView: View {
 #Preview {
     let container = AppContainer.makePreview()
     TodayView(
+        taskRepository: container.taskRepository,
+        scheduledBlockRepository: container.scheduledBlockRepository,
+        settingsRepository: container.settingsRepository,
+        calendarPermissionProvider: container.calendarPermissionProvider,
+        calendarListingService: container.calendarListingService,
+        calendarReader: container.calendarReader,
+        calendarWriter: container.calendarWriter,
+        calendarReconciler: container.calendarReconciler,
+        calendarChangeObserver: container.calendarChangeObserver,
         promiseRepository: container.promiseRepository,
         routineRepository: container.routineRepository
     )

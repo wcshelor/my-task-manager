@@ -40,6 +40,7 @@ struct PlannerView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var viewModel: PlannerViewModel
     private let promiseRepository: (any PromiseRepository)?
+    private let navigationTitle: String
     @State private var calendarDisplayMode: PlannerCalendarDisplayMode = .day
     @State private var isHorizonPlanSheetPresented = false
     @State private var isCalendarSetupSheetPresented = false
@@ -56,9 +57,11 @@ struct PlannerView: View {
         calendarWriter: any CalendarWriting,
         calendarReconciler: any CalendarReconciling,
         calendarChangeObserver: any CalendarChangeObserving,
-        promiseRepository: (any PromiseRepository)? = nil
+        promiseRepository: (any PromiseRepository)? = nil,
+        navigationTitle: String = "Calendar"
     ) {
         self.promiseRepository = promiseRepository
+        self.navigationTitle = navigationTitle
         _viewModel = StateObject(
             wrappedValue: PlannerViewModel(
                 taskRepository: taskRepository,
@@ -147,68 +150,10 @@ struct PlannerView: View {
                 }
                 .padding(.horizontal, isCompactWidth ? 16 : 20)
 
-                ScrollView {
-                    PlannerDayCalendarSection(
-                        displayMode: calendarDisplayMode,
-                        permissionStatus: viewModel.permissionStatus,
-                        isLoading: viewModel.isLoading,
-                        selectedDay: viewModel.selectedDay,
-                        calendar: viewModel.timelineCalendar,
-                        visibleDayInterval: viewModel.visibleDayInterval,
-                        timelineEntries: viewModel.timelineEntries,
-                        selectedTimeRange: viewModel.selectedTimeRange,
-                        selectedSlotSuggestionItems: viewModel.selectedSlotSuggestionItems,
-                        activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
-                        onSelectionChange: { selection in
-                            viewModel.updateSelectedTimeRange(selection)
-                        },
-                        onClearSelection: {
-                            viewModel.clearSelectedTimeRange()
-                        },
-                        onAcceptSuggestion: { suggestionID in
-                            Task {
-                                await viewModel.acceptSuggestion(withID: suggestionID)
-                            }
-                        },
-                        onRejectSuggestion: { suggestionID in
-                            viewModel.rejectSuggestion(withID: suggestionID)
-                        }
-                    )
-                    .padding(.horizontal, isCompactWidth ? 16 : 20)
-
-                    PlannerManualSlotFillerCard(
-                        viewModel: viewModel,
-                        selectedDay: viewModel.selectedDay,
-                        selectedTimeRange: viewModel.selectedTimeRange,
-                        suggestionItems: viewModel.selectedSlotSuggestionItems,
-                        hasGeneratedSuggestions: viewModel.hasGeneratedSuggestionsForSelectedTimeRange,
-                        activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
-                        onSelectRange: { selection in
-                            viewModel.updateSelectedTimeRange(selection)
-                        },
-                        onGenerateSuggestions: {
-                            Task {
-                                await viewModel.generatePlanForSelectedTimeRange()
-                            }
-                        },
-                        onClearSelection: {
-                            viewModel.clearSelectedTimeRange()
-                        },
-                        onAcceptSuggestion: { suggestionID in
-                            Task {
-                                await viewModel.acceptSuggestion(withID: suggestionID)
-                            }
-                        },
-                        onRejectSuggestion: { suggestionID in
-                            viewModel.rejectSuggestion(withID: suggestionID)
-                        }
-                    )
-                    .padding(.horizontal, isCompactWidth ? 16 : 20)
-                    .padding(.bottom, 20)
-                }
+                plannerContent
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .navigationTitle("Calendar")
+            .navigationTitle(navigationTitle)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
@@ -406,6 +351,91 @@ struct PlannerView: View {
         case .reviewTasks:
             break
         }
+    }
+
+    @ViewBuilder
+    private var plannerContent: some View {
+        if calendarDisplayMode == .day {
+            VStack(alignment: .leading, spacing: 12) {
+                plannerDayCalendarSection
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+
+                ScrollView {
+                    plannerSlotFillerCard
+                        .padding(.horizontal, isCompactWidth ? 16 : 20)
+                        .padding(.bottom, 20)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            ScrollView {
+                plannerDayCalendarSection
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+
+                plannerSlotFillerCard
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+
+    private var plannerDayCalendarSection: some View {
+        PlannerDayCalendarSection(
+            displayMode: calendarDisplayMode,
+            permissionStatus: viewModel.permissionStatus,
+            isLoading: viewModel.isLoading,
+            selectedDay: viewModel.selectedDay,
+            calendar: viewModel.timelineCalendar,
+            visibleDayInterval: viewModel.visibleDayInterval,
+            timelineEntries: viewModel.timelineEntries,
+            selectedTimeRange: viewModel.selectedTimeRange,
+            selectedSlotSuggestionItems: viewModel.selectedSlotSuggestionItems,
+            activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
+            onSelectionChange: { selection in
+                viewModel.updateSelectedTimeRange(selection)
+            },
+            onClearSelection: {
+                viewModel.clearSelectedTimeRange()
+            },
+            onAcceptSuggestion: { suggestionID in
+                Task {
+                    await viewModel.acceptSuggestion(withID: suggestionID)
+                }
+            },
+            onRejectSuggestion: { suggestionID in
+                viewModel.rejectSuggestion(withID: suggestionID)
+            }
+        )
+    }
+
+    private var plannerSlotFillerCard: some View {
+        PlannerManualSlotFillerCard(
+            viewModel: viewModel,
+            selectedDay: viewModel.selectedDay,
+            selectedTimeRange: viewModel.selectedTimeRange,
+            suggestionItems: viewModel.selectedSlotSuggestionItems,
+            hasGeneratedSuggestions: viewModel.hasGeneratedSuggestionsForSelectedTimeRange,
+            activeSuggestionOperationIDs: viewModel.activeSuggestionOperationIDs,
+            onSelectRange: { selection in
+                viewModel.updateSelectedTimeRange(selection)
+            },
+            onGenerateSuggestions: {
+                Task {
+                    await viewModel.generatePlanForSelectedTimeRange()
+                }
+            },
+            onClearSelection: {
+                viewModel.clearSelectedTimeRange()
+            },
+            onAcceptSuggestion: { suggestionID in
+                Task {
+                    await viewModel.acceptSuggestion(withID: suggestionID)
+                }
+            },
+            onRejectSuggestion: { suggestionID in
+                viewModel.rejectSuggestion(withID: suggestionID)
+            }
+        )
     }
 }
 
