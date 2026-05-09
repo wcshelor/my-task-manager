@@ -16,6 +16,7 @@ struct TaskListView: View {
     }
 
     @StateObject private var viewModel: TaskListViewModel
+    private let projectRepository: (any ProjectRepository)?
     private let promiseRepository: (any PromiseRepository)?
     @State private var path: [Destination] = []
     @State private var presentedSheet: SheetDestination?
@@ -23,13 +24,16 @@ struct TaskListView: View {
     @State private var searchText = ""
     @State private var sortMode: TaskListSortMode = .createdDate
     @State private var groupMode: TaskListGroupMode = .none
+    @State private var projects: [Project] = []
 
     init(
         taskRepository: any TaskRepository,
+        projectRepository: (any ProjectRepository)? = nil,
         scheduledBlockRepository: (any ScheduledBlockRepository)? = nil,
         calendarWriter: (any CalendarWriting)? = nil,
         promiseRepository: (any PromiseRepository)? = nil
     ) {
+        self.projectRepository = projectRepository
         self.promiseRepository = promiseRepository
         _viewModel = StateObject(
             wrappedValue: TaskListViewModel(
@@ -143,6 +147,7 @@ struct TaskListView: View {
             .searchable(text: $searchText, prompt: "Search title, notes, or tags")
             .task {
                 await viewModel.loadTasksIfNeeded()
+                loadProjects()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else {
@@ -172,6 +177,7 @@ struct TaskListView: View {
                             reservedTaskIDs: reservedTaskIDs
                         ) { task in
                             viewModel.saveTask(task)
+                            loadProjects()
                         }
                     }
                 }
@@ -195,6 +201,7 @@ struct TaskListView: View {
                 case .newTask:
                     TaskFormView(
                         mode: .create,
+                        projects: projects,
                         reservedTaskIDs: reservedTaskIDs
                     ) { task in
                         viewModel.saveTask(task)
@@ -205,6 +212,7 @@ struct TaskListView: View {
                         TaskFormView(
                             mode: .edit(originalTaskID: task.id),
                             initialFormData: MyTaskFormData(task: task),
+                            projects: projects,
                             reservedTaskIDs: reservedTaskIDs
                         ) { updatedTask in
                             viewModel.saveTask(updatedTask, replacingTaskWithID: task.id)
@@ -334,6 +342,15 @@ struct TaskListView: View {
         presentedSheet = .addTask
     }
 
+    private func loadProjects() {
+        guard let projectRepository else {
+            projects = []
+            return
+        }
+
+        projects = (try? projectRepository.fetchProjects(includeArchived: false)) ?? []
+    }
+
     private func taskStatusIconName(for task: MyTask) -> String {
         switch task.status {
         case .inbox:
@@ -415,6 +432,7 @@ struct TaskListView: View {
     let container = AppContainer.makePreview()
     TaskListView(
         taskRepository: container.taskRepository,
+        projectRepository: container.projectRepository,
         scheduledBlockRepository: container.scheduledBlockRepository,
         calendarWriter: container.calendarWriter,
         promiseRepository: container.promiseRepository

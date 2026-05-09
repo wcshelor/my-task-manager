@@ -48,6 +48,7 @@ struct TaskFormView: View {
     @State private var isShowingDeleteConfirmation = false
 
     let mode: Mode
+    let projects: [Project]
     let reservedTaskIDs: Set<UUID>
     let onSave: (MyTask) -> Void
     let onDelete: (() -> Void)?
@@ -55,11 +56,13 @@ struct TaskFormView: View {
     init(
         mode: Mode,
         initialFormData: MyTaskFormData = MyTaskFormData(),
+        projects: [Project] = [],
         reservedTaskIDs: Set<UUID> = [],
         onSave: @escaping (MyTask) -> Void,
         onDelete: (() -> Void)? = nil
     ) {
         self.mode = mode
+        self.projects = projects
         self.reservedTaskIDs = reservedTaskIDs
         self.onSave = onSave
         self.onDelete = onDelete
@@ -145,6 +148,16 @@ struct TaskFormView: View {
                 }
 
                 Section("Attributes") {
+                    if projects.isEmpty == false {
+                        Picker("Project", selection: $formData.projectID) {
+                            Text("None").tag(nil as UUID?)
+
+                            ForEach(projects) { project in
+                                Text(project.name).tag(project.id as UUID?)
+                            }
+                        }
+                    }
+
                     Picker("Priority", selection: $formData.priority) {
                         Text("None").tag(nil as PriorityLevel?)
 

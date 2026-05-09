@@ -70,6 +70,202 @@ nonisolated enum WorkModeKind: String, CaseIterable, Codable, Sendable {
     }
 }
 
+nonisolated struct Project: Identifiable, Equatable, Sendable {
+    let id: UUID
+    var name: String
+    var summary: String?
+    var isPinned: Bool
+    var isArchived: Bool
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        summary: String? = nil,
+        isPinned: Bool = false,
+        isArchived: Bool = false,
+        createdAt: Date = .now,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.name = Self.cleanedName(from: name) ?? name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.summary = MyTask.cleanedOptionalText(from: summary)
+        self.isPinned = isPinned
+        self.isArchived = isArchived
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
+    }
+
+    init?(newName: String) {
+        guard let cleanedName = Self.cleanedName(from: newName) else {
+            return nil
+        }
+
+        self.init(name: cleanedName)
+    }
+
+    static func cleanedName(from rawName: String) -> String? {
+        let cleanedName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanedName.isEmpty ? nil : cleanedName
+    }
+}
+
+nonisolated enum ProjectItemKind: String, CaseIterable, Codable, Sendable {
+    case maybe
+    case note
+
+    var displayName: String {
+        switch self {
+        case .maybe:
+            return "Maybe"
+        case .note:
+            return "Note"
+        }
+    }
+}
+
+nonisolated enum ProjectItemPressure: String, CaseIterable, Codable, Sendable {
+    case noPressure
+    case useful
+    case shouldDoSometime
+    case becomingRelevant
+
+    var displayName: String {
+        switch self {
+        case .noPressure:
+            return "No Pressure"
+        case .useful:
+            return "Useful"
+        case .shouldDoSometime:
+            return "Should Do Sometime"
+        case .becomingRelevant:
+            return "Becoming Relevant"
+        }
+    }
+}
+
+nonisolated struct ProjectItem: Identifiable, Equatable, Sendable {
+    let id: UUID
+    var projectID: UUID
+    var kind: ProjectItemKind
+    var title: String
+    var notes: String?
+    var source: String?
+    var pressure: ProjectItemPressure?
+    var reviewAfter: Date?
+    var promotedTaskID: UUID?
+    var isArchived: Bool
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        projectID: UUID,
+        kind: ProjectItemKind,
+        title: String,
+        notes: String? = nil,
+        source: String? = nil,
+        pressure: ProjectItemPressure? = nil,
+        reviewAfter: Date? = nil,
+        promotedTaskID: UUID? = nil,
+        isArchived: Bool = false,
+        createdAt: Date = .now,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.projectID = projectID
+        self.kind = kind
+        self.title = Self.cleanedTitle(from: title) ?? title.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.notes = MyTask.cleanedOptionalText(from: notes)
+        self.source = MyTask.cleanedOptionalText(from: source)
+        self.pressure = pressure
+        self.reviewAfter = reviewAfter
+        self.promotedTaskID = promotedTaskID
+        self.isArchived = isArchived
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
+    }
+
+    static func cleanedTitle(from rawTitle: String) -> String? {
+        let cleanedTitle = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanedTitle.isEmpty ? nil : cleanedTitle
+    }
+}
+
+nonisolated struct CaptureItem: Identifiable, Equatable, Sendable {
+    let id: UUID
+    var title: String
+    var notes: String?
+    var projectID: UUID?
+    var source: String?
+    let createdAt: Date
+    var updatedAt: Date
+    var processedAt: Date?
+    var archivedAt: Date?
+    var convertedTaskID: UUID?
+    var convertedProjectItemID: UUID?
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        notes: String? = nil,
+        projectID: UUID? = nil,
+        source: String? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date? = nil,
+        processedAt: Date? = nil,
+        archivedAt: Date? = nil,
+        convertedTaskID: UUID? = nil,
+        convertedProjectItemID: UUID? = nil
+    ) {
+        self.id = id
+        self.title = Self.cleanedTitle(from: title) ?? title.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.notes = MyTask.cleanedOptionalText(from: notes)
+        self.projectID = projectID
+        self.source = MyTask.cleanedOptionalText(from: source)
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
+        self.processedAt = processedAt
+        self.archivedAt = archivedAt
+        self.convertedTaskID = convertedTaskID
+        self.convertedProjectItemID = convertedProjectItemID
+    }
+
+    init?(newTitle: String, projectID: UUID? = nil) {
+        guard let cleanedTitle = Self.cleanedTitle(from: newTitle) else {
+            return nil
+        }
+
+        self.init(title: cleanedTitle, projectID: projectID)
+    }
+
+    var isPendingReview: Bool {
+        processedAt == nil && archivedAt == nil
+    }
+
+    mutating func markProcessed(
+        at date: Date = .now,
+        convertedTaskID: UUID? = nil,
+        convertedProjectItemID: UUID? = nil
+    ) {
+        processedAt = date
+        updatedAt = date
+        self.convertedTaskID = convertedTaskID
+        self.convertedProjectItemID = convertedProjectItemID
+    }
+
+    mutating func archive(at date: Date = .now) {
+        archivedAt = date
+        updatedAt = date
+    }
+
+    static func cleanedTitle(from rawTitle: String) -> String? {
+        let cleanedTitle = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanedTitle.isEmpty ? nil : cleanedTitle
+    }
+}
+
 nonisolated enum TaskDurationRules {
     static let minutesIncrement = 15
     static let defaultAssumedMinutes = 30
@@ -124,6 +320,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
     var priority: PriorityLevel?
     var energyLevel: EnergyLevel?
     var workMode: WorkModeKind?
+    var projectID: UUID?
     var taskGroup: String?
     var tags: [String]
     let createdAt: Date
@@ -144,6 +341,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         priority: PriorityLevel? = nil,
         energyLevel: EnergyLevel? = nil,
         workMode: WorkModeKind? = nil,
+        projectID: UUID? = nil,
         taskGroup: String? = nil,
         tags: [String] = [],
         createdAt: Date = .now,
@@ -161,6 +359,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         self.priority = priority
         self.energyLevel = energyLevel
         self.workMode = workMode
+        self.projectID = projectID
         self.taskGroup = Self.cleanedOptionalText(from: taskGroup)
         self.tags = Self.cleanedTags(from: tags)
         self.createdAt = createdAt

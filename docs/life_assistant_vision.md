@@ -30,10 +30,15 @@ Current foundations to preserve:
 
 Likely future life domains include:
 
-- Sleep / PVT tracker
+- Health section:
+  - Sleep / PVT tracker
+  - Fitness / workout tracking
+  - Nutrition / meal tracking
 - Piano practice mode
-- Workout tracking
-- Food / meal tracking
+- Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
+- Shopping list and wish list
+- Budgeting / purchase decision support
+- Vices Tracking
 - Reflection / anti-spiral journaling
 - General life logs
 
@@ -47,7 +52,7 @@ Every future feature should map to at least one of these functions:
 - Plan - turn tasks into realistic time blocks around my calendar
 - Execute - help me actually do the next thing
 - Recover - help me reset when tired, scattered, behind, or low-energy
-- Understand patterns - track useful signals across sleep, routines, practice, workouts, mood, etc.
+- Understand patterns - track useful signals across Health, routines, practice, mood, and related life data.
 
 Ideas that do not clearly serve one of these functions should be treated cautiously.
 
@@ -61,10 +66,14 @@ Conceptual domain names:
 - `TodayDomain`
 - `PromiseDomain`
 - `RoutineDomain`
-- `SleepDomain`
+- `HealthDomain`
+- `SleepPVTSubdomain`
 - `PracticeDomain`
-- `WorkoutDomain`
-- `NutritionDomain`
+- `FitnessSubdomain`
+- `NutritionSubdomain`
+- `ShoppingDomain`
+- `BudgetingDomain`
+- `VicesDomain`
 - `ReflectionDomain`
 
 This is a documentation and folder-structure idea for now. Do not introduce protocols, generic registries, or plugin machinery unless a concrete implementation needs them.
@@ -120,6 +129,8 @@ Examples:
 - routine completions
 - practice sessions
 - PVT sessions
+- sleep check-ins
+- meal logs
 - reflection entries
 - workout logs
 
@@ -137,7 +148,7 @@ Examples:
 
 Only Planner / ScheduledBlock features should write to Apple Calendar.
 
-Routines, practice, workouts, reflection, and other domains should not write to calendar directly unless mediated through the planner / scheduled-block system.
+Routines, practice, Health, reflection, and other domains should not write to calendar directly unless mediated through the planner / scheduled-block system.
 
 Apple Calendar remains the external calendar source of truth. App-owned planning records remain in SwiftData.
 

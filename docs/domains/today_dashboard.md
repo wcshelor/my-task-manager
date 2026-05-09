@@ -15,7 +15,9 @@ The Today tab is the app's home screen / secretary dashboard. It answers: what m
 
 - today's scheduled blocks
 - urgent tasks
-- PVT/check-in status
+- Health morning check-in status
+- PVT / sleep quality status
+- planned workout
 - top task suggestion
 - quick brain dump
 - suggested piano practice

@@ -14,6 +14,9 @@ enum ModelContainerFactory {
     ) throws -> ModelContainer {
         let schema = Schema([
             TaskRecord.self,
+            ProjectRecord.self,
+            CaptureItemRecord.self,
+            ProjectItemRecord.self,
             ScheduledBlockRecord.self,
             AppSettingsRecord.self,
             PromiseRecord.self,

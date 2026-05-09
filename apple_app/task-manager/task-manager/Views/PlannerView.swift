@@ -83,74 +83,77 @@ struct PlannerView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 0) {
-                Picker("Calendar View", selection: $calendarDisplayMode) {
-                    ForEach(PlannerCalendarDisplayMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, isCompactWidth ? 16 : 20)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
-
-                if let promiseRepository {
-                    PromisePresenceBanner(promiseRepository: promiseRepository)
-                        .padding(.horizontal, isCompactWidth ? 16 : 20)
-                        .padding(.bottom, 12)
-                }
-
-                PlannerDayNavigationCard(
-                    selectedDay: viewModel.selectedDay,
-                    title: calendarDisplayMode.navigationTitle,
-                    onPreviousDay: {
-                        Task {
-                            await moveCalendarBackward()
-                        }
-                    },
-                    onToday: {
-                        Task {
-                            await viewModel.goToToday()
-                        }
-                    },
-                    onNextDay: {
-                        Task {
-                            await moveCalendarForward()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Picker("Calendar View", selection: $calendarDisplayMode) {
+                        ForEach(PlannerCalendarDisplayMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
                         }
                     }
-                )
-                .padding(.horizontal, isCompactWidth ? 16 : 20)
-                .padding(.bottom, 12)
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
 
-                PlannerMorningBriefCard(
-                    brief: viewModel.morningBrief,
-                    selectedEnergy: viewModel.morningEnergy,
-                    onSelectEnergy: { energy in
-                        viewModel.setMorningEnergy(energy)
-                    },
-                    onAction: handleMorningBriefAction
-                )
-                .padding(.horizontal, isCompactWidth ? 16 : 20)
-                .padding(.bottom, 12)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    if let errorMessage = viewModel.errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if let promiseRepository {
+                        PromisePresenceBanner(promiseRepository: promiseRepository)
+                            .padding(.horizontal, isCompactWidth ? 16 : 20)
+                            .padding(.bottom, 12)
                     }
 
-                    if let reconciliationNotice = viewModel.reconciliationNotice {
-                        Text(reconciliationNotice)
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    PlannerDayNavigationCard(
+                        selectedDay: viewModel.selectedDay,
+                        title: calendarDisplayMode.navigationTitle,
+                        onPreviousDay: {
+                            Task {
+                                await moveCalendarBackward()
+                            }
+                        },
+                        onToday: {
+                            Task {
+                                await viewModel.goToToday()
+                            }
+                        },
+                        onNextDay: {
+                            Task {
+                                await moveCalendarForward()
+                            }
+                        }
+                    )
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+                    .padding(.bottom, 12)
+
+                    PlannerMorningBriefCard(
+                        brief: viewModel.morningBrief,
+                        selectedEnergy: viewModel.morningEnergy,
+                        onSelectEnergy: { energy in
+                            viewModel.setMorningEnergy(energy)
+                        },
+                        onAction: handleMorningBriefAction
+                    )
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+                    .padding(.bottom, 12)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let errorMessage = viewModel.errorMessage {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        if let reconciliationNotice = viewModel.reconciliationNotice {
+                            Text(reconciliationNotice)
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
+                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+
+                    plannerContent
                 }
-                .padding(.horizontal, isCompactWidth ? 16 : 20)
-
-                plannerContent
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .navigationTitle(navigationTitle)
@@ -355,28 +358,19 @@ struct PlannerView: View {
 
     @ViewBuilder
     private var plannerContent: some View {
-        if calendarDisplayMode == .day {
-            VStack(alignment: .leading, spacing: 12) {
-                plannerDayCalendarSection
-                    .padding(.horizontal, isCompactWidth ? 16 : 20)
+        VStack(alignment: .leading, spacing: 12) {
+            plannerDayCalendarSection
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
 
-                ScrollView {
-                    plannerSlotFillerCard
-                        .padding(.horizontal, isCompactWidth ? 16 : 20)
-                        .padding(.bottom, 20)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        } else {
-            ScrollView {
-                plannerDayCalendarSection
-                    .padding(.horizontal, isCompactWidth ? 16 : 20)
-
-                plannerSlotFillerCard
-                    .padding(.horizontal, isCompactWidth ? 16 : 20)
-                    .padding(.bottom, 20)
-            }
+            plannerSlotFillerCard
+                .padding(.horizontal, isCompactWidth ? 16 : 20)
+                .padding(.bottom, plannerContentBottomPadding)
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var plannerContentBottomPadding: CGFloat {
+        viewModel.selectedTimeRange == nil ? 20 : 88
     }
 
     private var plannerDayCalendarSection: some View {

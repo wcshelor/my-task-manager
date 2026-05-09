@@ -49,6 +49,7 @@ struct MyTaskTests {
         let createdAt = Date(timeIntervalSince1970: 1_000)
         let updatedAt = Date(timeIntervalSince1970: 2_000)
         let dueDate = Date(timeIntervalSince1970: 3_000)
+        let projectID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174321")!
         let task = MyTask(
             title: "Prepare workshop",
             notes: "  Review outline  ",
@@ -58,6 +59,7 @@ struct MyTaskTests {
             priority: .urgent,
             energyLevel: .high,
             workMode: .deepWork,
+            projectID: projectID,
             taskGroup: " Launch ",
             tags: [" work ", "", "planning "],
             createdAt: createdAt,
@@ -71,10 +73,53 @@ struct MyTaskTests {
         #expect(task.priority == .urgent)
         #expect(task.energyLevel == .high)
         #expect(task.workMode == .deepWork)
+        #expect(task.projectID == projectID)
         #expect(task.taskGroup == "Launch")
         #expect(task.tags == ["work", "planning"])
         #expect(task.createdAt == createdAt)
         #expect(task.updatedAt == updatedAt)
         #expect(task.completedAt == nil)
+    }
+
+    @Test func captureItemMarksProcessedAndArchived() {
+        let processedAt = Date(timeIntervalSince1970: 1_000)
+        let taskID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
+        var capture = CaptureItem(title: "Look up paper")
+
+        #expect(capture.isPendingReview == true)
+
+        capture.markProcessed(at: processedAt, convertedTaskID: taskID)
+
+        #expect(capture.isPendingReview == false)
+        #expect(capture.processedAt == processedAt)
+        #expect(capture.convertedTaskID == taskID)
+
+        var archivedCapture = CaptureItem(title: "Old thought")
+        archivedCapture.archive(at: processedAt)
+
+        #expect(archivedCapture.isPendingReview == false)
+        #expect(archivedCapture.archivedAt == processedAt)
+    }
+
+    @Test func projectItemStoresMaybeAndNoteMetadata() {
+        let projectID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174111")!
+        let reviewAfter = Date(timeIntervalSince1970: 5_000)
+        let maybe = ProjectItem(
+            projectID: projectID,
+            kind: .maybe,
+            title: " Explore coding methods ",
+            notes: "  Ask advisor  ",
+            source: "  Meeting  ",
+            pressure: .becomingRelevant,
+            reviewAfter: reviewAfter
+        )
+        let note = ProjectItem(projectID: projectID, kind: .note, title: "Advisor likes concise drafts")
+
+        #expect(maybe.title == "Explore coding methods")
+        #expect(maybe.notes == "Ask advisor")
+        #expect(maybe.source == "Meeting")
+        #expect(maybe.pressure == .becomingRelevant)
+        #expect(maybe.reviewAfter == reviewAfter)
+        #expect(note.kind == .note)
     }
 }

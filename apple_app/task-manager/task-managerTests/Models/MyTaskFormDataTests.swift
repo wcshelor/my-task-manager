@@ -8,6 +8,7 @@ struct MyTaskFormDataTests {
         let createdAt = Date(timeIntervalSince1970: 1_234)
         let completedAt = Date(timeIntervalSince1970: 1_300)
         let dueDate = Date(timeIntervalSince1970: 1_500)
+        let projectID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174321")!
         let task = MyTask(
             id: taskID,
             title: "Finish report",
@@ -18,6 +19,7 @@ struct MyTaskFormDataTests {
             priority: .urgent,
             energyLevel: .high,
             workMode: .deepWork,
+            projectID: projectID,
             taskGroup: "Launch",
             tags: ["work", "writing"],
             createdAt: createdAt,
@@ -38,6 +40,7 @@ struct MyTaskFormDataTests {
         #expect(formData.priority == .urgent)
         #expect(formData.energyLevel == .high)
         #expect(formData.workMode == .deepWork)
+        #expect(formData.projectID == projectID)
         #expect(formData.taskGroupText == "Launch")
         #expect(formData.tagsText == "work, writing")
         #expect(formData.createdAt == createdAt)
@@ -47,6 +50,7 @@ struct MyTaskFormDataTests {
     @Test func makeTaskBuildsTaskFromFormFields() {
         let savedAt = Date(timeIntervalSince1970: 2_000)
         let dueDate = Date(timeIntervalSince1970: 3_000)
+        let projectID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174321")!
         let formData = MyTaskFormData(
             idText: "123E4567-E89B-12D3-A456-426614174000",
             title: "  Finish report  ",
@@ -58,6 +62,7 @@ struct MyTaskFormDataTests {
             priority: .high,
             energyLevel: .medium,
             workMode: .creative,
+            projectID: projectID,
             taskGroupText: " Launch ",
             tagsText: "work, writing",
             createdAt: Date(timeIntervalSince1970: 1_234)
@@ -74,6 +79,7 @@ struct MyTaskFormDataTests {
         #expect(task?.priority == .high)
         #expect(task?.energyLevel == .medium)
         #expect(task?.workMode == .creative)
+        #expect(task?.projectID == projectID)
         #expect(task?.taskGroup == "Launch")
         #expect(task?.tags == ["work", "writing"])
         #expect(task?.createdAt == Date(timeIntervalSince1970: 1_234))

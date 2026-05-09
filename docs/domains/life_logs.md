@@ -6,8 +6,7 @@ Support general record keeping for useful personal patterns without encouraging 
 
 Potential log domains:
 
-- workout logs
-- meal logs
+- Health logs that do not yet need dedicated Health UI
 - mood logs
 - meditation logs
 - generic log entries
@@ -16,7 +15,7 @@ Potential log domains:
 
 Use generic logs for simple notes, but dedicated models for domains that need structured data.
 
-For example, a quick note that lunch felt heavy may be a generic log. A workout progression feature probably needs dedicated workout models.
+For example, a quick note that lunch felt heavy may be a generic log. Meal logs, workout logs, and PVT sessions should become structured Health records when they need trend analysis or planning behavior.
 
 ## Interaction With Tasks / Planner
 

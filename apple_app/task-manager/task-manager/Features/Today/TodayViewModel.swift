@@ -53,6 +53,52 @@ nonisolated struct TodayCalendarOverview: Equatable, Sendable {
     }
 }
 
+nonisolated struct TodayInboxSummary: Equatable, Sendable {
+    let pendingCaptures: [CaptureItem]
+    let now: Date
+
+    var count: Int {
+        pendingCaptures.count
+    }
+
+    var projectTaggedCount: Int {
+        pendingCaptures.filter { $0.projectID != nil }.count
+    }
+
+    var oldestCapture: CaptureItem? {
+        pendingCaptures.min { $0.createdAt < $1.createdAt }
+    }
+
+    var oldestAgeLabel: String? {
+        guard let oldestCapture else {
+            return nil
+        }
+
+        let seconds = max(0, now.timeIntervalSince(oldestCapture.createdAt))
+        if seconds < 3_600 {
+            let minutes = max(1, Int(seconds / 60))
+            return "\(minutes)m"
+        }
+
+        if seconds < 86_400 {
+            return "\(Int(seconds / 3_600))h"
+        }
+
+        return "\(Int(seconds / 86_400))d"
+    }
+}
+
+nonisolated struct TodayPinnedProjectSummary: Identifiable, Equatable, Sendable {
+    let project: Project
+    let activeTaskCount: Int
+    let projectItemCount: Int
+    let nextTask: MyTask?
+
+    var id: UUID {
+        project.id
+    }
+}
+
 @MainActor
 final class TodayViewModel: ObservableObject {
     @Published private(set) var activePromises: [Promise] = []
@@ -60,11 +106,17 @@ final class TodayViewModel: ObservableObject {
     @Published private(set) var promiseHistory: [Promise] = []
     @Published private(set) var routineProgress: [TodayRoutineProgress] = []
     @Published private(set) var tasks: [MyTask] = []
+    @Published private(set) var captures: [CaptureItem] = []
+    @Published private(set) var projects: [Project] = []
+    @Published private(set) var projectItems: [ProjectItem] = []
     @Published private(set) var calendarOverview: TodayCalendarOverview?
     @Published private(set) var calendarPermissionStatus: CalendarPermissionStatus?
     @Published private(set) var errorMessage: String?
 
     private let taskRepository: any TaskRepository
+    private let projectRepository: (any ProjectRepository)?
+    private let captureRepository: (any CaptureRepository)?
+    private let projectItemRepository: (any ProjectItemRepository)?
     private let promiseRepository: any PromiseRepository
     private let routineRepository: any RoutineRepository
     private let calendarPermissionProvider: (any CalendarPermissionProviding)?
@@ -75,6 +127,9 @@ final class TodayViewModel: ObservableObject {
 
     init(
         taskRepository: any TaskRepository,
+        projectRepository: (any ProjectRepository)? = nil,
+        captureRepository: (any CaptureRepository)? = nil,
+        projectItemRepository: (any ProjectItemRepository)? = nil,
         promiseRepository: any PromiseRepository,
         routineRepository: any RoutineRepository,
         calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
@@ -83,6 +138,9 @@ final class TodayViewModel: ObservableObject {
         nowProvider: @escaping @Sendable () -> Date = Date.init
     ) {
         self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.captureRepository = captureRepository
+        self.projectItemRepository = projectItemRepository
         self.promiseRepository = promiseRepository
         self.routineRepository = routineRepository
         self.calendarPermissionProvider = calendarPermissionProvider
@@ -103,6 +161,30 @@ final class TodayViewModel: ObservableObject {
         Array(Set(tasks.compactMap(\.taskGroup))).sorted {
             $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
         }
+    }
+
+    var inboxSummary: TodayInboxSummary {
+        TodayInboxSummary(pendingCaptures: captures, now: nowProvider())
+    }
+
+    var pinnedProjectSummaries: [TodayPinnedProjectSummary] {
+        let activeTasks = tasks.filter { task in
+            task.status != .completed && task.status != .archived
+        }
+        let activeItems = projectItems.filter { $0.isArchived == false }
+
+        return projects
+            .filter { $0.isPinned && $0.isArchived == false }
+            .map { project in
+                let projectTasks = activeTasks.filter { $0.projectID == project.id }
+                let nextTask = Self.nextTask(from: projectTasks)
+                return TodayPinnedProjectSummary(
+                    project: project,
+                    activeTaskCount: projectTasks.count,
+                    projectItemCount: activeItems.filter { $0.projectID == project.id }.count,
+                    nextTask: nextTask
+                )
+            }
     }
 
     var reservedTaskIDs: Set<UUID> {
@@ -136,6 +218,12 @@ final class TodayViewModel: ObservableObject {
             duePromises = try promiseRepository.fetchDuePromises(at: now)
             promiseHistory = try promiseRepository.fetchPromiseHistory()
             tasks = try taskRepository.fetchTasks()
+            captures = try captureRepository?.fetchCaptures(
+                includeProcessed: false,
+                includeArchived: false
+            ) ?? []
+            projects = try projectRepository?.fetchProjects(includeArchived: false) ?? []
+            projectItems = try projectItemRepository?.fetchProjectItems(includeArchived: false) ?? []
             routineProgress = activeRoutines.map { routine in
                 TodayRoutineProgress(routine: routine, completionLog: logLookup[routine.id])
             }
@@ -213,6 +301,15 @@ final class TodayViewModel: ObservableObject {
         }
     }
 
+    func saveCapture(_ capture: CaptureItem, replacingCaptureWithID originalID: UUID? = nil) {
+        do {
+            try captureRepository?.saveCapture(capture, replacingCaptureWithID: originalID)
+            load()
+        } catch {
+            errorMessage = "Unable to save capture: \(error.localizedDescription)"
+        }
+    }
+
     func resolvePromise(withID id: UUID, outcome: PromiseOutcome, reflection: String?) {
         do {
             try promiseRepository.resolvePromise(
@@ -283,6 +380,30 @@ final class TodayViewModel: ObservableObject {
         }
 
         setRoutineItem(routineID: routineID, itemID: item.id, completed: true)
+    }
+
+    private static func nextTask(from tasks: [MyTask]) -> MyTask? {
+        tasks.sorted { leftTask, rightTask in
+            switch (leftTask.dueDate, rightTask.dueDate) {
+            case (.some(let leftDueDate), .some(let rightDueDate)):
+                if leftDueDate != rightDueDate {
+                    return leftDueDate < rightDueDate
+                }
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                break
+            }
+
+            if leftTask.createdAt != rightTask.createdAt {
+                return leftTask.createdAt < rightTask.createdAt
+            }
+
+            return leftTask.id.uuidString < rightTask.id.uuidString
+        }
+        .first
     }
 }
 

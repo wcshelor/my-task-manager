@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 struct TodayView: View {
@@ -5,7 +6,8 @@ struct TodayView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private enum SheetDestination: Identifiable {
-        case taskQuickAdd
+        case captureQuickAdd
+        case inboxReview
         case promiseForm
         case promiseCheckIn(Promise)
         case routineBuilder
@@ -13,8 +15,10 @@ struct TodayView: View {
 
         var id: String {
             switch self {
-            case .taskQuickAdd:
-                return "taskQuickAdd"
+            case .captureQuickAdd:
+                return "captureQuickAdd"
+            case .inboxReview:
+                return "inboxReview"
             case .promiseForm:
                 return "promiseForm"
             case .promiseCheckIn(let promise):
@@ -32,6 +36,9 @@ struct TodayView: View {
     @State private var isPlannerPresented = false
 
     private let taskRepository: any TaskRepository
+    private let projectRepository: any ProjectRepository
+    private let captureRepository: any CaptureRepository
+    private let projectItemRepository: any ProjectItemRepository
     private let scheduledBlockRepository: any ScheduledBlockRepository
     private let settingsRepository: any SettingsRepository
     private let calendarPermissionProvider: any CalendarPermissionProviding
@@ -44,6 +51,9 @@ struct TodayView: View {
 
     init(
         taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository,
         scheduledBlockRepository: any ScheduledBlockRepository,
         settingsRepository: any SettingsRepository,
         calendarPermissionProvider: any CalendarPermissionProviding,
@@ -56,6 +66,9 @@ struct TodayView: View {
         routineRepository: any RoutineRepository
     ) {
         self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.captureRepository = captureRepository
+        self.projectItemRepository = projectItemRepository
         self.scheduledBlockRepository = scheduledBlockRepository
         self.settingsRepository = settingsRepository
         self.calendarPermissionProvider = calendarPermissionProvider
@@ -68,6 +81,9 @@ struct TodayView: View {
         _viewModel = StateObject(
             wrappedValue: TodayViewModel(
                 taskRepository: taskRepository,
+                projectRepository: projectRepository,
+                captureRepository: captureRepository,
+                projectItemRepository: projectItemRepository,
                 promiseRepository: promiseRepository,
                 routineRepository: routineRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
@@ -92,6 +108,8 @@ struct TodayView: View {
                             .foregroundStyle(.red)
                     }
 
+                    inboxSection
+                    pinnedProjectsSection
                     calendarOverviewSection
                     promiseSection
                     routineSection
@@ -103,9 +121,9 @@ struct TodayView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
-                        presentedSheet = .taskQuickAdd
+                        presentedSheet = .captureQuickAdd
                     } label: {
-                        Label("New Task", systemImage: "checklist")
+                        Label("Capture", systemImage: "tray.and.arrow.down")
                     }
 
                     Button {
@@ -124,13 +142,21 @@ struct TodayView: View {
             .sheet(item: $presentedSheet) { destination in
                 NavigationStack {
                     switch destination {
-                    case .taskQuickAdd:
-                        TaskQuickAddView(
-                            taskGroups: viewModel.taskGroups,
-                            reservedTaskIDs: viewModel.reservedTaskIDs
-                        ) { task in
-                            viewModel.saveTask(task)
+                    case .captureQuickAdd:
+                        CaptureQuickAddView(projects: viewModel.projects) { capture in
+                            viewModel.saveCapture(capture)
                             presentedSheet = nil
+                        }
+                    case .inboxReview:
+                        InboxReviewView(
+                            taskRepository: taskRepository,
+                            projectRepository: projectRepository,
+                            captureRepository: captureRepository,
+                            projectItemRepository: projectItemRepository,
+                            initialCaptures: viewModel.captures,
+                            initialProjects: viewModel.projects
+                        ) {
+                            viewModel.load()
                         }
                     case .promiseForm:
                         PromiseFormView { promise in
@@ -206,6 +232,43 @@ struct TodayView: View {
             Text(Date().formatted(date: .complete, time: .omitted))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var inboxSection: some View {
+        TodayInboxCard(
+            summary: viewModel.inboxSummary,
+            onCapture: {
+                presentedSheet = .captureQuickAdd
+            },
+            onReview: {
+                presentedSheet = .inboxReview
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var pinnedProjectsSection: some View {
+        if viewModel.pinnedProjectSummaries.isEmpty == false {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Pinned Projects", systemImage: "pin.fill")
+                    .font(.headline)
+
+                ForEach(viewModel.pinnedProjectSummaries) { summary in
+                    NavigationLink {
+                        ProjectDetailView(
+                            projectID: summary.project.id,
+                            taskRepository: taskRepository,
+                            projectRepository: projectRepository,
+                            captureRepository: captureRepository,
+                            projectItemRepository: projectItemRepository
+                        )
+                    } label: {
+                        TodayPinnedProjectCard(summary: summary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -861,10 +924,1224 @@ private struct RoutineSessionView: View {
     }
 }
 
+private struct TodayInboxCard: View {
+    let summary: TodayInboxSummary
+    let onCapture: () -> Void
+    let onReview: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Inbox", systemImage: "tray.full.fill")
+                        .font(.headline)
+
+                    Text(summaryText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if summary.count > 0 {
+                    Text("\(summary.count)")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.12), in: Capsule())
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    onReview()
+                } label: {
+                    Label("Review", systemImage: "arrow.right.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(summary.count == 0)
+
+                Button {
+                    onCapture()
+                } label: {
+                    Label("Capture", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(14)
+        .background(inboxBackgroundColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.blue.opacity(summary.count == 0 ? 0.08 : 0.18), lineWidth: 1)
+        )
+    }
+
+    private var summaryText: String {
+        guard summary.count > 0 else {
+            return "Clear. New ideas can land here without becoming tasks yet."
+        }
+
+        var parts = ["\(summary.count) unprocessed capture\(summary.count == 1 ? "" : "s")"]
+        if let oldestAgeLabel = summary.oldestAgeLabel {
+            parts.append("oldest \(oldestAgeLabel)")
+        }
+        if summary.projectTaggedCount > 0 {
+            parts.append("\(summary.projectTaggedCount) project-tagged")
+        }
+
+        return parts.joined(separator: " • ")
+    }
+
+    private var inboxBackgroundColor: Color {
+        if summary.count >= 8 {
+            return Color.orange.opacity(0.12)
+        }
+
+        if summary.count > 0 {
+            return Color.blue.opacity(0.08)
+        }
+
+        return Color.primary.opacity(0.035)
+    }
+}
+
+private struct TodayPinnedProjectCard: View {
+    let summary: TodayPinnedProjectSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(summary.project.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let projectSummary = summary.project.summary {
+                Text(projectSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 10) {
+                Label("\(summary.activeTaskCount)", systemImage: "checklist")
+                Label("\(summary.projectItemCount)", systemImage: "sparkle.magnifyingglass")
+                if let nextTask = summary.nextTask {
+                    Text("Next: \(nextTask.title)")
+                        .lineLimit(1)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct CaptureQuickAddView: View {
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var isTitleFocused: Bool
+    @State private var title = ""
+    @State private var selectedProjectID: UUID?
+
+    let projects: [Project]
+    let onSave: (CaptureItem) -> Void
+
+    var body: some View {
+        Form {
+            Section("Capture") {
+                TextField("Jot it down", text: $title, axis: .vertical)
+                    .lineLimit(2...5)
+                    .focused($isTitleFocused)
+
+                if projects.isEmpty == false {
+                    Picker("Project", selection: $selectedProjectID) {
+                        Text("None").tag(nil as UUID?)
+                        ForEach(projects) { project in
+                            Text(project.name).tag(project.id as UUID?)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Quick Capture")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    guard let capture = CaptureItem(newTitle: title, projectID: selectedProjectID) else {
+                        return
+                    }
+
+                    onSave(capture)
+                }
+                .disabled(CaptureItem.cleanedTitle(from: title) == nil)
+            }
+        }
+        .onAppear {
+            isTitleFocused = true
+        }
+    }
+}
+
+private enum InboxConversionMode: String, CaseIterable, Identifiable {
+    case task
+    case maybe
+    case note
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .task:
+            return "Task"
+        case .maybe:
+            return "Maybe"
+        case .note:
+            return "Note"
+        }
+    }
+}
+
+@MainActor
+final class InboxReviewViewModel: ObservableObject {
+    @Published private(set) var captures: [CaptureItem]
+    @Published private(set) var projects: [Project]
+    @Published private(set) var errorMessage: String?
+    @Published var selectedIndex = 0
+
+    private let taskRepository: any TaskRepository
+    private let projectRepository: any ProjectRepository
+    private let captureRepository: any CaptureRepository
+    private let projectItemRepository: any ProjectItemRepository
+    private let nowProvider: @Sendable () -> Date
+
+    init(
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository,
+        initialCaptures: [CaptureItem],
+        initialProjects: [Project],
+        nowProvider: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.captureRepository = captureRepository
+        self.projectItemRepository = projectItemRepository
+        self.captures = initialCaptures
+        self.projects = initialProjects
+        self.nowProvider = nowProvider
+    }
+
+    var currentCapture: CaptureItem? {
+        guard captures.indices.contains(selectedIndex) else {
+            return nil
+        }
+
+        return captures[selectedIndex]
+    }
+
+    func load() {
+        do {
+            captures = try captureRepository.fetchCaptures(
+                includeProcessed: false,
+                includeArchived: false
+            )
+            projects = try projectRepository.fetchProjects(includeArchived: false)
+            selectedIndex = min(selectedIndex, max(captures.count - 1, 0))
+            errorMessage = nil
+        } catch {
+            errorMessage = "Unable to load inbox: \(error.localizedDescription)"
+        }
+    }
+
+    func createProject(named name: String) -> Project? {
+        guard let project = Project(newName: name) else {
+            return nil
+        }
+
+        do {
+            try projectRepository.saveProject(project, replacingProjectWithID: nil)
+            projects = try projectRepository.fetchProjects(includeArchived: false)
+            return project
+        } catch {
+            errorMessage = "Unable to create project: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    func convertCurrentCaptureToTask(_ formData: MyTaskFormData) {
+        guard var capture = currentCapture, let task = formData.makeTask(savedAt: nowProvider()) else {
+            return
+        }
+
+        do {
+            try taskRepository.saveTask(task, replacingTaskWithID: nil)
+            capture.markProcessed(at: nowProvider(), convertedTaskID: task.id)
+            try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
+            load()
+        } catch {
+            errorMessage = "Unable to create task: \(error.localizedDescription)"
+        }
+    }
+
+    func convertCurrentCaptureToProjectItem(
+        kind: ProjectItemKind,
+        title: String,
+        notes: String?,
+        projectID: UUID?,
+        source: String?,
+        pressure: ProjectItemPressure?,
+        reviewAfter: Date?
+    ) {
+        guard var capture = currentCapture, let projectID else {
+            errorMessage = "Choose a project first."
+            return
+        }
+
+        guard ProjectItem.cleanedTitle(from: title) != nil else {
+            errorMessage = "Enter a title."
+            return
+        }
+
+        do {
+            let item = ProjectItem(
+                projectID: projectID,
+                kind: kind,
+                title: title,
+                notes: notes,
+                source: source,
+                pressure: kind == .maybe ? pressure : nil,
+                reviewAfter: kind == .maybe ? reviewAfter : nil,
+                createdAt: nowProvider()
+            )
+            try projectItemRepository.saveProjectItem(item, replacingProjectItemWithID: nil)
+            capture.markProcessed(at: nowProvider(), convertedProjectItemID: item.id)
+            try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
+            load()
+        } catch {
+            errorMessage = "Unable to save project item: \(error.localizedDescription)"
+        }
+    }
+
+    func archiveCurrentCapture() {
+        guard var capture = currentCapture else {
+            return
+        }
+
+        do {
+            capture.archive(at: nowProvider())
+            try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
+            load()
+        } catch {
+            errorMessage = "Unable to archive capture: \(error.localizedDescription)"
+        }
+    }
+}
+
+struct InboxReviewView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel: InboxReviewViewModel
+    @State private var mode: InboxConversionMode = .task
+    @State private var taskFormData = MyTaskFormData()
+    @State private var itemTitle = ""
+    @State private var itemNotes = ""
+    @State private var itemSource = ""
+    @State private var itemPressure: ProjectItemPressure? = .noPressure
+    @State private var itemHasReviewDate = false
+    @State private var itemReviewAfter = Date()
+    @State private var selectedProjectID: UUID?
+    @State private var newProjectName = ""
+    @State private var showsTaskDetails = false
+    @State private var showsItemDetails = false
+    let onDone: () -> Void
+
+    init(
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository,
+        initialCaptures: [CaptureItem],
+        initialProjects: [Project],
+        onDone: @escaping () -> Void
+    ) {
+        _viewModel = StateObject(
+            wrappedValue: InboxReviewViewModel(
+                taskRepository: taskRepository,
+                projectRepository: projectRepository,
+                captureRepository: captureRepository,
+                projectItemRepository: projectItemRepository,
+                initialCaptures: initialCaptures,
+                initialProjects: initialProjects
+            )
+        )
+        self.onDone = onDone
+    }
+
+    var body: some View {
+        Group {
+            if let capture = viewModel.currentCapture {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        captureCard(capture)
+                        Picker("Convert", selection: $mode) {
+                            ForEach(InboxConversionMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        conversionForm(for: capture)
+
+                        Button(role: .destructive) {
+                            viewModel.archiveCurrentCapture()
+                            resetDrafts()
+                        } label: {
+                            Label("Archive Capture", systemImage: "archivebox")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                }
+            } else {
+                ContentUnavailableView(
+                    "Inbox Clear",
+                    systemImage: "tray",
+                    description: Text("Captured thoughts are reviewed.")
+                )
+            }
+        }
+        .navigationTitle("Review Inbox")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    onDone()
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            viewModel.load()
+            resetDrafts()
+        }
+        .onChange(of: viewModel.currentCapture?.id) { _, _ in
+            resetDrafts()
+        }
+    }
+
+    private func captureCard(_ capture: CaptureItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(capture.title)
+                .font(.title3.weight(.semibold))
+            if let source = capture.source {
+                Text(source)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text(capture.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func conversionForm(for capture: CaptureItem) -> some View {
+        if let errorMessage = viewModel.errorMessage {
+            Text(errorMessage)
+                .font(.footnote)
+                .foregroundStyle(.red)
+        }
+
+        switch mode {
+        case .task:
+            taskConversionForm
+        case .maybe:
+            projectItemConversionForm(kind: .maybe)
+        case .note:
+            projectItemConversionForm(kind: .note)
+        }
+    }
+
+    private var taskConversionForm: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TextField("Task title", text: $taskFormData.title)
+                .textFieldStyle(.roundedBorder)
+
+            projectPicker(selection: $taskFormData.projectID, requiresProject: false)
+
+            DisclosureGroup("Optional Details", isExpanded: $showsTaskDetails) {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Notes", text: $taskFormData.notesText, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                    Toggle("Set Due Date", isOn: $taskFormData.hasDueDate)
+                    if taskFormData.hasDueDate {
+                        DatePicker("Due", selection: $taskFormData.dueDate)
+                    }
+                    Picker("Status", selection: $taskFormData.status) {
+                        ForEach(TaskStatus.allCases, id: \.self) { status in
+                            Text(status.displayName).tag(status)
+                        }
+                    }
+                    Picker("Priority", selection: $taskFormData.priority) {
+                        Text("None").tag(nil as PriorityLevel?)
+                        ForEach(PriorityLevel.allCases, id: \.self) { priority in
+                            Text(priority.displayName).tag(priority as PriorityLevel?)
+                        }
+                    }
+                    Picker("Energy", selection: $taskFormData.energyLevel) {
+                        Text("None").tag(nil as EnergyLevel?)
+                        ForEach(EnergyLevel.allCases, id: \.self) { energy in
+                            Text(energy.displayName).tag(energy as EnergyLevel?)
+                        }
+                    }
+                    Picker("Mode", selection: $taskFormData.workMode) {
+                        Text("None").tag(nil as WorkModeKind?)
+                        ForEach(WorkModeKind.allCases, id: \.self) { workMode in
+                            Text(workMode.displayName).tag(workMode as WorkModeKind?)
+                        }
+                    }
+                    TextField("Tags", text: $taskFormData.tagsText)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .padding(.top, 8)
+            }
+
+            Button {
+                viewModel.convertCurrentCaptureToTask(taskFormData)
+            } label: {
+                Label("Create Task", systemImage: "checklist")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(taskFormData.validationMessage(reservedTaskIDs: []) != nil)
+        }
+    }
+
+    private func projectItemConversionForm(kind: ProjectItemKind) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TextField("\(kind.displayName) title", text: $itemTitle)
+                .textFieldStyle(.roundedBorder)
+
+            projectPicker(selection: $selectedProjectID, requiresProject: true)
+
+            DisclosureGroup("Optional Details", isExpanded: $showsItemDetails) {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Notes", text: $itemNotes, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Source", text: $itemSource)
+                        .textFieldStyle(.roundedBorder)
+                    if kind == .maybe {
+                        Picker("Pressure", selection: $itemPressure) {
+                            Text("None").tag(nil as ProjectItemPressure?)
+                            ForEach(ProjectItemPressure.allCases, id: \.self) { pressure in
+                                Text(pressure.displayName).tag(pressure as ProjectItemPressure?)
+                            }
+                        }
+                        Toggle("Review Later", isOn: $itemHasReviewDate)
+                        if itemHasReviewDate {
+                            DatePicker("Review", selection: $itemReviewAfter, displayedComponents: [.date])
+                        }
+                    }
+                }
+                .padding(.top, 8)
+            }
+
+            Button {
+                viewModel.convertCurrentCaptureToProjectItem(
+                    kind: kind,
+                    title: itemTitle,
+                    notes: itemNotes,
+                    projectID: selectedProjectID,
+                    source: itemSource,
+                    pressure: itemPressure,
+                    reviewAfter: itemHasReviewDate ? itemReviewAfter : nil
+                )
+            } label: {
+                Label("Save \(kind.displayName)", systemImage: kind == .maybe ? "sparkle.magnifyingglass" : "note.text")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(ProjectItem.cleanedTitle(from: itemTitle) == nil || selectedProjectID == nil)
+        }
+    }
+
+    private func projectPicker(selection: Binding<UUID?>, requiresProject: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker(requiresProject ? "Project Required" : "Project", selection: selection) {
+                if requiresProject == false {
+                    Text("None").tag(nil as UUID?)
+                }
+                ForEach(viewModel.projects) { project in
+                    Text(project.name).tag(project.id as UUID?)
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField("New project", text: $newProjectName)
+                    .textFieldStyle(.roundedBorder)
+                Button("Create") {
+                    if let project = viewModel.createProject(named: newProjectName) {
+                        selection.wrappedValue = project.id
+                        newProjectName = ""
+                    }
+                }
+                .disabled(Project.cleanedName(from: newProjectName) == nil)
+            }
+        }
+    }
+
+    private func resetDrafts() {
+        guard let capture = viewModel.currentCapture else {
+            return
+        }
+
+        taskFormData = MyTaskFormData(
+            title: capture.title,
+            projectID: capture.projectID
+        )
+        itemTitle = capture.title
+        itemNotes = capture.notes ?? ""
+        itemSource = capture.source ?? ""
+        selectedProjectID = capture.projectID
+        showsTaskDetails = false
+        showsItemDetails = false
+    }
+}
+
+@MainActor
+final class ProjectsViewModel: ObservableObject {
+    @Published private(set) var projects: [Project] = []
+    @Published private(set) var tasks: [MyTask] = []
+    @Published private(set) var captures: [CaptureItem] = []
+    @Published private(set) var projectItems: [ProjectItem] = []
+    @Published private(set) var errorMessage: String?
+
+    private let taskRepository: any TaskRepository
+    private let projectRepository: any ProjectRepository
+    private let captureRepository: any CaptureRepository
+    private let projectItemRepository: any ProjectItemRepository
+
+    init(
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository
+    ) {
+        self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.captureRepository = captureRepository
+        self.projectItemRepository = projectItemRepository
+    }
+
+    func load() {
+        do {
+            projects = try projectRepository.fetchProjects(includeArchived: false)
+            tasks = try taskRepository.fetchTasks()
+            captures = try captureRepository.fetchCaptures(includeProcessed: false, includeArchived: false)
+            projectItems = try projectItemRepository.fetchProjectItems(includeArchived: false)
+            errorMessage = nil
+        } catch {
+            errorMessage = "Unable to load projects: \(error.localizedDescription)"
+        }
+    }
+
+    func saveProject(_ project: Project, replacingProjectWithID originalID: UUID? = nil) {
+        do {
+            try projectRepository.saveProject(project, replacingProjectWithID: originalID)
+            load()
+        } catch {
+            errorMessage = "Unable to save project: \(error.localizedDescription)"
+        }
+    }
+}
+
+struct ProjectsView: View {
+    @StateObject private var viewModel: ProjectsViewModel
+    @State private var isProjectFormPresented = false
+
+    private let taskRepository: any TaskRepository
+    private let projectRepository: any ProjectRepository
+    private let captureRepository: any CaptureRepository
+    private let projectItemRepository: any ProjectItemRepository
+
+    init(
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository
+    ) {
+        self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.captureRepository = captureRepository
+        self.projectItemRepository = projectItemRepository
+        _viewModel = StateObject(
+            wrappedValue: ProjectsViewModel(
+                taskRepository: taskRepository,
+                projectRepository: projectRepository,
+                captureRepository: captureRepository,
+                projectItemRepository: projectItemRepository
+            )
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                }
+
+                if viewModel.projects.isEmpty {
+                    ContentUnavailableView(
+                        "No Projects",
+                        systemImage: "folder",
+                        description: Text("Create a project for larger work that needs its own context.")
+                    )
+                } else {
+                    ForEach(viewModel.projects) { project in
+                        NavigationLink {
+                            ProjectDetailView(
+                                projectID: project.id,
+                                taskRepository: taskRepository,
+                                projectRepository: projectRepository,
+                                captureRepository: captureRepository,
+                                projectItemRepository: projectItemRepository
+                            )
+                        } label: {
+                            ProjectListRow(
+                                project: project,
+                                taskCount: viewModel.tasks.filter { $0.projectID == project.id && $0.status != .archived }.count,
+                                itemCount: viewModel.projectItems.filter { $0.projectID == project.id }.count
+                            )
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Projects")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isProjectFormPresented = true
+                    } label: {
+                        Label("New Project", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $isProjectFormPresented) {
+                NavigationStack {
+                    ProjectFormView { project in
+                        viewModel.saveProject(project)
+                        isProjectFormPresented = false
+                    }
+                }
+            }
+            .task {
+                viewModel.load()
+            }
+            .onAppear {
+                viewModel.load()
+            }
+        }
+    }
+}
+
+private struct ProjectListRow: View {
+    let project: Project
+    let taskCount: Int
+    let itemCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(project.name)
+                    .font(.body.weight(.semibold))
+                if project.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            if let summary = project.summary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Text("\(taskCount) tasks • \(itemCount) project items")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct ProjectDetailView: View {
+    private enum SheetDestination: Identifiable {
+        case capture
+        case task
+        case maybe
+        case note
+        case editProject(Project)
+
+        var id: String {
+            switch self {
+            case .capture:
+                return "capture"
+            case .task:
+                return "task"
+            case .maybe:
+                return "maybe"
+            case .note:
+                return "note"
+            case .editProject(let project):
+                return "edit-\(project.id.uuidString)"
+            }
+        }
+    }
+
+    let projectID: UUID
+    private let taskRepository: any TaskRepository
+    private let projectRepository: any ProjectRepository
+    private let captureRepository: any CaptureRepository
+    private let projectItemRepository: any ProjectItemRepository
+
+    @State private var project: Project?
+    @State private var tasks: [MyTask] = []
+    @State private var captures: [CaptureItem] = []
+    @State private var projectItems: [ProjectItem] = []
+    @State private var errorMessage: String?
+    @State private var sheetDestination: SheetDestination?
+
+    init(
+        projectID: UUID,
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository
+    ) {
+        self.projectID = projectID
+        self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.captureRepository = captureRepository
+        self.projectItemRepository = projectItemRepository
+    }
+
+    private var projectTasks: [MyTask] {
+        tasks.filter { $0.projectID == projectID && $0.status != .archived }
+    }
+
+    private var nextTasks: [MyTask] {
+        projectTasks
+            .filter { $0.status != .completed }
+            .sorted { leftTask, rightTask in
+                switch (leftTask.dueDate, rightTask.dueDate) {
+                case (.some(let left), .some(let right)) where left != right:
+                    return left < right
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                default:
+                    return leftTask.createdAt > rightTask.createdAt
+                }
+            }
+            .prefix(3)
+            .map { $0 }
+    }
+
+    private var maybes: [ProjectItem] {
+        projectItems.filter { $0.projectID == projectID && $0.kind == .maybe && $0.isArchived == false }
+    }
+
+    private var notes: [ProjectItem] {
+        projectItems.filter { $0.projectID == projectID && $0.kind == .note && $0.isArchived == false }
+    }
+
+    var body: some View {
+        Group {
+            if let project {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        overview(project)
+                        taskSection(title: "Next Tasks", tasks: nextTasks)
+                        taskSection(title: "All Tasks", tasks: projectTasks)
+                        itemSection(title: "Maybes", items: maybes, emptyText: "No maybe items yet.")
+                        itemSection(title: "Notes", items: notes, emptyText: "No project notes yet.")
+                    }
+                    .padding()
+                }
+                .navigationTitle(project.name)
+                .toolbar {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Menu {
+                            Button("Capture") { sheetDestination = .capture }
+                            Button("Task") { sheetDestination = .task }
+                            Button("Maybe") { sheetDestination = .maybe }
+                            Button("Note") { sheetDestination = .note }
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                        }
+
+                        Button {
+                            sheetDestination = .editProject(project)
+                        } label: {
+                            Label("Edit Project", systemImage: "slider.horizontal.3")
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView(
+                    "Project Not Found",
+                    systemImage: "folder.badge.questionmark",
+                    description: Text(errorMessage ?? "This project is no longer available.")
+                )
+            }
+        }
+        .sheet(item: $sheetDestination) { destination in
+            NavigationStack {
+                switch destination {
+                case .capture:
+                    CaptureQuickAddView(
+                        projects: project.map { [$0] } ?? []
+                    ) { capture in
+                        var projectCapture = capture
+                        projectCapture.projectID = projectID
+                        saveCapture(projectCapture)
+                        sheetDestination = nil
+                    }
+                case .task:
+                    TaskFormView(
+                        mode: .create,
+                        initialFormData: MyTaskFormData(projectID: projectID),
+                        projects: project.map { [$0] } ?? []
+                    ) { task in
+                        saveTask(task)
+                        sheetDestination = nil
+                    }
+                case .maybe:
+                    ProjectItemFormView(projectID: projectID, kind: .maybe) { item in
+                        saveProjectItem(item)
+                        sheetDestination = nil
+                    }
+                case .note:
+                    ProjectItemFormView(projectID: projectID, kind: .note) { item in
+                        saveProjectItem(item)
+                        sheetDestination = nil
+                    }
+                case .editProject(let project):
+                    ProjectFormView(initialProject: project) { updatedProject in
+                        saveProject(updatedProject, replacingProjectWithID: project.id)
+                        sheetDestination = nil
+                    }
+                }
+            }
+        }
+        .task {
+            load()
+        }
+        .onAppear {
+            load()
+        }
+    }
+
+    private func overview(_ project: Project) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(project.isPinned ? "Pinned" : "Project", systemImage: project.isPinned ? "pin.fill" : "folder")
+                    .font(.headline)
+                Spacer()
+                Button(project.isPinned ? "Unpin" : "Pin") {
+                    var updatedProject = project
+                    updatedProject.isPinned.toggle()
+                    updatedProject.updatedAt = .now
+                    saveProject(updatedProject, replacingProjectWithID: project.id)
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if let summary = project.summary {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                ProjectMetricView(title: "Tasks", value: projectTasks.count)
+                ProjectMetricView(title: "Maybes", value: maybes.count)
+                ProjectMetricView(title: "Notes", value: notes.count)
+            }
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func taskSection(title: String, tasks: [MyTask]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+            if tasks.isEmpty {
+                Text("No tasks here yet.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(tasks) { task in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: task.status == .completed ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(task.status == .completed ? .green : .secondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(task.title)
+                                .font(.subheadline.weight(.medium))
+                            if let dueDate = task.dueDate {
+                                Text("Due \(dueDate.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    private func itemSection(title: String, items: [ProjectItem], emptyText: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+            if items.isEmpty {
+                Text(emptyText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(items) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.title)
+                            .font(.subheadline.weight(.medium))
+                        if let notes = item.notes {
+                            Text(notes)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if item.kind == .maybe, let pressure = item.pressure {
+                            Text(pressure.displayName)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    private func load() {
+        do {
+            project = try projectRepository.project(withID: projectID)
+            tasks = try taskRepository.fetchTasks()
+            captures = try captureRepository.fetchCaptures(includeProcessed: false, includeArchived: false)
+            projectItems = try projectItemRepository.fetchProjectItems(for: projectID, includeArchived: false)
+            errorMessage = nil
+        } catch {
+            errorMessage = "Unable to load project: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveProject(_ project: Project, replacingProjectWithID originalID: UUID?) {
+        do {
+            try projectRepository.saveProject(project, replacingProjectWithID: originalID)
+            load()
+        } catch {
+            errorMessage = "Unable to save project: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveTask(_ task: MyTask) {
+        do {
+            try taskRepository.saveTask(task, replacingTaskWithID: nil)
+            load()
+        } catch {
+            errorMessage = "Unable to save task: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveCapture(_ capture: CaptureItem) {
+        do {
+            try captureRepository.saveCapture(capture, replacingCaptureWithID: nil)
+            load()
+        } catch {
+            errorMessage = "Unable to save capture: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveProjectItem(_ item: ProjectItem) {
+        do {
+            try projectItemRepository.saveProjectItem(item, replacingProjectItemWithID: nil)
+            load()
+        } catch {
+            errorMessage = "Unable to save project item: \(error.localizedDescription)"
+        }
+    }
+}
+
+private struct ProjectMetricView: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(value)")
+                .font(.headline.monospacedDigit())
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ProjectFormView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var summary: String
+    @State private var isPinned: Bool
+    let initialProject: Project?
+    let onSave: (Project) -> Void
+
+    init(initialProject: Project? = nil, onSave: @escaping (Project) -> Void) {
+        self.initialProject = initialProject
+        self.onSave = onSave
+        _name = State(initialValue: initialProject?.name ?? "")
+        _summary = State(initialValue: initialProject?.summary ?? "")
+        _isPinned = State(initialValue: initialProject?.isPinned ?? false)
+    }
+
+    var body: some View {
+        Form {
+            Section("Project") {
+                TextField("Name", text: $name)
+                TextField("Summary", text: $summary, axis: .vertical)
+                Toggle("Pin to Today", isOn: $isPinned)
+            }
+        }
+        .navigationTitle(initialProject == nil ? "New Project" : "Edit Project")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    let now = Date()
+                    let project = Project(
+                        id: initialProject?.id ?? UUID(),
+                        name: name,
+                        summary: summary,
+                        isPinned: isPinned,
+                        isArchived: initialProject?.isArchived ?? false,
+                        createdAt: initialProject?.createdAt ?? now,
+                        updatedAt: now
+                    )
+                    onSave(project)
+                }
+                .disabled(Project.cleanedName(from: name) == nil)
+            }
+        }
+    }
+}
+
+private struct ProjectItemFormView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var notes = ""
+    @State private var source = ""
+    @State private var pressure: ProjectItemPressure? = .noPressure
+    @State private var hasReviewDate = false
+    @State private var reviewAfter = Date()
+
+    let projectID: UUID
+    let kind: ProjectItemKind
+    let onSave: (ProjectItem) -> Void
+
+    var body: some View {
+        Form {
+            Section(kind.displayName) {
+                TextField("Title", text: $title)
+                TextField("Notes", text: $notes, axis: .vertical)
+                TextField("Source", text: $source)
+            }
+            if kind == .maybe {
+                Section("Review") {
+                    Picker("Pressure", selection: $pressure) {
+                        Text("None").tag(nil as ProjectItemPressure?)
+                        ForEach(ProjectItemPressure.allCases, id: \.self) { pressure in
+                            Text(pressure.displayName).tag(pressure as ProjectItemPressure?)
+                        }
+                    }
+                    Toggle("Review Later", isOn: $hasReviewDate)
+                    if hasReviewDate {
+                        DatePicker("Review", selection: $reviewAfter, displayedComponents: [.date])
+                    }
+                }
+            }
+        }
+        .navigationTitle("New \(kind.displayName)")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    onSave(
+                        ProjectItem(
+                            projectID: projectID,
+                            kind: kind,
+                            title: title,
+                            notes: notes,
+                            source: source,
+                            pressure: kind == .maybe ? pressure : nil,
+                            reviewAfter: kind == .maybe && hasReviewDate ? reviewAfter : nil
+                        )
+                    )
+                }
+                .disabled(ProjectItem.cleanedTitle(from: title) == nil)
+            }
+        }
+    }
+}
+
 #Preview {
     let container = AppContainer.makePreview()
     TodayView(
         taskRepository: container.taskRepository,
+        projectRepository: container.projectRepository,
+        captureRepository: container.captureRepository,
+        projectItemRepository: container.projectItemRepository,
         scheduledBlockRepository: container.scheduledBlockRepository,
         settingsRepository: container.settingsRepository,
         calendarPermissionProvider: container.calendarPermissionProvider,

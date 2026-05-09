@@ -11,6 +11,7 @@ struct MyTaskFormData {
     var priority: PriorityLevel?
     var energyLevel: EnergyLevel?
     var workMode: WorkModeKind?
+    var projectID: UUID?
     var taskGroupText: String
     var tagsText: String
     var createdAt: Date?
@@ -29,6 +30,7 @@ struct MyTaskFormData {
         priority: PriorityLevel? = nil,
         energyLevel: EnergyLevel? = nil,
         workMode: WorkModeKind? = nil,
+        projectID: UUID? = nil,
         taskGroupText: String = "",
         tagsText: String = "",
         createdAt: Date? = nil,
@@ -45,6 +47,7 @@ struct MyTaskFormData {
         self.priority = priority
         self.energyLevel = energyLevel
         self.workMode = workMode
+        self.projectID = projectID
         self.taskGroupText = taskGroupText
         self.tagsText = tagsText
         self.createdAt = createdAt
@@ -66,6 +69,7 @@ struct MyTaskFormData {
             priority: task.priority,
             energyLevel: task.energyLevel,
             workMode: task.workMode,
+            projectID: task.projectID,
             taskGroupText: task.taskGroup ?? "",
             tagsText: task.tags.joined(separator: ", "),
             createdAt: task.createdAt,
@@ -171,6 +175,7 @@ struct MyTaskFormData {
             priority: priority,
             energyLevel: energyLevel,
             workMode: workMode,
+            projectID: projectID,
             taskGroup: taskGroupText,
             tags: MyTask.cleanedTags(from: tagsText),
             createdAt: finalCreatedAt,

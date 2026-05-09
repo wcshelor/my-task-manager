@@ -7,6 +7,18 @@ final class AppEnvironment {
         container.taskRepository
     }
 
+    var projectRepository: any ProjectRepository {
+        container.projectRepository
+    }
+
+    var captureRepository: any CaptureRepository {
+        container.captureRepository
+    }
+
+    var projectItemRepository: any ProjectItemRepository {
+        container.projectItemRepository
+    }
+
     var scheduledBlockRepository: any ScheduledBlockRepository {
         container.scheduledBlockRepository
     }

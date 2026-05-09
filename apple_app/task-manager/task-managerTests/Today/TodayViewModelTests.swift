@@ -94,6 +94,84 @@ struct TodayViewModelTests {
         #expect(viewModel.reservedTaskIDs == [task.id])
     }
 
+    @Test func todayViewModelLoadsInboxAndPinnedProjectSummaries() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let project = Project(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174111")!,
+            name: "Master's Thesis",
+            isPinned: true
+        )
+        let capture = CaptureItem(
+            title: "Ask advisor",
+            projectID: project.id,
+            createdAt: now.addingTimeInterval(-3_600)
+        )
+        let task = MyTask(title: "Draft outline", dueDate: now.addingTimeInterval(86_400), projectID: project.id)
+        let item = ProjectItem(projectID: project.id, kind: .maybe, title: "Explore method")
+        let viewModel = TodayViewModel(
+            taskRepository: FakeTaskRepository(tasks: [task]),
+            projectRepository: FakeProjectRepository(projects: [project]),
+            captureRepository: FakeCaptureRepository(captures: [capture]),
+            projectItemRepository: FakeProjectItemRepository(items: [item]),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(),
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.inboxSummary.count == 1)
+        #expect(viewModel.inboxSummary.projectTaggedCount == 1)
+        #expect(viewModel.inboxSummary.oldestAgeLabel == "1h")
+        #expect(viewModel.pinnedProjectSummaries.count == 1)
+        #expect(viewModel.pinnedProjectSummaries.first?.activeTaskCount == 1)
+        #expect(viewModel.pinnedProjectSummaries.first?.projectItemCount == 1)
+        #expect(viewModel.pinnedProjectSummaries.first?.nextTask == task)
+    }
+
+    @Test func inboxReviewViewModelConvertsCaptureToTaskAndProjectItem() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let project = Project(name: "Posso")
+        let taskRepository = FakeTaskRepository()
+        let captureRepository = FakeCaptureRepository(captures: [
+            CaptureItem(title: "Fix onboarding", projectID: project.id),
+            CaptureItem(title: "Explore pricing", projectID: project.id)
+        ])
+        let projectItemRepository = FakeProjectItemRepository()
+        let viewModel = InboxReviewViewModel(
+            taskRepository: taskRepository,
+            projectRepository: FakeProjectRepository(projects: [project]),
+            captureRepository: captureRepository,
+            projectItemRepository: projectItemRepository,
+            initialCaptures: [],
+            initialProjects: [],
+            nowProvider: { now }
+        )
+
+        viewModel.load()
+        viewModel.convertCurrentCaptureToTask(
+            MyTaskFormData(title: "Fix onboarding", projectID: project.id)
+        )
+
+        #expect(taskRepository.tasks.count == 1)
+        #expect(taskRepository.tasks.first?.projectID == project.id)
+        #expect(captureRepository.captures.first?.processedAt == now)
+
+        viewModel.convertCurrentCaptureToProjectItem(
+            kind: .maybe,
+            title: "Explore pricing",
+            notes: nil,
+            projectID: project.id,
+            source: nil,
+            pressure: .useful,
+            reviewAfter: nil
+        )
+
+        #expect(projectItemRepository.items.count == 1)
+        #expect(projectItemRepository.items.first?.kind == .maybe)
+        #expect(projectItemRepository.items.first?.projectID == project.id)
+    }
+
     @Test func todayViewModelExposesCurrentRoutineItemAndAdvances() {
         let now = Date(timeIntervalSince1970: 1_710_201_600)
         let firstItem = RoutineItem(title: "Open curtains", position: 0)
@@ -211,6 +289,119 @@ private final class FakeTaskRepository: TaskRepository {
 
     func deleteTask(withID id: UUID) throws {
         tasks.removeAll { $0.id == id }
+    }
+}
+
+@MainActor
+private final class FakeProjectRepository: ProjectRepository {
+    var projects: [Project]
+
+    init(projects: [Project] = []) {
+        self.projects = projects
+    }
+
+    func fetchProjects(includeArchived: Bool) throws -> [Project] {
+        projects.filter { includeArchived || $0.isArchived == false }
+    }
+
+    func project(withID id: UUID) throws -> Project? {
+        projects.first { $0.id == id }
+    }
+
+    func saveProject(_ project: Project, replacingProjectWithID originalID: UUID?) throws {
+        let targetID = originalID ?? project.id
+        if let index = projects.firstIndex(where: { $0.id == targetID || $0.id == project.id }) {
+            projects[index] = project
+        } else {
+            projects.append(project)
+        }
+    }
+
+    func archiveProject(withID id: UUID, archivedAt: Date) throws {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        projects[index].isArchived = true
+        projects[index].updatedAt = archivedAt
+    }
+
+    func deleteProject(withID id: UUID) throws {
+        projects.removeAll { $0.id == id }
+    }
+}
+
+@MainActor
+private final class FakeCaptureRepository: CaptureRepository {
+    var captures: [CaptureItem]
+
+    init(captures: [CaptureItem] = []) {
+        self.captures = captures
+    }
+
+    func fetchCaptures(includeProcessed: Bool, includeArchived: Bool) throws -> [CaptureItem] {
+        captures.filter { capture in
+            (includeProcessed || capture.processedAt == nil)
+                && (includeArchived || capture.archivedAt == nil)
+        }
+    }
+
+    func capture(withID id: UUID) throws -> CaptureItem? {
+        captures.first { $0.id == id }
+    }
+
+    func saveCapture(_ capture: CaptureItem, replacingCaptureWithID originalID: UUID?) throws {
+        let targetID = originalID ?? capture.id
+        if let index = captures.firstIndex(where: { $0.id == targetID || $0.id == capture.id }) {
+            captures[index] = capture
+        } else {
+            captures.append(capture)
+        }
+    }
+
+    func deleteCapture(withID id: UUID) throws {
+        captures.removeAll { $0.id == id }
+    }
+}
+
+@MainActor
+private final class FakeProjectItemRepository: ProjectItemRepository {
+    var items: [ProjectItem]
+
+    init(items: [ProjectItem] = []) {
+        self.items = items
+    }
+
+    func fetchProjectItems(includeArchived: Bool) throws -> [ProjectItem] {
+        items.filter { includeArchived || $0.isArchived == false }
+    }
+
+    func fetchProjectItems(for projectID: UUID, includeArchived: Bool) throws -> [ProjectItem] {
+        try fetchProjectItems(includeArchived: includeArchived).filter { $0.projectID == projectID }
+    }
+
+    func projectItem(withID id: UUID) throws -> ProjectItem? {
+        items.first { $0.id == id }
+    }
+
+    func saveProjectItem(_ item: ProjectItem, replacingProjectItemWithID originalID: UUID?) throws {
+        let targetID = originalID ?? item.id
+        if let index = items.firstIndex(where: { $0.id == targetID || $0.id == item.id }) {
+            items[index] = item
+        } else {
+            items.append(item)
+        }
+    }
+
+    func archiveProjectItem(withID id: UUID, archivedAt: Date) throws {
+        guard let index = items.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        items[index].isArchived = true
+        items[index].updatedAt = archivedAt
+    }
+
+    func deleteProjectItem(withID id: UUID) throws {
+        items.removeAll { $0.id == id }
     }
 }
 

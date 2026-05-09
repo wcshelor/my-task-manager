@@ -4,6 +4,9 @@ import SwiftData
 struct AppContainer {
     let modelContainer: ModelContainer
     let taskRepository: any TaskRepository
+    let projectRepository: any ProjectRepository
+    let captureRepository: any CaptureRepository
+    let projectItemRepository: any ProjectItemRepository
     let scheduledBlockRepository: any ScheduledBlockRepository
     let settingsRepository: any SettingsRepository
     let promiseRepository: any PromiseRepository
@@ -18,6 +21,9 @@ struct AppContainer {
     static func makeLive() throws -> AppContainer {
         let modelContainer = try ModelContainerFactory.makeDefaultContainer()
         let taskRepository = SwiftDataTaskRepository(modelContainer: modelContainer)
+        let projectRepository = SwiftDataProjectRepository(modelContainer: modelContainer)
+        let captureRepository = SwiftDataCaptureRepository(modelContainer: modelContainer)
+        let projectItemRepository = SwiftDataProjectItemRepository(modelContainer: modelContainer)
         let scheduledBlockRepository = SwiftDataScheduledBlockRepository(
             modelContainer: modelContainer
         )
@@ -58,6 +64,9 @@ struct AppContainer {
         return AppContainer(
             modelContainer: modelContainer,
             taskRepository: taskRepository,
+            projectRepository: projectRepository,
+            captureRepository: captureRepository,
+            projectItemRepository: projectItemRepository,
             scheduledBlockRepository: scheduledBlockRepository,
             settingsRepository: settingsRepository,
             promiseRepository: promiseRepository,
@@ -96,6 +105,9 @@ struct AppContainer {
     ) -> AppContainer {
         let modelContainer = try! ModelContainerFactory.makeInMemoryContainer()
         let taskRepository = SwiftDataTaskRepository(modelContainer: modelContainer)
+        let projectRepository = SwiftDataProjectRepository(modelContainer: modelContainer)
+        let captureRepository = SwiftDataCaptureRepository(modelContainer: modelContainer)
+        let projectItemRepository = SwiftDataProjectItemRepository(modelContainer: modelContainer)
         let scheduledBlockRepository = SwiftDataScheduledBlockRepository(
             modelContainer: modelContainer
         )
@@ -117,6 +129,12 @@ struct AppContainer {
             try? taskRepository.saveTask(task, replacingTaskWithID: nil)
         }
 
+        seedPreviewProjectsAndCaptures(
+            projectRepository: projectRepository,
+            captureRepository: captureRepository,
+            projectItemRepository: projectItemRepository,
+            taskRepository: taskRepository
+        )
         seedPreviewPromisesAndRoutines(
             promiseRepository: promiseRepository,
             routineRepository: routineRepository
@@ -125,6 +143,9 @@ struct AppContainer {
         return AppContainer(
             modelContainer: modelContainer,
             taskRepository: taskRepository,
+            projectRepository: projectRepository,
+            captureRepository: captureRepository,
+            projectItemRepository: projectItemRepository,
             scheduledBlockRepository: scheduledBlockRepository,
             settingsRepository: settingsRepository,
             promiseRepository: promiseRepository,
@@ -136,6 +157,64 @@ struct AppContainer {
             calendarReconciler: calendarReconciler,
             calendarChangeObserver: calendarChangeObserver
         )
+    }
+
+    @MainActor
+    private static func seedPreviewProjectsAndCaptures(
+        projectRepository: any ProjectRepository,
+        captureRepository: any CaptureRepository,
+        projectItemRepository: any ProjectItemRepository,
+        taskRepository: any TaskRepository
+    ) {
+        let now = Date()
+        let thesis = Project(
+            name: "Master's Thesis",
+            summary: "Research, writing, advisor follow-up, and paper leads.",
+            isPinned: true,
+            createdAt: now.addingTimeInterval(-86_400 * 5)
+        )
+        try? projectRepository.saveProject(thesis, replacingProjectWithID: nil)
+        try? captureRepository.saveCapture(
+            CaptureItem(
+                title: "Ask advisor about methods framing",
+                projectID: thesis.id,
+                source: "Quick capture",
+                createdAt: now.addingTimeInterval(-3_600)
+            ),
+            replacingCaptureWithID: nil
+        )
+        try? captureRepository.saveCapture(
+            CaptureItem(
+                title: "Look up the paper Jamie mentioned",
+                source: "Conversation",
+                createdAt: now.addingTimeInterval(-7_200)
+            ),
+            replacingCaptureWithID: nil
+        )
+        try? projectItemRepository.saveProjectItem(
+            ProjectItem(
+                projectID: thesis.id,
+                kind: .maybe,
+                title: "Explore discourse analysis angle",
+                pressure: .useful,
+                createdAt: now.addingTimeInterval(-86_400)
+            ),
+            replacingProjectItemWithID: nil
+        )
+        try? projectItemRepository.saveProjectItem(
+            ProjectItem(
+                projectID: thesis.id,
+                kind: .note,
+                title: "Advisor prefers tighter research questions",
+                createdAt: now.addingTimeInterval(-86_400 * 2)
+            ),
+            replacingProjectItemWithID: nil
+        )
+
+        if var task = try? taskRepository.fetchTasks().first {
+            task.projectID = thesis.id
+            try? taskRepository.saveTask(task, replacingTaskWithID: task.id)
+        }
     }
 
     @MainActor

@@ -30,7 +30,7 @@ Every feature should support at least one of these jobs:
 - Plan - turn tasks into realistic time blocks around the user's calendar.
 - Execute - help the user actually do the next thing.
 - Recover - help the user reset when tired, scattered, behind, or low-energy.
-- Understand patterns - track useful signals across routines, promises, practice, workouts, mood, and related life data.
+- Understand patterns - track useful signals across routines, promises, practice, Health, mood, and related life data.
 
 ## Implemented Areas
 
@@ -44,13 +44,46 @@ Every feature should support at least one of these jobs:
 
 Future areas remain product ideas or scaffolding until implemented:
 
-- Sleep / PVT tracker
+- Health section: Sleep / PVT, Nutrition, and Fitness
 - Piano practice mode
-- Workout tracking
-- Food / meal tracking
+- Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
+- Vices Tracking
+- Shopping list and wish list
+- Budgeting / purchase decision support
 - Reflection / anti-spiral journaling
 - General life logs
 - CloudKit sync
+
+## Module Roadmap
+
+Planning notes for Life Assistant modules live in `docs/domains/`.
+
+Current and planned domain docs:
+
+- `docs/domains/promises.md`: active promises, check-ins, reset promises, and future promise-breaking / renegotiation friction.
+- `docs/domains/routines.md`: user-authored recurring routine checklists.
+- `docs/domains/task_evolution.md`: projects, subtasks, recurring tasks, prerequisites, and task sequences.
+- `docs/domains/health.md`: overall Health section for Sleep / PVT, Nutrition, Fitness, and daily context.
+- `docs/domains/sleep_pvt.md`: Health subdomain for morning psychomotor vigilance, sleep quality, and night-before context.
+- `docs/domains/nutrition.md`: Health subdomain for lightweight meal logging and meal-related planning.
+- `docs/domains/fitness.md`: Health subdomain for workout logging and future workout planning.
+- `docs/domains/shopping.md`: shopping items, trip grouping, and future wish-list support.
+- `docs/domains/budgeting.md`: lightweight expense logs, spending awareness, and purchase decision support.
+- `docs/domains/vices.md`: custom vices, mindful pre-action logging, goals, limits, and pattern review.
+- `docs/domains/life_logs.md`: generic logs and guidance for when a domain needs dedicated models.
+- `docs/domains/reflection.md`: reflection and anti-spiral journaling.
+- `docs/domains/piano_practice.md`: practice tracking.
+- `docs/domains/today_dashboard.md`: Today as the execution hub.
+
+Rough next steps:
+
+1. Strengthen the existing task system with explicit task groups/projects, then subtasks.
+2. Add promise-breaking / renegotiation friction to the existing Promises flow.
+3. Build Shopping as the next practical capture module, keeping wish-list decisions separate from necessities.
+4. Add lightweight Budgeting around manual expenses and purchase decisions.
+5. Build the Health foundation around a morning Sleep / PVT check-in, then add Nutrition and Fitness logs under that section.
+6. Add Vices Tracking once the promise, Health, log, and check-in patterns are mature enough to support it cleanly.
+7. Revisit CloudKit only after the SwiftData models for these durable records are stable.
 
 ## Current User-Facing App
 
@@ -116,7 +149,7 @@ When promises are active, Calendar also shows a compact promise-presence banner.
 - Calendar drift must be reconciled back into scheduled-block state.
 - Planner suggestions remain ephemeral until accepted.
 - Only Planner / ScheduledBlock flows should write to Apple Calendar.
-- Promises, Routines, Practice, Workouts, Food, and Reflection should not write directly to Apple Calendar.
+- Promises, Routines, Practice, Health, Shopping, Budgeting, Vices Tracking, and Reflection should not write directly to Apple Calendar.
 - CloudKit should not start until SwiftData models are audited for sync identity, conflict behavior, deletion semantics, privacy, and migration risk.
 
 ## Repository Layout

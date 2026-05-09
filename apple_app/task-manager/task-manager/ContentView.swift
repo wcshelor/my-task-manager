@@ -30,6 +30,9 @@ private struct TaskManagerTabShell: View {
         TabView {
             TodayView(
                 taskRepository: appEnvironment.taskRepository,
+                projectRepository: appEnvironment.projectRepository,
+                captureRepository: appEnvironment.captureRepository,
+                projectItemRepository: appEnvironment.projectItemRepository,
                 scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
                 settingsRepository: appEnvironment.settingsRepository,
                 calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
@@ -47,12 +50,23 @@ private struct TaskManagerTabShell: View {
 
             TaskListView(
                 taskRepository: appEnvironment.taskRepository,
+                projectRepository: appEnvironment.projectRepository,
                 scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
                 calendarWriter: appEnvironment.calendarWriter,
                 promiseRepository: appEnvironment.promiseRepository
             )
                 .tabItem {
                     Label("Tasks", systemImage: "checklist")
+                }
+
+            ProjectsView(
+                taskRepository: appEnvironment.taskRepository,
+                projectRepository: appEnvironment.projectRepository,
+                captureRepository: appEnvironment.captureRepository,
+                projectItemRepository: appEnvironment.projectItemRepository
+            )
+                .tabItem {
+                    Label("Projects", systemImage: "folder.fill")
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

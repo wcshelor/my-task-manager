@@ -7,3 +7,30 @@ protocol TaskRepository {
     func saveTask(_ task: MyTask, replacingTaskWithID originalID: UUID?) throws
     func deleteTask(withID id: UUID) throws
 }
+
+@MainActor
+protocol ProjectRepository {
+    func fetchProjects(includeArchived: Bool) throws -> [Project]
+    func project(withID id: UUID) throws -> Project?
+    func saveProject(_ project: Project, replacingProjectWithID originalID: UUID?) throws
+    func archiveProject(withID id: UUID, archivedAt: Date) throws
+    func deleteProject(withID id: UUID) throws
+}
+
+@MainActor
+protocol CaptureRepository {
+    func fetchCaptures(includeProcessed: Bool, includeArchived: Bool) throws -> [CaptureItem]
+    func capture(withID id: UUID) throws -> CaptureItem?
+    func saveCapture(_ capture: CaptureItem, replacingCaptureWithID originalID: UUID?) throws
+    func deleteCapture(withID id: UUID) throws
+}
+
+@MainActor
+protocol ProjectItemRepository {
+    func fetchProjectItems(includeArchived: Bool) throws -> [ProjectItem]
+    func fetchProjectItems(for projectID: UUID, includeArchived: Bool) throws -> [ProjectItem]
+    func projectItem(withID id: UUID) throws -> ProjectItem?
+    func saveProjectItem(_ item: ProjectItem, replacingProjectItemWithID originalID: UUID?) throws
+    func archiveProjectItem(withID id: UUID, archivedAt: Date) throws
+    func deleteProjectItem(withID id: UUID) throws
+}
