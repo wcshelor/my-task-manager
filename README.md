@@ -2,6 +2,8 @@
 
 This repo contains a SwiftUI Apple app evolving from a task manager into a broader Life Assistant / personal planning hub.
 
+Status: active work in progress. Implemented areas are usable development surfaces, while newer modules, especially Health, should still be treated as incomplete until manual QA and product polish catch up.
+
 The product framing is:
 
 > The app is a personal planning hub for capturing obligations, planning time, executing routines, tracking personal growth, and noticing useful life patterns.
@@ -34,7 +36,7 @@ Every feature should support at least one of these jobs:
 - Recover - help the user reset when tired, scattered, behind, or low-energy.
 - Understand patterns - track useful signals across routines, promises, practice, Health, mood, and related life data.
 
-## Implemented Areas
+## Implemented / Active Areas
 
 - Tasks
 - Calendar / Planner
@@ -42,12 +44,12 @@ Every feature should support at least one of these jobs:
 - Projects
 - Promises
 - User-authored Routines
-- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, and routine completion logs
+- Health work in progress: sleep check-ins, one-minute PVT sessions, lightweight meal/workout logs, and neutral rolling trend summaries
+- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine completion logs, and work-in-progress Health records
 - EventKit integration for calendar permission, reads, writes, and scheduled-block reconciliation
 
-Future areas remain product ideas or scaffolding until implemented:
+Future or incomplete areas remain product ideas, scaffolding, or active work in progress until the app and docs say otherwise:
 
-- Health section: Sleep / PVT, Nutrition, and Fitness
 - Piano practice mode
 - Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
 - Vices Tracking
@@ -64,22 +66,22 @@ Future areas remain product ideas or scaffolding until implemented:
 Domain documentation is split by implementation status:
 
 - `docs/domains/`: implemented or active app domains.
-- `docs/domains/future-modules/`: plan-only modules, scaffolds, and product sketches that are not implemented yet.
+- `docs/domains/future-modules/`: plan-only modules, scaffolds, active work-in-progress docs, and product sketches.
 
 Implemented or active domain docs:
 
 - `docs/domains/promises.md`: active promises, check-ins, reset promises, and future promise-breaking / renegotiation friction.
 - `docs/domains/routines.md`: user-authored recurring routine checklists.
 - `docs/domains/today_dashboard.md`: Today / Home as the execution hub.
+- `docs/domains/future-modules/health.md`: active work-in-progress Health section for Sleep / PVT, Nutrition, Fitness, and daily context.
+- `docs/domains/future-modules/sleep_pvt.md`: active work-in-progress Health subdomain for sleep check-ins, PVT sessions, and trend tracking.
+- `docs/domains/future-modules/nutrition.md`: active work-in-progress Health subdomain for lightweight meal logging and trends.
+- `docs/domains/future-modules/fitness.md`: active work-in-progress Health subdomain for workout logging and trends.
 
 Plan-only future module docs:
 
 - `docs/domains/future-modules/task_evolution.md`: projects, subtasks, recurring tasks, prerequisites, and task sequences.
-- `docs/domains/future-modules/health.md`: overall Health section for Sleep / PVT, Nutrition, Fitness, and daily context.
-- `docs/domains/future-modules/sleep_pvt.md`: Health subdomain for morning psychomotor vigilance, sleep quality, and night-before context.
-- `docs/domains/future-modules/nutrition.md`: Health subdomain for lightweight meal logging and meal-related planning.
-- `docs/domains/future-modules/fitness.md`: Health subdomain for workout logging and future workout planning.
-- `docs/domains/future-modules/shopping.md`: shopping items, trip grouping, and future wish-list support.
+- `docs/domains/shopping.md`: shopping items, trip grouping, and future wish-list support.
 - `docs/domains/future-modules/budgeting.md`: lightweight expense logs, spending awareness, and purchase decision support.
 - `docs/domains/future-modules/vices.md`: custom vices, mindful pre-action logging, goals, limits, and pattern review.
 - `docs/domains/future-modules/people_memory.md`: remembering names, meeting context, reusable tags, study mode, and future export.
@@ -94,7 +96,7 @@ Rough next steps:
 2. Add promise-breaking / renegotiation friction to the existing Promises flow.
 3. Build Shopping as the next practical capture module, keeping wish-list decisions separate from necessities.
 4. Add lightweight Budgeting around manual expenses and purchase decisions.
-5. Build the Health foundation around a morning Sleep / PVT check-in, then add Nutrition and Fitness logs under that section.
+5. Polish the Health work in progress: manually QA the PVT tap flow, refine neutral trend summaries, and decide how Health should surface in Home / Routines.
 6. Add Vices Tracking once the promise, Health, log, and check-in patterns are mature enough to support it cleanly.
 7. Add People Memory, Music Practice, and Journaling & Reflection when their capture and retrieval flows are clear.
 8. Build optional folder-based cloud sync after the SwiftData models for durable records are stable enough to audit for identity, merge behavior, deletion semantics, privacy, and migration risk.
@@ -155,6 +157,12 @@ Planner suggestions are transient until accepted. Accepted suggestions become `S
 
 When promises are active, Planner also shows a compact promise-presence banner.
 
+### Health
+
+Health is active work in progress and is reached from Home. The current app supports quick sleep check-ins, a rough one-minute in-app PVT reaction test, lightweight meal and workout logs, and neutral rolling 7/30-day trend summaries.
+
+The module is for personal tracking and progress visibility, not diagnosis or judging health state. Manual QA still needs to verify the real-time PVT tap flow on device or simulator.
+
 ## Product Contract
 
 - Tasks live in app-owned SwiftData storage.
@@ -163,6 +171,7 @@ When promises are active, Planner also shows a compact promise-presence banner.
 - Home widget layout lives in app-owned SwiftData storage.
 - Promises live in app-owned SwiftData storage.
 - Routine definitions and daily completion logs live in app-owned SwiftData storage.
+- Health check-ins, PVT sessions, meal logs, and workout logs live in app-owned SwiftData storage.
 - Apple Calendar is the external source of truth for calendar busy time.
 - Accepted planner suggestions are written to Apple Calendar only after explicit user acceptance.
 - `ScheduledBlock` is the bridge between app tasks and Apple Calendar events.
@@ -231,7 +240,7 @@ apple_app/task-manager/task-manager/
 - `App/AppContainer.swift` wires concrete repositories and services.
 - `App/AppEnvironment.swift` passes dependencies into feature views.
 - `HomeWidgetRegistry` describes available in-app Home widgets.
-- `HomeViewModel` owns Home layout editing actions; domain data still comes from existing domain repositories and view models.
+- `HomeLayoutViewModel` owns Home layout editing actions; domain data comes from `HomeExecutionViewModel` and the existing domain repositories.
 
 Prefer injecting repositories/services through the app container instead of constructing production dependencies inside views.
 
@@ -245,8 +254,9 @@ Prefer injecting repositories/services through the app container instead of cons
 - `HomeLayoutRepository`
 - `PromiseRepository`
 - `RoutineRepository`
+- `HealthRepository`
 
-SwiftData records include tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, and routine completion logs.
+SwiftData records include tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine completion logs, and work-in-progress Health records.
 
 ### Planned Folder Sync
 

@@ -18,8 +18,7 @@ final class SwiftDataHomeLayoutRepository: HomeLayoutRepository {
 
     func loadLayout() throws -> HomeLayout {
         if let record = try fetchRecord() {
-            guard let layout = record.decodedLayout(using: registry),
-                  layout.widgets.isEmpty == false else {
+            guard let layout = record.decodedLayout(using: registry) else {
                 let defaultLayout = HomeLayout.defaultLayout.normalized(using: registry)
                 record.update(from: defaultLayout)
                 try modelContext.save()

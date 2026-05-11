@@ -3,7 +3,7 @@ import Testing
 @testable import task_manager
 
 @MainActor
-struct TodayViewModelTests {
+struct HomeExecutionViewModelTests {
     @Test func todayViewModelAggregatesActivePromisesAndRoutines() {
         let now = Date(timeIntervalSince1970: 1_710_201_600)
         let promise = Promise(
@@ -18,7 +18,7 @@ struct TodayViewModelTests {
             date: Calendar(identifier: .gregorian).startOfDay(for: now),
             completedItemIDs: [item.id]
         )
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(promises: [promise]),
             routineRepository: FakeRoutineRepository(routines: [routine], logs: [log]),
@@ -38,7 +38,7 @@ struct TodayViewModelTests {
         let promiseRepository = FakePromiseRepository(promises: [
             Promise(title: "Stay present", startAt: now, checkInAt: now)
         ])
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(),
             promiseRepository: promiseRepository,
             routineRepository: FakeRoutineRepository(),
@@ -62,7 +62,7 @@ struct TodayViewModelTests {
         let item = RoutineItem(title: "Plan day", position: 0)
         let routine = Routine(name: "Morning", items: [item])
         let routineRepository = FakeRoutineRepository(routines: [routine])
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(),
             routineRepository: routineRepository,
@@ -78,7 +78,7 @@ struct TodayViewModelTests {
 
     @Test func todayViewModelSavesQuickAddedTask() {
         let taskRepository = FakeTaskRepository()
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: taskRepository,
             promiseRepository: FakePromiseRepository(),
             routineRepository: FakeRoutineRepository()
@@ -108,7 +108,7 @@ struct TodayViewModelTests {
         )
         let task = MyTask(title: "Draft outline", dueDate: now.addingTimeInterval(86_400), projectID: project.id)
         let item = ProjectItem(projectID: project.id, kind: .maybe, title: "Explore method")
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(tasks: [task]),
             projectRepository: FakeProjectRepository(projects: [project]),
             captureRepository: FakeCaptureRepository(captures: [capture]),
@@ -178,7 +178,7 @@ struct TodayViewModelTests {
         let secondItem = RoutineItem(title: "Drink water", position: 1)
         let routine = Routine(name: "Morning", items: [firstItem, secondItem])
         let routineRepository = FakeRoutineRepository(routines: [routine])
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(),
             routineRepository: routineRepository,
@@ -215,7 +215,7 @@ struct TodayViewModelTests {
             date: yesterday,
             completedItemIDs: [firstItem.id]
         )
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(),
             routineRepository: FakeRoutineRepository(routines: [routine], logs: [yesterdayLog]),
@@ -241,7 +241,7 @@ struct TodayViewModelTests {
             isAllDay: false,
             calendarTitle: "Personal"
         )
-        let viewModel = TodayViewModel(
+        let viewModel = HomeExecutionViewModel(
             taskRepository: FakeTaskRepository(),
             promiseRepository: FakePromiseRepository(),
             routineRepository: FakeRoutineRepository(),
@@ -258,6 +258,31 @@ struct TodayViewModelTests {
         #expect(viewModel.calendarOverview?.events == [event])
         #expect(viewModel.calendarOverview?.nextEvent == event)
         #expect(viewModel.calendarPermissionStatus == .fullAccessGranted)
+    }
+
+    @Test func todayViewModelLoadsHealthSummary() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let checkIn = SleepCheckIn(day: now, energyRating: 4)
+        let meal = MealLog(timestamp: now, summary: "Oats")
+        let workout = WorkoutLog(timestamp: now, workoutType: .walk)
+        let viewModel = HomeExecutionViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(),
+            healthRepository: FakeHomeHealthRepository(
+                sleepCheckIns: [checkIn],
+                mealLogs: [meal],
+                workoutLogs: [workout]
+            ),
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.healthSummary.sleepCheckIn == checkIn)
+        #expect(viewModel.healthSummary.todaysMealLogs == [meal])
+        #expect(viewModel.healthSummary.recentWorkoutLogs == [workout])
+        #expect(viewModel.healthSummary.detail == "Energy 4/5 · 1 meal")
     }
 }
 
@@ -523,6 +548,85 @@ private final class FakeRoutineRepository: RoutineRepository {
             logs.append(log)
         }
     }
+}
+
+@MainActor
+private final class FakeHomeHealthRepository: HealthRepository {
+    var sleepCheckIns: [SleepCheckIn]
+    var mealLogs: [MealLog]
+    var workoutLogs: [WorkoutLog]
+
+    init(
+        sleepCheckIns: [SleepCheckIn] = [],
+        mealLogs: [MealLog] = [],
+        workoutLogs: [WorkoutLog] = []
+    ) {
+        self.sleepCheckIns = sleepCheckIns
+        self.mealLogs = mealLogs
+        self.workoutLogs = workoutLogs
+    }
+
+    func fetchSleepCheckIns(limit: Int) throws -> [SleepCheckIn] {
+        Array(sleepCheckIns.prefix(max(0, limit)))
+    }
+
+    func fetchSleepCheckIn(on date: Date, calendar: Calendar) throws -> SleepCheckIn? {
+        sleepCheckIns.first { calendar.isDate($0.day, inSameDayAs: date) }
+    }
+
+    func saveSleepCheckIn(_ checkIn: SleepCheckIn, replacingCheckInWithID originalID: UUID?) throws {
+        sleepCheckIns.append(checkIn)
+    }
+
+    func fetchMealLogs(on date: Date, calendar: Calendar) throws -> [MealLog] {
+        mealLogs.filter { calendar.isDate($0.timestamp, inSameDayAs: date) }.sortedForHealthHistory()
+    }
+
+    func fetchRecentMealLogs(limit: Int) throws -> [MealLog] {
+        Array(mealLogs.sortedForHealthHistory().prefix(max(0, limit)))
+    }
+
+    func mealLog(withID id: UUID) throws -> MealLog? {
+        mealLogs.first { $0.id == id }
+    }
+
+    func saveMealLog(_ log: MealLog, replacingLogWithID originalID: UUID?) throws {
+        mealLogs.append(log)
+    }
+
+    func deleteMealLog(withID id: UUID) throws {
+        mealLogs.removeAll { $0.id == id }
+    }
+
+    func fetchWorkoutLogs(on date: Date, calendar: Calendar) throws -> [WorkoutLog] {
+        workoutLogs.filter { calendar.isDate($0.timestamp, inSameDayAs: date) }.sortedForHealthHistory()
+    }
+
+    func fetchRecentWorkoutLogs(limit: Int) throws -> [WorkoutLog] {
+        Array(workoutLogs.sortedForHealthHistory().prefix(max(0, limit)))
+    }
+
+    func workoutLog(withID id: UUID) throws -> WorkoutLog? {
+        workoutLogs.first { $0.id == id }
+    }
+
+    func saveWorkoutLog(_ log: WorkoutLog, replacingLogWithID originalID: UUID?) throws {
+        workoutLogs.append(log)
+    }
+
+    func deleteWorkoutLog(withID id: UUID) throws {
+        workoutLogs.removeAll { $0.id == id }
+    }
+
+    func fetchPVTSessions(on date: Date, calendar: Calendar) throws -> [PVTSession] {
+        []
+    }
+
+    func fetchRecentPVTSessions(limit: Int) throws -> [PVTSession] {
+        []
+    }
+
+    func savePVTSession(_ session: PVTSession) throws {}
 }
 
 @MainActor

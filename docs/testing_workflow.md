@@ -22,6 +22,7 @@ Current automated confidence covers:
 - EventKit adapter behavior with mocked stores
 - promise models, repositories, and Today aggregation behavior
 - routine models, repositories, and daily completion behavior
+- work-in-progress Health model calculations, SwiftData repository round trips, and Health view-model summaries
 
 ## 2. Focused Swift Runs
 
@@ -29,7 +30,7 @@ Use `-only-testing` when narrowing scope, for example:
 
 ```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test -only-testing:task-managerTests/PlannerViewModelTests
-xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test -only-testing:task-managerTests/TodayViewModelTests
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test -only-testing:task-managerTests/HomeExecutionViewModelTests
 ```
 
 Use the iPhone simulator SDK builds to catch cross-platform compile regressions even when no simulator runtime is installed:
@@ -110,6 +111,17 @@ Validate:
 - accept, reject, edit, reschedule, cancel, and delete flows
 - write-calendar routing
 - reconciliation after external calendar moves and deletes
+
+### Health
+
+Validate:
+
+- quick sleep check-in entry and persistence
+- completed PVT session saving
+- real-time PVT tap flow timing on device or simulator
+- meal and workout quick logs
+- Health history and delete flows
+- neutral 7/30-day trend summaries
 
 ### iPhone Runtime Pass
 

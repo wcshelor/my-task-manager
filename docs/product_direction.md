@@ -4,6 +4,8 @@ Date frozen: 2026-04-05
 
 This document freezes the intended product behavior while the Swift app catches up to it.
 
+Status: work in progress. Treat this as directional product context, not a guarantee that every described behavior is finished in the current app.
+
 ## Product Responsibilities
 
 The app has four distinct responsibilities:

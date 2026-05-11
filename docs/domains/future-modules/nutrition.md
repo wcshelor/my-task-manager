@@ -93,4 +93,6 @@ Start with structured meal logs. Add meal templates or meal planning only after 
 
 ## Status
 
-Planning only. No nutrition model, persistence, or UI exists yet.
+Active work in progress inside Health. The app now has a first-pass lightweight meal log with SwiftData persistence, quick entry, history/delete UI, and neutral trend summaries.
+
+This is still intentionally not a calorie, macro, diet, or meal-planning system. Photos, templates, shopping integration, and richer review flows remain future work.

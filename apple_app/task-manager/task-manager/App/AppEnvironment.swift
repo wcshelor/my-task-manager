@@ -39,6 +39,14 @@ final class AppEnvironment {
         container.routineRepository
     }
 
+    var shoppingRepository: any ShoppingRepository {
+        container.shoppingRepository
+    }
+
+    var healthRepository: any HealthRepository {
+        container.healthRepository
+    }
+
     var calendarPermissionProvider: any CalendarPermissionProviding {
         container.calendarPermissionProvider
     }

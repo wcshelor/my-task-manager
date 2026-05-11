@@ -55,4 +55,6 @@ Sleep and PVT data can inform planner suggestions, especially low-energy plannin
 
 ## Status
 
-Scaffold only. No PVT implementation exists yet.
+Active work in progress. Sleep check-ins and completed PVT sessions now have first-pass Swift models, SwiftData persistence, UI, and neutral trend summaries. The PVT flow is intended as a rough personal tracking signal, not a validated medical assessment.
+
+Manual QA still needs to verify the real-time tap flow on device or simulator. Morning prompts, Home surfacing, and planner context are still future work.

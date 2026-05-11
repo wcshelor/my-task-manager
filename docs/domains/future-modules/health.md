@@ -133,6 +133,24 @@ Features/Health/
 
 This structure can be split if the repository grows too broad. The important product point is that these records appear together as Health.
 
+## Current Implementation (Work In Progress)
+
+The app now has a first-pass Health module. Current work-in-progress behavior includes:
+
+- sleep check-ins with duration, quality, energy, and notes,
+- completed-session PVT persistence with response metrics,
+- a one-minute in-app PVT test flow,
+- lightweight meal and workout logs,
+- Health history and delete flows,
+- neutral rolling 7/30-day trend summaries for sleep/PVT, nutrition, and workouts.
+
+Still pending:
+
+- manual QA for the real-time PVT tap flow,
+- Home and Routine prompts for Health check-ins,
+- richer review surfaces,
+- planner adaptation based on user-approved Health context.
+
 ## Design Principles
 
 - Personal trend tracking, not medical advice.
@@ -150,4 +168,4 @@ This structure can be split if the repository grows too broad. The important pro
 
 ## Status
 
-Planning only. Sleep / PVT, Nutrition, and Fitness are documented as Health subdomains but are not implemented yet.
+Active work in progress. Sleep / PVT, Nutrition, and Fitness have first-pass Swift models, SwiftData persistence, quick-entry UI, and trend summaries, but the module is not considered complete.

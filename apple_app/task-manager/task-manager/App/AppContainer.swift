@@ -12,6 +12,8 @@ struct AppContainer {
     let homeLayoutRepository: any HomeLayoutRepository
     let promiseRepository: any PromiseRepository
     let routineRepository: any RoutineRepository
+    let shoppingRepository: any ShoppingRepository
+    let healthRepository: any HealthRepository
     let calendarPermissionProvider: any CalendarPermissionProviding
     let calendarListingService: any CalendarListing
     let calendarReader: any CalendarReading
@@ -36,6 +38,8 @@ struct AppContainer {
         )
         let promiseRepository = SwiftDataPromiseRepository(modelContainer: modelContainer)
         let routineRepository = SwiftDataRoutineRepository(modelContainer: modelContainer)
+        let shoppingRepository = SwiftDataShoppingRepository(modelContainer: modelContainer)
+        let healthRepository = SwiftDataHealthRepository(modelContainer: modelContainer)
         let calendarEventStore = EventKitCalendarEventStore()
         let calendarPermissionProvider = EventKitCalendarPermissionService(
             eventStore: calendarEventStore
@@ -77,6 +81,8 @@ struct AppContainer {
             homeLayoutRepository: homeLayoutRepository,
             promiseRepository: promiseRepository,
             routineRepository: routineRepository,
+            shoppingRepository: shoppingRepository,
+            healthRepository: healthRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,
@@ -125,6 +131,8 @@ struct AppContainer {
         )
         let promiseRepository = SwiftDataPromiseRepository(modelContainer: modelContainer)
         let routineRepository = SwiftDataRoutineRepository(modelContainer: modelContainer)
+        let shoppingRepository = SwiftDataShoppingRepository(modelContainer: modelContainer)
+        let healthRepository = SwiftDataHealthRepository(modelContainer: modelContainer)
         let calendarPermissionProvider = StubCalendarPermissionService()
         let calendarListingService = StubCalendarListingService()
         let calendarReader = StubCalendarReader()
@@ -161,6 +169,8 @@ struct AppContainer {
             homeLayoutRepository: homeLayoutRepository,
             promiseRepository: promiseRepository,
             routineRepository: routineRepository,
+            shoppingRepository: shoppingRepository,
+            healthRepository: healthRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,

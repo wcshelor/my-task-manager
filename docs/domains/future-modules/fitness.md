@@ -108,4 +108,6 @@ Keep workout rules and summary logic testable outside SwiftUI.
 
 ## Status
 
-Planning only. No fitness model, persistence, or UI exists yet.
+Active work in progress inside Health. The app now has a first-pass lightweight workout log with SwiftData persistence, quick entry, history/delete UI, and neutral trend summaries.
+
+Detailed set tracking, training plans, wearable imports, planner adaptation, and richer review flows remain future work.

@@ -2,13 +2,15 @@
 
 The app is a personal planning hub for capturing obligations, planning time, executing routines, tracking personal growth, and noticing useful life patterns.
 
+Status: active work in progress. This vision document describes both implemented behavior and intended product direction; module-specific docs should call out incomplete areas explicitly.
+
 ## App Identity
 
 This repo is evolving from a task manager into a modular Life Assistant / personal planning hub. The Swift app is the product path.
 
 The product should feel like a practical personal secretary for daily planning, not a collection of disconnected trackers.
 
-Domain docs for implemented or active areas live in `docs/domains/`. Plan-only future module docs live in `docs/domains/future-modules/`.
+Domain docs for implemented or active areas live in `docs/domains/`. `docs/domains/future-modules/` contains plan-only docs, scaffolds, and a few active work-in-progress docs that have not been moved yet.
 
 ## Current Implemented Modules
 
@@ -19,6 +21,7 @@ The implemented Swift app currently centers on:
 - Today
 - Promises
 - Routines
+- Health, as an active work in progress
 
 Current foundations to preserve:
 
@@ -28,14 +31,14 @@ Current foundations to preserve:
 - SwiftUI views should not become the source of business logic.
 - Existing Tasks and Planner / Calendar behavior should continue to work.
 
-## Future Modules
+## Future / Incomplete Modules
 
 Likely future life domains include:
 
-- Health section:
-  - Sleep / PVT tracker
-  - Fitness / workout tracking
-  - Nutrition / meal tracking
+- Health section polish:
+  - manual QA for the real-time PVT flow
+  - richer Home / Routine prompts
+  - more useful review surfaces
 - Music practice mode
 - Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
 - Shopping list and wish list
@@ -45,7 +48,7 @@ Likely future life domains include:
 - Journaling & Reflection
 - General life logs
 
-Today, Promises, and Routines now have first-pass Swift implementations. The remaining future modules are not implemented yet unless the README or feature-specific docs say otherwise.
+Today, Promises, Routines, and Health now have first-pass Swift implementations. Health should still be treated as work in progress, especially the real-time PVT flow and cross-module surfacing. The remaining future modules are not implemented yet unless the README or feature-specific docs say otherwise.
 
 ## Product Spine
 

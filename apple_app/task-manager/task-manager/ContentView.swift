@@ -43,7 +43,9 @@ private struct TaskManagerTabShell: View {
                 calendarReconciler: appEnvironment.calendarReconciler,
                 calendarChangeObserver: appEnvironment.calendarChangeObserver,
                 promiseRepository: appEnvironment.promiseRepository,
-                routineRepository: appEnvironment.routineRepository
+                routineRepository: appEnvironment.routineRepository,
+                shoppingRepository: appEnvironment.shoppingRepository,
+                healthRepository: appEnvironment.healthRepository
             )
                 .tabItem {
                     Label("Home", systemImage: "square.grid.2x2.fill")

@@ -7,6 +7,9 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
     case projects
     case promises
     case routines
+    case shopping
+    case health
+    case future
 
     var displayName: String {
         switch self {
@@ -22,22 +25,70 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
             return "Promises"
         case .routines:
             return "Routines"
+        case .shopping:
+            return "Shopping"
+        case .health:
+            return "Health"
+        case .future:
+            return "Planned"
         }
     }
 }
 
-nonisolated enum HomeWidgetKind: String, Codable, CaseIterable, Sendable {
-    case inbox
-    case calendarOverview
-    case pinnedProjects
-    case promises
-    case routines
-    case promiseHistory
-    case tasksModule
-    case plannerModule
-    case projectsModule
-    case promisesModule
-    case routinesModule
+nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIterable, Sendable, ExpressibleByStringLiteral {
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init(stringLiteral value: StringLiteralType) {
+        self.rawValue = value
+    }
+
+    static let inbox = HomeWidgetKind(rawValue: "inbox")
+    static let quickCapture = HomeWidgetKind(rawValue: "quickCapture")
+    static let calendarOverview = HomeWidgetKind(rawValue: "calendarOverview")
+    static let planTheDay = HomeWidgetKind(rawValue: "planTheDay")
+    static let nextEvent = HomeWidgetKind(rawValue: "nextEvent")
+    static let pinnedProjects = HomeWidgetKind(rawValue: "pinnedProjects")
+    static let projectNextTask = HomeWidgetKind(rawValue: "projectNextTask")
+    static let promises = HomeWidgetKind(rawValue: "promises")
+    static let duePromiseCheckIn = HomeWidgetKind(rawValue: "duePromiseCheckIn")
+    static let routines = HomeWidgetKind(rawValue: "routines")
+    static let currentRoutineStep = HomeWidgetKind(rawValue: "currentRoutineStep")
+    static let promiseHistory = HomeWidgetKind(rawValue: "promiseHistory")
+    static let tasksModule = HomeWidgetKind(rawValue: "tasksModule")
+    static let plannerModule = HomeWidgetKind(rawValue: "plannerModule")
+    static let projectsModule = HomeWidgetKind(rawValue: "projectsModule")
+    static let promisesModule = HomeWidgetKind(rawValue: "promisesModule")
+    static let routinesModule = HomeWidgetKind(rawValue: "routinesModule")
+    static let shoppingModule = HomeWidgetKind(rawValue: "shoppingModule")
+    static let healthModule = HomeWidgetKind(rawValue: "healthModule")
+    static let budgetModule = HomeWidgetKind(rawValue: "budgetModule")
+
+    static let allCases: [HomeWidgetKind] = [
+        .inbox,
+        .quickCapture,
+        .calendarOverview,
+        .planTheDay,
+        .nextEvent,
+        .pinnedProjects,
+        .projectNextTask,
+        .promises,
+        .duePromiseCheckIn,
+        .routines,
+        .currentRoutineStep,
+        .promiseHistory,
+        .tasksModule,
+        .plannerModule,
+        .projectsModule,
+        .promisesModule,
+        .routinesModule,
+        .shoppingModule,
+        .healthModule,
+        .budgetModule,
+    ]
 }
 
 nonisolated enum HomeWidgetSize: String, Codable, CaseIterable, Sendable {
@@ -58,6 +109,33 @@ nonisolated struct HomeWidgetConfiguration: Codable, Equatable, Sendable {
     }
 
     static let empty = HomeWidgetConfiguration()
+
+    var isEmpty: Bool {
+        values.isEmpty
+    }
+
+    var projectID: UUID? {
+        get { uuidValue(for: "projectID") }
+        set { setUUIDValue(newValue, for: "projectID") }
+    }
+
+    var routineID: UUID? {
+        get { uuidValue(for: "routineID") }
+        set { setUUIDValue(newValue, for: "routineID") }
+    }
+
+    var tagID: UUID? {
+        get { uuidValue(for: "tagID") }
+        set { setUUIDValue(newValue, for: "tagID") }
+    }
+
+    private func uuidValue(for key: String) -> UUID? {
+        values[key].flatMap(UUID.init(uuidString:))
+    }
+
+    private mutating func setUUIDValue(_ uuid: UUID?, for key: String) {
+        values[key] = uuid?.uuidString
+    }
 }
 
 nonisolated struct HomeWidgetInstance: Identifiable, Equatable, Sendable {
@@ -83,17 +161,20 @@ nonisolated struct HomeWidgetInstance: Identifiable, Equatable, Sendable {
 }
 
 nonisolated struct HomeLayout: Equatable, Sendable {
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     var version: Int
     var widgets: [HomeWidgetInstance]
+    var removedWidgets: [HomeWidgetInstance]
 
     init(
         version: Int = Self.currentVersion,
-        widgets: [HomeWidgetInstance]
+        widgets: [HomeWidgetInstance],
+        removedWidgets: [HomeWidgetInstance] = []
     ) {
         self.version = max(1, version)
         self.widgets = Self.normalizedWidgets(widgets)
+        self.removedWidgets = Self.normalizedWidgets(removedWidgets)
     }
 
     static let defaultLayout = HomeLayout(
@@ -104,6 +185,8 @@ nonisolated struct HomeLayout: Equatable, Sendable {
             HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 3),
             HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 4),
             HomeWidgetInstance(kind: .promiseHistory, size: .large, sortOrder: 5),
+            HomeWidgetInstance(kind: .shoppingModule, size: .small, sortOrder: 6),
+            HomeWidgetInstance(kind: .healthModule, size: .small, sortOrder: 7),
         ]
     )
 
@@ -113,7 +196,6 @@ nonisolated struct HomeLayout: Equatable, Sendable {
 
     func normalized(using registry: HomeWidgetRegistry = .standard) -> HomeLayout {
         let normalized = orderedWidgets
-            .filter { registry.descriptor(for: $0.kind) != nil }
             .enumerated()
             .map { index, widget in
                 var normalizedWidget = widget
@@ -125,7 +207,23 @@ nonisolated struct HomeLayout: Equatable, Sendable {
                 return normalizedWidget
             }
 
-        return HomeLayout(version: version, widgets: normalized)
+        let normalizedRemoved = removedWidgets
+            .enumerated()
+            .map { index, widget in
+                var normalizedWidget = widget
+                if let descriptor = registry.descriptor(for: widget.kind),
+                   descriptor.supportedSizes.contains(widget.size) == false {
+                    normalizedWidget.size = descriptor.defaultSize
+                }
+                normalizedWidget.sortOrder = index
+                return normalizedWidget
+            }
+
+        return HomeLayout(
+            version: HomeLayoutMigrator.currentVersion(for: version),
+            widgets: normalized,
+            removedWidgets: normalizedRemoved
+        )
     }
 
     private static func normalizedWidgets(
@@ -148,38 +246,117 @@ nonisolated struct HomeLayout: Equatable, Sendable {
     }
 }
 
+nonisolated enum HomeWidgetAvailability: Equatable, Sendable {
+    case available
+    case planned(String)
+    case unavailable(String)
+
+    var isAvailable: Bool {
+        if case .available = self {
+            return true
+        }
+
+        return false
+    }
+
+    var message: String? {
+        switch self {
+        case .available:
+            return nil
+        case .planned(let message), .unavailable(let message):
+            return message
+        }
+    }
+}
+
+nonisolated enum HomeWidgetDuplicatePolicy: Equatable, Sendable {
+    case singleUnconfigured
+    case uniqueConfiguration
+    case multiple
+}
+
+nonisolated enum HomeWidgetConfigurationFieldKind: String, Codable, Equatable, Sendable {
+    case project
+    case routine
+    case tag
+}
+
+nonisolated struct HomeWidgetConfigurationField: Equatable, Sendable {
+    let key: String
+    let displayName: String
+    let kind: HomeWidgetConfigurationFieldKind
+}
+
+nonisolated enum HomeWidgetDefaultAction: Equatable, Sendable {
+    case openCapture
+    case reviewInbox
+    case openTasks
+    case openPlanner
+    case openProjects
+    case openConfiguredProject
+    case newPromise
+    case checkInDuePromise
+    case newRoutine
+    case openConfiguredRoutine
+    case openShopping
+    case openHealth
+}
+
+nonisolated enum HomeLayoutMigrator {
+    static func currentVersion(for version: Int) -> Int {
+        max(version, HomeLayout.currentVersion)
+    }
+}
+
 nonisolated struct HomeWidgetDescriptor: Identifiable, Equatable, Sendable {
     var id: HomeWidgetKind { kind }
 
     let kind: HomeWidgetKind
     let displayName: String
+    let iconSystemName: String
     let module: HomeWidgetModule
     let supportedSizes: [HomeWidgetSize]
     let defaultSize: HomeWidgetSize
-    let requiresConfiguration: Bool
+    let availability: HomeWidgetAvailability
+    let duplicatePolicy: HomeWidgetDuplicatePolicy
+    let configurationFields: [HomeWidgetConfigurationField]
+    let defaultAction: HomeWidgetDefaultAction?
     let isModuleWidget: Bool
-    let isAvailable: Bool
+
+    var requiresConfiguration: Bool {
+        configurationFields.isEmpty == false
+    }
+
+    var isAvailable: Bool {
+        availability.isAvailable
+    }
 
     init(
         kind: HomeWidgetKind,
         displayName: String,
+        iconSystemName: String,
         module: HomeWidgetModule,
         supportedSizes: [HomeWidgetSize],
         defaultSize: HomeWidgetSize,
-        requiresConfiguration: Bool = false,
+        availability: HomeWidgetAvailability = .available,
+        duplicatePolicy: HomeWidgetDuplicatePolicy = .singleUnconfigured,
+        configurationFields: [HomeWidgetConfigurationField] = [],
+        defaultAction: HomeWidgetDefaultAction? = nil,
         isModuleWidget: Bool = false,
-        isAvailable: Bool = true
     ) {
         self.kind = kind
         self.displayName = displayName
+        self.iconSystemName = iconSystemName
         self.module = module
         self.supportedSizes = supportedSizes
         self.defaultSize = supportedSizes.contains(defaultSize)
             ? defaultSize
             : supportedSizes.first ?? .large
-        self.requiresConfiguration = requiresConfiguration
+        self.availability = availability
+        self.duplicatePolicy = duplicatePolicy
+        self.configurationFields = configurationFields
+        self.defaultAction = defaultAction
         self.isModuleWidget = isModuleWidget
-        self.isAvailable = isAvailable
     }
 }
 
@@ -191,66 +368,136 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
             HomeWidgetDescriptor(
                 kind: .inbox,
                 displayName: "Inbox",
+                iconSystemName: "tray.full.fill",
                 module: .capture,
                 supportedSizes: [.small, .large],
-                defaultSize: .large
+                defaultSize: .large,
+                defaultAction: .reviewInbox
+            ),
+            HomeWidgetDescriptor(
+                kind: .quickCapture,
+                displayName: "Quick Capture",
+                iconSystemName: "tray.and.arrow.down",
+                module: .capture,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openCapture
             ),
             HomeWidgetDescriptor(
                 kind: .tasksModule,
                 displayName: "Tasks",
+                iconSystemName: "checklist",
                 module: .tasks,
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
+                defaultAction: .openTasks,
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
                 kind: .plannerModule,
                 displayName: "Planner",
+                iconSystemName: "calendar",
                 module: .planner,
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
+                defaultAction: .openPlanner,
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
                 kind: .calendarOverview,
                 displayName: "Today's Events",
+                iconSystemName: "calendar.badge.clock",
                 module: .planner,
                 supportedSizes: [.small, .large],
-                defaultSize: .large
+                defaultSize: .large,
+                defaultAction: .openPlanner
+            ),
+            HomeWidgetDescriptor(
+                kind: .planTheDay,
+                displayName: "Plan the Day",
+                iconSystemName: "calendar.badge.plus",
+                module: .planner,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openPlanner
+            ),
+            HomeWidgetDescriptor(
+                kind: .nextEvent,
+                displayName: "Next Event",
+                iconSystemName: "calendar.badge.clock",
+                module: .planner,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openPlanner
             ),
             HomeWidgetDescriptor(
                 kind: .projectsModule,
                 displayName: "Projects",
+                iconSystemName: "folder.fill",
                 module: .projects,
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
+                defaultAction: .openProjects,
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
                 kind: .pinnedProjects,
                 displayName: "Pinned Projects",
+                iconSystemName: "pin.fill",
                 module: .projects,
                 supportedSizes: [.small, .large],
-                defaultSize: .large
+                defaultSize: .large,
+                defaultAction: .openProjects
+            ),
+            HomeWidgetDescriptor(
+                kind: .projectNextTask,
+                displayName: "Project Next Task",
+                iconSystemName: "folder.badge.gearshape",
+                module: .projects,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                duplicatePolicy: .uniqueConfiguration,
+                configurationFields: [
+                    HomeWidgetConfigurationField(
+                        key: "projectID",
+                        displayName: "Project",
+                        kind: .project
+                    ),
+                ],
+                defaultAction: .openConfiguredProject
             ),
             HomeWidgetDescriptor(
                 kind: .promisesModule,
                 displayName: "Promises",
+                iconSystemName: "hand.raised.fill",
                 module: .promises,
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
+                defaultAction: .newPromise,
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
                 kind: .promises,
                 displayName: "Active Promises",
+                iconSystemName: "hand.raised.fill",
                 module: .promises,
                 supportedSizes: [.small, .large],
-                defaultSize: .large
+                defaultSize: .large,
+                defaultAction: .newPromise
+            ),
+            HomeWidgetDescriptor(
+                kind: .duePromiseCheckIn,
+                displayName: "Due Promise Check-in",
+                iconSystemName: "hand.raised.square",
+                module: .promises,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .checkInDuePromise
             ),
             HomeWidgetDescriptor(
                 kind: .promiseHistory,
                 displayName: "Promise History",
+                iconSystemName: "clock.arrow.circlepath",
                 module: .promises,
                 supportedSizes: [.small, .large],
                 defaultSize: .large
@@ -258,40 +505,132 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
             HomeWidgetDescriptor(
                 kind: .routinesModule,
                 displayName: "Routines",
+                iconSystemName: "checklist.checked",
                 module: .routines,
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
+                defaultAction: .newRoutine,
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
                 kind: .routines,
                 displayName: "Today's Routines",
+                iconSystemName: "checklist.checked",
                 module: .routines,
                 supportedSizes: [.small, .large],
-                defaultSize: .large
+                defaultSize: .large,
+                defaultAction: .newRoutine
+            ),
+            HomeWidgetDescriptor(
+                kind: .currentRoutineStep,
+                displayName: "Current Routine Step",
+                iconSystemName: "figure.walk.motion",
+                module: .routines,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                duplicatePolicy: .uniqueConfiguration,
+                configurationFields: [
+                    HomeWidgetConfigurationField(
+                        key: "routineID",
+                        displayName: "Routine",
+                        kind: .routine
+                    ),
+                ],
+                defaultAction: .openConfiguredRoutine
+            ),
+            HomeWidgetDescriptor(
+                kind: .shoppingModule,
+                displayName: "Shopping",
+                iconSystemName: "cart.fill",
+                module: .shopping,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openShopping,
+                isModuleWidget: true
+            ),
+            HomeWidgetDescriptor(
+                kind: .healthModule,
+                displayName: "Health",
+                iconSystemName: "heart.text.square",
+                module: .health,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openHealth,
+                isModuleWidget: true
+            ),
+            HomeWidgetDescriptor(
+                kind: .budgetModule,
+                displayName: "Budget",
+                iconSystemName: "creditcard.fill",
+                module: .future,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                availability: .planned("Budget widgets will become available when the Budget module ships."),
+                isModuleWidget: true
             ),
         ]
     )
 
     var modules: [HomeWidgetModule] {
         HomeWidgetModule.allCases.filter { module in
-            descriptors.contains { $0.module == module && $0.isAvailable }
+            descriptors.contains { $0.module == module }
         }
     }
 
     func descriptor(for kind: HomeWidgetKind) -> HomeWidgetDescriptor? {
-        descriptors.first { $0.kind == kind && $0.isAvailable }
+        descriptors.first { $0.kind == kind }
+            ?? unavailableDescriptor(for: kind)
     }
 
     func moduleWidget(for module: HomeWidgetModule) -> HomeWidgetDescriptor? {
         descriptors.first {
-            $0.module == module && $0.isModuleWidget && $0.isAvailable
+            $0.module == module && $0.isModuleWidget
         }
     }
 
     func featureWidgets(for module: HomeWidgetModule) -> [HomeWidgetDescriptor] {
         descriptors.filter {
-            $0.module == module && $0.isModuleWidget == false && $0.isAvailable
+            $0.module == module && $0.isModuleWidget == false
         }
+    }
+
+    func canAdd(
+        descriptor: HomeWidgetDescriptor,
+        configuration: HomeWidgetConfiguration,
+        to layout: HomeLayout
+    ) -> Bool {
+        guard descriptor.isAvailable else {
+            return false
+        }
+
+        let widgets = layout.orderedWidgets
+        switch descriptor.duplicatePolicy {
+        case .multiple:
+            return true
+        case .singleUnconfigured:
+            if configuration.isEmpty {
+                return widgets.contains { $0.kind == descriptor.kind && $0.configuration.isEmpty } == false
+            }
+
+            return widgets.contains { $0.kind == descriptor.kind && $0.configuration == configuration } == false
+        case .uniqueConfiguration:
+            guard configuration.isEmpty == false else {
+                return false
+            }
+
+            return widgets.contains { $0.kind == descriptor.kind && $0.configuration == configuration } == false
+        }
+    }
+
+    private func unavailableDescriptor(for kind: HomeWidgetKind) -> HomeWidgetDescriptor {
+        HomeWidgetDescriptor(
+            kind: kind,
+            displayName: kind.rawValue,
+            iconSystemName: "questionmark.square.dashed",
+            module: .future,
+            supportedSizes: [.large],
+            defaultSize: .large,
+            availability: .unavailable("This widget is not available in this version of the app.")
+        )
     }
 }

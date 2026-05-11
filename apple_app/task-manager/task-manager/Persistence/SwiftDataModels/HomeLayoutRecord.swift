@@ -8,6 +8,7 @@ final class HomeLayoutRecord {
     var id: String = HomeLayoutRecord.singletonID
     var version: Int = HomeLayout.currentVersion
     var widgetsJSON: String = ""
+    var removedWidgetsJSON: String = "[]"
 
     init(
         id: String = HomeLayoutRecord.singletonID,
@@ -26,29 +27,49 @@ final class HomeLayoutRecord {
         }
 
         let widgets = storedWidgets.compactMap { storedWidget -> HomeWidgetInstance? in
-            guard let id = UUID(uuidString: storedWidget.id),
-                  let kind = HomeWidgetKind(rawValue: storedWidget.kind),
-                  registry.descriptor(for: kind) != nil else {
-                return nil
-            }
-
-            let descriptor = registry.descriptor(for: kind)
-            let size = HomeWidgetSize(rawValue: storedWidget.size)
-                .flatMap { descriptor?.supportedSizes.contains($0) == true ? $0 : nil }
-                ?? descriptor?.defaultSize
-                ?? .large
-
-            return HomeWidgetInstance(
-                id: id,
-                kind: kind,
-                size: size,
-                sortOrder: storedWidget.sortOrder,
-                configuration: storedWidget.configuration
-            )
+            decodeWidget(storedWidget, using: registry)
         }
 
-        return HomeLayout(version: version, widgets: widgets)
-            .normalized(using: registry)
+        let removedWidgets: [HomeWidgetInstance]
+        if let removedData = removedWidgetsJSON.data(using: .utf8),
+           let storedRemovedWidgets = try? JSONDecoder().decode([StoredHomeWidget].self, from: removedData) {
+            removedWidgets = storedRemovedWidgets.compactMap { storedWidget in
+                decodeWidget(storedWidget, using: registry)
+            }
+        } else {
+            removedWidgets = []
+        }
+
+        return HomeLayout(
+            version: version,
+            widgets: widgets,
+            removedWidgets: removedWidgets
+        )
+        .normalized(using: registry)
+    }
+
+    private func decodeWidget(
+        _ storedWidget: StoredHomeWidget,
+        using registry: HomeWidgetRegistry
+    ) -> HomeWidgetInstance? {
+        guard let id = UUID(uuidString: storedWidget.id) else {
+            return nil
+        }
+
+        let kind = HomeWidgetKind(rawValue: storedWidget.kind)
+        let descriptor = registry.descriptor(for: kind)
+        let size = HomeWidgetSize(rawValue: storedWidget.size)
+            .flatMap { descriptor?.supportedSizes.contains($0) == true ? $0 : nil }
+            ?? descriptor?.defaultSize
+            ?? .large
+
+        return HomeWidgetInstance(
+            id: id,
+            kind: kind,
+            size: size,
+            sortOrder: storedWidget.sortOrder,
+            configuration: storedWidget.configuration
+        )
     }
 
     func update(from layout: HomeLayout) {
@@ -60,6 +81,14 @@ final class HomeLayoutRecord {
             widgetsJSON = json
         } else {
             widgetsJSON = "[]"
+        }
+
+        let storedRemovedWidgets = normalizedLayout.removedWidgets.map(StoredHomeWidget.init)
+        if let data = try? JSONEncoder().encode(storedRemovedWidgets),
+           let json = String(data: data, encoding: .utf8) {
+            removedWidgetsJSON = json
+        } else {
+            removedWidgetsJSON = "[]"
         }
     }
 }

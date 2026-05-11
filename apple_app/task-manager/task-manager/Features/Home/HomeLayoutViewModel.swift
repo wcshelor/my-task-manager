@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 @MainActor
-final class HomeViewModel: ObservableObject {
+final class HomeLayoutViewModel: ObservableObject {
     @Published private(set) var layout: HomeLayout
     @Published private(set) var errorMessage: String?
 
@@ -38,11 +38,37 @@ final class HomeViewModel: ObservableObject {
         size: HomeWidgetSize? = nil,
         configuration: HomeWidgetConfiguration = .empty
     ) {
+        guard registry.canAdd(
+            descriptor: descriptor,
+            configuration: configuration,
+            to: layout
+        ) else {
+            errorMessage = descriptor.isAvailable
+                ? "\(descriptor.displayName) is already on Home."
+                : "\(descriptor.displayName) is not available yet."
+            return
+        }
+
         let resolvedSize = resolvedSize(
             size ?? descriptor.defaultSize,
             for: descriptor
         )
         var widgets = layout.orderedWidgets
+        var removedWidgets = layout.removedWidgets
+        let restoredWidget = removedWidgets.first {
+            $0.kind == descriptor.kind && $0.configuration == configuration
+        }
+        removedWidgets.removeAll {
+            $0.kind == descriptor.kind && $0.configuration == configuration
+        }
+        if var restoredWidget {
+            restoredWidget.size = resolvedSize
+            restoredWidget.sortOrder = widgets.count
+            widgets.append(restoredWidget)
+            save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: removedWidgets))
+            return
+        }
+
         widgets.append(
             HomeWidgetInstance(
                 kind: descriptor.kind,
@@ -51,12 +77,22 @@ final class HomeViewModel: ObservableObject {
                 configuration: configuration
             )
         )
-        save(HomeLayout(version: layout.version, widgets: widgets))
+        save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: removedWidgets))
     }
 
     func removeWidget(withID id: UUID) {
-        let widgets = layout.orderedWidgets.filter { $0.id != id }
-        save(HomeLayout(version: layout.version, widgets: widgets))
+        var widgets = layout.orderedWidgets
+        var removedWidgets = layout.removedWidgets
+        guard let removedWidget = widgets.first(where: { $0.id == id }) else {
+            return
+        }
+
+        widgets.removeAll { $0.id == id }
+        removedWidgets.removeAll {
+            $0.kind == removedWidget.kind && $0.configuration == removedWidget.configuration
+        }
+        removedWidgets.append(removedWidget)
+        save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: removedWidgets))
     }
 
     func moveWidgets(
@@ -70,7 +106,29 @@ final class HomeViewModel: ObservableObject {
             updatedWidget.sortOrder = index
             return updatedWidget
         }
-        save(HomeLayout(version: layout.version, widgets: widgets))
+        save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: layout.removedWidgets))
+    }
+
+    func moveWidget(withID movingID: UUID, beforeID targetID: UUID) {
+        guard movingID != targetID else {
+            return
+        }
+
+        var widgets = layout.orderedWidgets
+        guard let sourceIndex = widgets.firstIndex(where: { $0.id == movingID }),
+              let targetIndex = widgets.firstIndex(where: { $0.id == targetID }) else {
+            return
+        }
+
+        let widget = widgets.remove(at: sourceIndex)
+        let adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
+        widgets.insert(widget, at: adjustedTargetIndex)
+        widgets = widgets.enumerated().map { index, widget in
+            var updatedWidget = widget
+            updatedWidget.sortOrder = index
+            return updatedWidget
+        }
+        save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: layout.removedWidgets))
     }
 
     func resizeWidget(
@@ -85,7 +143,18 @@ final class HomeViewModel: ObservableObject {
         }
 
         widgets[index].size = size
-        save(HomeLayout(version: layout.version, widgets: widgets))
+        save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: layout.removedWidgets))
+    }
+
+    func canAdd(
+        descriptor: HomeWidgetDescriptor,
+        configuration: HomeWidgetConfiguration = .empty
+    ) -> Bool {
+        registry.canAdd(descriptor: descriptor, configuration: configuration, to: layout)
+    }
+
+    func resetToDefaultLayout() {
+        save(HomeLayout.defaultLayout)
     }
 
     func alternateSize(for widget: HomeWidgetInstance) -> HomeWidgetSize? {

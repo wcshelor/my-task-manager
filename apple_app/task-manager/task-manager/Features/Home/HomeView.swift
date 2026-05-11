@@ -13,6 +13,8 @@ struct HomeView: View {
         case promiseCheckIn(Promise)
         case routineBuilder
         case routineSession(UUID)
+        case shoppingList
+        case health
 
         var id: String {
             switch self {
@@ -30,15 +32,27 @@ struct HomeView: View {
                 return "routineBuilder"
             case .routineSession(let routineID):
                 return "routineSession-\(routineID.uuidString)"
+            case .shoppingList:
+                return "shoppingList"
+            case .health:
+                return "health"
             }
         }
     }
 
-    @StateObject private var viewModel: TodayViewModel
-    @StateObject private var homeViewModel: HomeViewModel
+    private enum NavigationDestination: Hashable {
+        case tasks
+        case planner
+        case projects
+        case project(UUID)
+    }
+
+    @StateObject private var viewModel: HomeExecutionViewModel
+    @StateObject private var homeViewModel: HomeLayoutViewModel
     @State private var presentedSheet: SheetDestination?
-    @State private var isPlannerPresented = false
+    @State private var navigationPath: [NavigationDestination] = []
     @State private var isEditingHome = false
+    private let widgetRendererRegistry = HomeWidgetRendererRegistry.standard
 
     private let taskRepository: any TaskRepository
     private let projectRepository: any ProjectRepository
@@ -54,6 +68,8 @@ struct HomeView: View {
     private let calendarReconciler: any CalendarReconciling
     private let calendarChangeObserver: any CalendarChangeObserving
     private let promiseRepository: any PromiseRepository
+    private let shoppingRepository: any ShoppingRepository
+    private let healthRepository: any HealthRepository
 
     init(
         taskRepository: any TaskRepository,
@@ -70,7 +86,9 @@ struct HomeView: View {
         calendarReconciler: any CalendarReconciling,
         calendarChangeObserver: any CalendarChangeObserving,
         promiseRepository: any PromiseRepository,
-        routineRepository: any RoutineRepository
+        routineRepository: any RoutineRepository,
+        shoppingRepository: any ShoppingRepository,
+        healthRepository: any HealthRepository
     ) {
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
@@ -86,20 +104,24 @@ struct HomeView: View {
         self.calendarReconciler = calendarReconciler
         self.calendarChangeObserver = calendarChangeObserver
         self.promiseRepository = promiseRepository
+        self.shoppingRepository = shoppingRepository
+        self.healthRepository = healthRepository
         _viewModel = StateObject(
-            wrappedValue: TodayViewModel(
+            wrappedValue: HomeExecutionViewModel(
                 taskRepository: taskRepository,
                 projectRepository: projectRepository,
                 captureRepository: captureRepository,
                 projectItemRepository: projectItemRepository,
                 promiseRepository: promiseRepository,
                 routineRepository: routineRepository,
+                shoppingRepository: shoppingRepository,
+                healthRepository: healthRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
                 calendarReader: calendarReader
             )
         )
         _homeViewModel = StateObject(
-            wrappedValue: HomeViewModel(homeLayoutRepository: homeLayoutRepository)
+            wrappedValue: HomeLayoutViewModel(homeLayoutRepository: homeLayoutRepository)
         )
     }
 
@@ -108,14 +130,8 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isEditingHome {
-                    editWidgetList
-                } else {
-                    homeBoard
-                }
-            }
+        NavigationStack(path: $navigationPath) {
+            homeBoard
             .navigationTitle("Home")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -148,7 +164,11 @@ struct HomeView: View {
                 NavigationStack {
                     switch destination {
                     case .addWidget:
-                        AddHomeWidgetView(viewModel: homeViewModel) {
+                        AddHomeWidgetView(
+                            viewModel: homeViewModel,
+                            projects: viewModel.projects,
+                            routines: viewModel.routineProgress.map(\.routine)
+                        ) {
                             presentedSheet = nil
                         }
                     case .captureQuickAdd:
@@ -202,23 +222,45 @@ struct HomeView: View {
                             viewModel: viewModel,
                             routineID: routineID
                         )
+                    case .shoppingList:
+                        ShoppingListView(shoppingRepository: shoppingRepository) {
+                            viewModel.load()
+                        }
+                    case .health:
+                        HealthView(healthRepository: healthRepository) {
+                            viewModel.load()
+                        }
                     }
                 }
             }
-            .navigationDestination(isPresented: $isPlannerPresented) {
-                PlannerView(
-                    taskRepository: taskRepository,
-                    scheduledBlockRepository: scheduledBlockRepository,
-                    settingsRepository: settingsRepository,
-                    calendarPermissionProvider: calendarPermissionProvider,
-                    calendarListingService: calendarListingService,
-                    calendarReader: calendarReader,
-                    calendarWriter: calendarWriter,
-                    calendarReconciler: calendarReconciler,
-                    calendarChangeObserver: calendarChangeObserver,
-                    promiseRepository: promiseRepository,
-                    navigationTitle: "Plan the Day"
-                )
+            .navigationDestination(for: NavigationDestination.self) { destination in
+                switch destination {
+                case .tasks:
+                    TaskListView(
+                        taskRepository: taskRepository,
+                        projectRepository: projectRepository,
+                        scheduledBlockRepository: scheduledBlockRepository,
+                        calendarWriter: calendarWriter,
+                        promiseRepository: promiseRepository
+                    )
+                case .planner:
+                    plannerDestination
+                case .projects:
+                    ProjectsView(
+                        taskRepository: taskRepository,
+                        projectRepository: projectRepository,
+                        captureRepository: captureRepository,
+                        projectItemRepository: projectItemRepository
+                    )
+                case .project(let projectID):
+                    ProjectDetailView(
+                        projectID: projectID,
+                        taskRepository: taskRepository,
+                        projectRepository: projectRepository,
+                        captureRepository: captureRepository,
+                        projectItemRepository: projectItemRepository
+                    )
+                }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else {
@@ -235,6 +277,22 @@ struct HomeView: View {
         }
     }
 
+    private var plannerDestination: some View {
+                PlannerView(
+                    taskRepository: taskRepository,
+                    scheduledBlockRepository: scheduledBlockRepository,
+                    settingsRepository: settingsRepository,
+                    calendarPermissionProvider: calendarPermissionProvider,
+                    calendarListingService: calendarListingService,
+                    calendarReader: calendarReader,
+                    calendarWriter: calendarWriter,
+                    calendarReconciler: calendarReconciler,
+                    calendarChangeObserver: calendarChangeObserver,
+                    promiseRepository: promiseRepository,
+                    navigationTitle: "Plan the Day"
+                )
+    }
+
     private var homeBoard: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: isCompactWidth ? 18 : 22) {
@@ -242,55 +300,45 @@ struct HomeView: View {
 
                 errorMessages
 
-                ForEach(homeViewModel.widgets) { widget in
-                    widgetChrome(for: widget) {
-                        widgetContent(for: widget)
+                if homeViewModel.widgets.isEmpty {
+                    emptyHomeLayout
+                } else {
+                    ForEach(homeViewModel.widgets) { widget in
+                        homeWidgetChrome(for: widget) {
+                            widgetRendererRegistry.render(
+                                widget: widget,
+                                context: widgetRenderContext
+                            )
+                        }
                     }
                 }
 
-                Button {
-                    presentedSheet = .addWidget
-                } label: {
-                    Label("Add Widget", systemImage: "plus.circle.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                HStack(spacing: 12) {
+                    Button {
+                        presentedSheet = .addWidget
+                    } label: {
+                        Label("Add Widget", systemImage: "plus.circle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    if isEditingHome {
+                        Button {
+                            homeViewModel.resetToDefaultLayout()
+                            isEditingHome = false
+                        } label: {
+                            Label("Reset", systemImage: "arrow.counterclockwise")
+                                .font(.headline)
+                                .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .buttonStyle(.bordered)
             }
             .padding(isCompactWidth ? 16 : 20)
         }
-    }
-
-    private var editWidgetList: some View {
-        List {
-            Section {
-                ForEach(homeViewModel.widgets) { widget in
-                    editRow(for: widget)
-                }
-                .onMove { source, destination in
-                    homeViewModel.moveWidgets(from: source, to: destination)
-                }
-                .onDelete { offsets in
-                    for index in offsets {
-                        guard homeViewModel.widgets.indices.contains(index) else {
-                            continue
-                        }
-                        homeViewModel.removeWidget(withID: homeViewModel.widgets[index].id)
-                    }
-                }
-            } header: {
-                Text("Widgets")
-            } footer: {
-                Button {
-                    presentedSheet = .addWidget
-                } label: {
-                    Label("Add Widget", systemImage: "plus.circle.fill")
-                }
-                .padding(.top, 8)
-            }
-        }
-        .environment(\.editMode, .constant(.active))
     }
 
     @ViewBuilder
@@ -308,372 +356,135 @@ struct HomeView: View {
         }
     }
 
+    private var emptyHomeLayout: some View {
+        ContentUnavailableView(
+            "Home Is Empty",
+            systemImage: "square.grid.2x2",
+            description: Text("Add widgets or reset to the default layout.")
+        )
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+    }
+
     @ViewBuilder
-    private func widgetChrome<Content: View>(
+    private func homeWidgetChrome<Content: View>(
         for widget: HomeWidgetInstance,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        content()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onLongPressGesture {
-                isEditingHome = true
-            }
-            .accessibilityElement(children: .contain)
-    }
-
-    private func editRow(for widget: HomeWidgetInstance) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconName(for: widget.kind))
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(homeViewModel.descriptor(for: widget)?.displayName ?? widget.kind.rawValue)
-                    .font(.body.weight(.medium))
-                Text(widget.size == .large ? "Large" : "Small")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: 8) {
+            if isEditingHome {
+                HStack(spacing: 8) {
+                    Label(
+                        homeViewModel.descriptor(for: widget)?.displayName ?? widget.kind.rawValue,
+                        systemImage: homeViewModel.descriptor(for: widget)?.iconSystemName ?? "square.grid.2x2"
+                    )
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-            }
 
-            Spacer()
+                    Spacer()
 
-            if let alternateSize = homeViewModel.alternateSize(for: widget) {
-                Button(alternateSize == .large ? "Large" : "Small") {
-                    homeViewModel.resizeWidget(withID: widget.id, to: alternateSize)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func widgetContent(for widget: HomeWidgetInstance) -> some View {
-        if widget.size == .small {
-            smallWidgetContent(for: widget)
-        } else {
-            largeWidgetContent(for: widget)
-        }
-    }
-
-    @ViewBuilder
-    private func largeWidgetContent(for widget: HomeWidgetInstance) -> some View {
-        switch widget.kind {
-        case .inbox:
-            inboxSection
-        case .pinnedProjects:
-            pinnedProjectsSection
-        case .calendarOverview:
-            calendarOverviewSection
-        case .promises, .promisesModule:
-            promiseSection
-        case .routines, .routinesModule:
-            routineSection
-        case .promiseHistory:
-            promiseHistorySection
-        case .tasksModule:
-            NavigationLink {
-                TaskListView(
-                    taskRepository: taskRepository,
-                    projectRepository: projectRepository,
-                    scheduledBlockRepository: scheduledBlockRepository,
-                    calendarWriter: calendarWriter,
-                    promiseRepository: promiseRepository
-                )
-            } label: {
-                moduleWidgetCard(
-                    title: "Tasks",
-                    systemImage: "checklist",
-                    detail: "\(activeTaskCount) active",
-                    action: "Open Tasks"
-                )
-            }
-            .buttonStyle(.plain)
-        case .plannerModule:
-            NavigationLink {
-                plannerDestination
-            } label: {
-                moduleWidgetCard(
-                    title: "Planner",
-                    systemImage: "calendar",
-                    detail: plannerSummary,
-                    action: "Plan the Day"
-                )
-            }
-            .buttonStyle(.plain)
-        case .projectsModule:
-            NavigationLink {
-                ProjectsView(
-                    taskRepository: taskRepository,
-                    projectRepository: projectRepository,
-                    captureRepository: captureRepository,
-                    projectItemRepository: projectItemRepository
-                )
-            } label: {
-                moduleWidgetCard(
-                    title: "Projects",
-                    systemImage: "folder.fill",
-                    detail: "\(viewModel.projects.count) active",
-                    action: "Open Projects"
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
-    private func smallWidgetContent(for widget: HomeWidgetInstance) -> some View {
-        switch widget.kind {
-        case .inbox:
-            smallButtonWidget(
-                title: "Inbox",
-                systemImage: "tray.full.fill",
-                value: "\(viewModel.inboxSummary.count)",
-                detail: viewModel.inboxSummary.oldestAgeLabel.map { "oldest \($0)" } ?? "clear",
-                actionTitle: "Review",
-                action: {
-                    if viewModel.inboxSummary.count > 0 {
-                        presentedSheet = .inboxReview
-                    } else {
-                        presentedSheet = .captureQuickAdd
+                    if let alternateSize = homeViewModel.alternateSize(for: widget) {
+                        Button {
+                            homeViewModel.resizeWidget(withID: widget.id, to: alternateSize)
+                        } label: {
+                            Image(systemName: alternateSize == .large ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+                        }
+                        .buttonStyle(.bordered)
                     }
+
+                    Button(role: .destructive) {
+                        homeViewModel.removeWidget(withID: widget.id)
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                    }
+                    .buttonStyle(.bordered)
                 }
-            )
-        case .calendarOverview, .plannerModule:
-            smallButtonWidget(
-                title: widget.kind == .plannerModule ? "Planner" : "Events",
-                systemImage: "calendar.badge.clock",
-                value: "\(viewModel.calendarOverview?.events.count ?? 0)",
-                detail: plannerSummary,
-                actionTitle: "Plan",
-                action: {
-                    isPlannerPresented = true
-                }
-            )
-        case .pinnedProjects, .projectsModule:
-            NavigationLink {
-                ProjectsView(
-                    taskRepository: taskRepository,
-                    projectRepository: projectRepository,
-                    captureRepository: captureRepository,
-                    projectItemRepository: projectItemRepository
-                )
-            } label: {
-                smallStaticWidget(
-                    title: widget.kind == .projectsModule ? "Projects" : "Pinned",
-                    systemImage: "folder.fill",
-                    value: "\(widget.kind == .projectsModule ? viewModel.projects.count : viewModel.pinnedProjectSummaries.count)",
-                    detail: "Open"
-                )
             }
-            .buttonStyle(.plain)
-        case .promises, .promisesModule:
-            smallButtonWidget(
-                title: "Promises",
-                systemImage: "hand.raised.fill",
-                value: "\(viewModel.activePromises.count)",
-                detail: "\(viewModel.duePromises.count) due",
-                actionTitle: "New",
-                action: {
-                    presentedSheet = .promiseForm
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onLongPressGesture {
+                    isEditingHome = true
                 }
-            )
-        case .routines, .routinesModule:
-            smallButtonWidget(
-                title: "Routines",
-                systemImage: "checklist.checked",
-                value: routineProgressSummary,
-                detail: "\(viewModel.routineProgress.count) today",
-                actionTitle: "New",
-                action: {
-                    presentedSheet = .routineBuilder
+                .draggable(widget.id.uuidString)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let id = items.first.flatMap(UUID.init(uuidString:)) else {
+                        return false
+                    }
+                    homeViewModel.moveWidget(withID: id, beforeID: widget.id)
+                    return true
                 }
-            )
-        case .promiseHistory:
-            smallStaticWidget(
-                title: "History",
-                systemImage: "clock.arrow.circlepath",
-                value: "\(viewModel.keptCount)",
-                detail: "\(viewModel.missedCount) missed"
-            )
-        case .tasksModule:
-            NavigationLink {
-                TaskListView(
-                    taskRepository: taskRepository,
-                    projectRepository: projectRepository,
-                    scheduledBlockRepository: scheduledBlockRepository,
-                    calendarWriter: calendarWriter,
-                    promiseRepository: promiseRepository
-                )
-            } label: {
-                smallStaticWidget(
-                    title: "Tasks",
-                    systemImage: "checklist",
-                    value: "\(activeTaskCount)",
-                    detail: "Open"
-                )
-            }
-            .buttonStyle(.plain)
+                .accessibilityElement(children: .contain)
         }
+        .padding(isEditingHome ? 8 : 0)
+        .background(isEditingHome ? Color.primary.opacity(0.025) : Color.clear, in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var plannerDestination: some View {
-        PlannerView(
-            taskRepository: taskRepository,
-            scheduledBlockRepository: scheduledBlockRepository,
-            settingsRepository: settingsRepository,
-            calendarPermissionProvider: calendarPermissionProvider,
-            calendarListingService: calendarListingService,
-            calendarReader: calendarReader,
-            calendarWriter: calendarWriter,
-            calendarReconciler: calendarReconciler,
-            calendarChangeObserver: calendarChangeObserver,
-            promiseRepository: promiseRepository,
-            navigationTitle: "Plan the Day"
+    private var widgetRenderContext: HomeWidgetRenderContext {
+        HomeWidgetRenderContext(
+            execution: viewModel,
+            descriptor: { kind in
+                homeViewModel.registry.descriptor(for: kind)
+            },
+            perform: { action, widget in
+                performWidgetAction(action, for: widget)
+            },
+            openProject: { projectID in
+                navigationPath.append(.project(projectID))
+            },
+            openRoutine: { routineID in
+                presentedSheet = .routineSession(routineID)
+            },
+            checkInPromise: { promise in
+                presentedSheet = .promiseCheckIn(promise)
+            },
+            openShopping: {
+                presentedSheet = .shoppingList
+            },
+            openHealth: {
+                presentedSheet = .health
+            }
         )
     }
 
-    private var activeTaskCount: Int {
-        viewModel.tasks.filter { task in
-            task.status != .completed && task.status != .archived
-        }.count
-    }
-
-    private var plannerSummary: String {
-        guard let overview = viewModel.calendarOverview else {
-            return "Open planner"
-        }
-
-        if let nextEvent = overview.nextEvent {
-            return "Next \(nextEvent.start.formatted(date: .omitted, time: .shortened))"
-        }
-
-        return overview.events.isEmpty ? "Open day" : "\(overview.events.count) events"
-    }
-
-    private var routineProgressSummary: String {
-        let completed = viewModel.routineProgress.filter(\.isComplete).count
-        return "\(completed)/\(viewModel.routineProgress.count)"
-    }
-
-    private func moduleWidgetCard(
-        title: String,
-        systemImage: String,
-        detail: String,
-        action: String
-    ) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.title2)
-                .foregroundStyle(.blue)
-                .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    private func performWidgetAction(
+        _ action: HomeWidgetDefaultAction,
+        for widget: HomeWidgetInstance
+    ) {
+        switch action {
+        case .openCapture:
+            presentedSheet = .captureQuickAdd
+        case .reviewInbox:
+            presentedSheet = viewModel.inboxSummary.count > 0 ? .inboxReview : .captureQuickAdd
+        case .openTasks:
+            navigationPath.append(.tasks)
+        case .openPlanner:
+            navigationPath.append(.planner)
+        case .openProjects:
+            navigationPath.append(.projects)
+        case .openConfiguredProject:
+            if let projectID = widget.configuration.projectID {
+                navigationPath.append(.project(projectID))
             }
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                Text(action)
-                    .font(.caption.weight(.semibold))
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+        case .newPromise:
+            presentedSheet = .promiseForm
+        case .checkInDuePromise:
+            if let promise = viewModel.duePromises.first {
+                presentedSheet = .promiseCheckIn(promise)
+            } else {
+                presentedSheet = .promiseForm
             }
-            .foregroundStyle(.blue)
-        }
-        .padding(14)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private func smallButtonWidget(
-        title: String,
-        systemImage: String,
-        value: String,
-        detail: String,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        case .newRoutine:
+            presentedSheet = .routineBuilder
+        case .openConfiguredRoutine:
+            if let routineID = widget.configuration.routineID {
+                presentedSheet = .routineSession(routineID)
             }
-
-            Spacer()
-
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-
-            Button(actionTitle) {
-                action()
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(12)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private func smallStaticWidget(
-        title: String,
-        systemImage: String,
-        value: String,
-        detail: String
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.primary)
-        }
-        .padding(12)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private func iconName(for kind: HomeWidgetKind) -> String {
-        switch kind {
-        case .inbox:
-            return "tray.full.fill"
-        case .calendarOverview, .plannerModule:
-            return "calendar.badge.clock"
-        case .pinnedProjects, .projectsModule:
-            return "folder.fill"
-        case .promises, .promisesModule:
-            return "hand.raised.fill"
-        case .routines, .routinesModule:
-            return "checklist.checked"
-        case .promiseHistory:
-            return "clock.arrow.circlepath"
-        case .tasksModule:
-            return "checklist"
+        case .openShopping:
+            presentedSheet = .shoppingList
+        case .openHealth:
+            presentedSheet = .health
         }
     }
 
@@ -688,304 +499,10 @@ struct HomeView: View {
         }
     }
 
-    private var inboxSection: some View {
-        TodayInboxCard(
-            summary: viewModel.inboxSummary,
-            onCapture: {
-                presentedSheet = .captureQuickAdd
-            },
-            onReview: {
-                presentedSheet = .inboxReview
-            }
-        )
-    }
-
-    @ViewBuilder
-    private var pinnedProjectsSection: some View {
-        if viewModel.pinnedProjectSummaries.isEmpty == false {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Pinned Projects", systemImage: "pin.fill")
-                    .font(.headline)
-
-                ForEach(viewModel.pinnedProjectSummaries) { summary in
-                    NavigationLink {
-                        ProjectDetailView(
-                            projectID: summary.project.id,
-                            taskRepository: taskRepository,
-                            projectRepository: projectRepository,
-                            captureRepository: captureRepository,
-                            projectItemRepository: projectItemRepository
-                        )
-                    } label: {
-                        TodayPinnedProjectCard(summary: summary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var promiseSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Promises", systemImage: "hand.raised.fill")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    presentedSheet = .promiseForm
-                } label: {
-                    Label("New Promise", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-            }
-
-            if viewModel.activePromises.isEmpty {
-                ContentUnavailableView(
-                    "No Active Promises",
-                    systemImage: "hand.raised",
-                    description: Text("Make one clear promise when you want your word to stay visible.")
-                )
-                .frame(maxWidth: .infinity)
-            } else {
-                ForEach(viewModel.activePromises) { promise in
-                    PromiseCard(
-                        promise: promise,
-                        isDue: viewModel.duePromises.contains { $0.id == promise.id },
-                        onCheckIn: {
-                            presentedSheet = .promiseCheckIn(promise)
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var calendarOverviewSection: some View {
-        if let overview = viewModel.calendarOverview {
-            TodayCalendarOverviewCard(
-                overview: overview,
-                onPlanTheDay: {
-                    isPlannerPresented = true
-                }
-            )
-        } else if viewModel.calendarPermissionStatus != nil {
-            TodayCalendarPermissionCard(status: viewModel.calendarPermissionStatus!)
-        }
-    }
-
-    private var routineSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Routines", systemImage: "checklist.checked")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    presentedSheet = .routineBuilder
-                } label: {
-                    Label("New Routine", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-            }
-
-            if viewModel.routineProgress.isEmpty {
-                ContentUnavailableView(
-                    "No Routines Today",
-                    systemImage: "list.bullet.clipboard",
-                    description: Text("Create a routine with daily or weekday timing.")
-                )
-                .frame(maxWidth: .infinity)
-            } else {
-                ForEach(Array(viewModel.routineProgress), id: \TodayRoutineProgress.id) { (progress: TodayRoutineProgress) in
-                    Button {
-                        presentedSheet = .routineSession(progress.routine.id)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: progress.isComplete ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(progress.isComplete ? .green : .secondary)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(progress.routine.name)
-                                    .font(.body.weight(.medium))
-                                Text(progress.progressLabel)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-                            Text(progress.actionLabel)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(progress.isComplete ? Color.secondary : Color.blue)
-                        }
-                        .padding(12)
-                        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var promiseHistorySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Promise History", systemImage: "clock.arrow.circlepath")
-                .font(.headline)
-
-            HStack(spacing: 12) {
-                PromiseStatView(title: "Kept", value: viewModel.keptCount, color: .green)
-                PromiseStatView(title: "Missed", value: viewModel.missedCount, color: .orange)
-            }
-
-            ForEach(viewModel.promiseHistory.prefix(5)) { promise in
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: promise.outcome == .kept ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(promise.outcome == .kept ? .green : .orange)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(promise.title)
-                            .font(.subheadline.weight(.medium))
-                        if let resolvedAt = promise.resolvedAt {
-                            Text(resolvedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
-typealias TodayView = HomeView
-
-private struct AddHomeWidgetView: View {
-    @ObservedObject var viewModel: HomeViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var expandedModules: Set<HomeWidgetModule> = []
-
-    let onDone: () -> Void
-
-    var body: some View {
-        List {
-            ForEach(viewModel.registry.modules, id: \.self) { module in
-                Section {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(module.displayName)
-                                .font(.headline)
-                            Text(moduleSubtitle(for: module))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if let moduleWidget = viewModel.registry.moduleWidget(for: module) {
-                            addMenu(for: moduleWidget)
-                        }
-
-                        Button {
-                            toggle(module)
-                        } label: {
-                            Image(systemName: expandedModules.contains(module) ? "chevron.up" : "chevron.down")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    if expandedModules.contains(module) {
-                        ForEach(viewModel.registry.featureWidgets(for: module)) { descriptor in
-                            HStack(spacing: 12) {
-                                Image(systemName: iconName(for: descriptor.kind))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 24)
-
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(descriptor.displayName)
-                                    Text(sizeSummary(for: descriptor))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer()
-
-                                addMenu(for: descriptor)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Add Widget")
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Done") {
-                    onDone()
-                    dismiss()
-                }
-            }
-        }
-    }
-
-    private func addMenu(for descriptor: HomeWidgetDescriptor) -> some View {
-        Menu {
-            ForEach(descriptor.supportedSizes, id: \.self) { size in
-                Button(size == .large ? "Add Large" : "Add Small") {
-                    viewModel.addWidget(from: descriptor, size: size)
-                    onDone()
-                    dismiss()
-                }
-            }
-        } label: {
-            Label("Add", systemImage: "plus")
-        }
-        .buttonStyle(.borderedProminent)
-    }
-
-    private func toggle(_ module: HomeWidgetModule) {
-        if expandedModules.contains(module) {
-            expandedModules.remove(module)
-        } else {
-            expandedModules.insert(module)
-        }
-    }
-
-    private func moduleSubtitle(for module: HomeWidgetModule) -> String {
-        let featureCount = viewModel.registry.featureWidgets(for: module).count
-        if viewModel.registry.moduleWidget(for: module) == nil {
-            return "\(featureCount) feature widget\(featureCount == 1 ? "" : "s")"
-        }
-
-        return "\(featureCount) feature widget\(featureCount == 1 ? "" : "s") plus module widget"
-    }
-
-    private func sizeSummary(for descriptor: HomeWidgetDescriptor) -> String {
-        descriptor.supportedSizes
-            .map { $0 == .large ? "large" : "small" }
-            .joined(separator: " / ")
-    }
-
-    private func iconName(for kind: HomeWidgetKind) -> String {
-        switch kind {
-        case .inbox:
-            return "tray.full.fill"
-        case .calendarOverview, .plannerModule:
-            return "calendar.badge.clock"
-        case .pinnedProjects, .projectsModule:
-            return "folder.fill"
-        case .promises, .promisesModule:
-            return "hand.raised.fill"
-        case .routines, .routinesModule:
-            return "checklist.checked"
-        case .promiseHistory:
-            return "clock.arrow.circlepath"
-        case .tasksModule:
-            return "checklist"
-        }
-    }
-}
-
-private struct TodayCalendarOverviewCard: View {
-    let overview: TodayCalendarOverview
+struct HomeCalendarOverviewCard: View {
+    let overview: HomeCalendarOverview
     let onPlanTheDay: () -> Void
 
     var body: some View {
@@ -1085,7 +602,7 @@ private struct TodayCalendarOverviewCard: View {
     }
 }
 
-private struct TodayCalendarPermissionCard: View {
+struct HomeCalendarPermissionCard: View {
     let status: CalendarPermissionStatus
 
     var body: some View {
@@ -1154,7 +671,7 @@ struct PromisePresenceBanner: View {
     }
 }
 
-private struct PromiseCard: View {
+struct PromiseCard: View {
     let promise: Promise
     let isDue: Bool
     let onCheckIn: () -> Void
@@ -1193,7 +710,7 @@ private struct PromiseCard: View {
     }
 }
 
-private struct PromiseStatView: View {
+struct PromiseStatView: View {
     let title: String
     let value: Int
     let color: Color
@@ -1416,7 +933,7 @@ private struct RoutineBuilderView: View {
 
 private struct RoutineSessionView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject var viewModel: TodayViewModel
+    @ObservedObject var viewModel: HomeExecutionViewModel
 
     let routineID: UUID
 
@@ -1505,8 +1022,8 @@ private struct RoutineSessionView: View {
     }
 }
 
-private struct TodayInboxCard: View {
-    let summary: TodayInboxSummary
+struct HomeInboxCard: View {
+    let summary: HomeInboxSummary
     let onCapture: () -> Void
     let onReview: () -> Void
 
@@ -1590,8 +1107,8 @@ private struct TodayInboxCard: View {
     }
 }
 
-private struct TodayPinnedProjectCard: View {
-    let summary: TodayPinnedProjectSummary
+struct HomePinnedProjectCard: View {
+    let summary: HomePinnedProjectSummary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -2624,7 +2141,7 @@ private struct ProjectFormView: View {
             Section("Project") {
                 TextField("Name", text: $name)
                 TextField("Summary", text: $summary, axis: .vertical)
-                Toggle("Pin to Today", isOn: $isPinned)
+                Toggle("Pin to Home", isOn: $isPinned)
             }
         }
         .navigationTitle(initialProject == nil ? "New Project" : "Edit Project")
@@ -2733,6 +2250,8 @@ private struct ProjectItemFormView: View {
         calendarReconciler: container.calendarReconciler,
         calendarChangeObserver: container.calendarChangeObserver,
         promiseRepository: container.promiseRepository,
-        routineRepository: container.routineRepository
+        routineRepository: container.routineRepository,
+        shoppingRepository: container.shoppingRepository,
+        healthRepository: container.healthRepository
     )
 }

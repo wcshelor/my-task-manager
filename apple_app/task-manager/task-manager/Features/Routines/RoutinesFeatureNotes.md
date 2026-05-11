@@ -1,6 +1,6 @@
 # Routines Feature
 
-First-pass Routines support is implemented through shared domain models, SwiftData persistence, Today view-model aggregation, and Today UI.
+First-pass Routines support is implemented through shared domain models, SwiftData persistence, Home view-model aggregation, and Home UI.
 
 ## Purpose
 
@@ -12,7 +12,7 @@ Feature area for morning, night, and custom routines with gentle completion trac
 - `RoutineItem`
 - `RoutineCompletionLog`
 - `RoutineRepository`
-- `TodayViewModel` routine aggregation
+- `HomeExecutionViewModel` routine aggregation
 
 ## Interaction With Tasks / Planner
 

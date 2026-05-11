@@ -21,6 +21,20 @@
 		EFB03E112F75BB1A00C78316 /* task-managerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "task-managerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		EFA000012F87000000C78316 /* Exceptions for "task-manager" folder in "task-manager" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Features/Home/HomeFeatureNotes.md,
+				Features/Logs/LogsFeatureNotes.md,
+				Features/Practice/PracticeFeatureNotes.md,
+				Features/Reflection/ReflectionFeatureNotes.md,
+				Features/Routines/RoutinesFeatureNotes.md,
+			);
+			target = EFB03DF92F75B96200C78316 /* task-manager */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EFB03DFC2F75B96200C78316 /* task-manager */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -36,20 +50,6 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		EFA000012F87000000C78316 /* Exceptions for "task-manager" folder in "task-manager" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Features/Logs/LogsFeatureNotes.md,
-				Features/Practice/PracticeFeatureNotes.md,
-				Features/Reflection/ReflectionFeatureNotes.md,
-				Features/Routines/RoutinesFeatureNotes.md,
-				Features/Today/TodayFeatureNotes.md,
-			);
-			target = EFB03DF92F75B96200C78316 /* task-manager */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		EFB03DF72F75B96200C78316 /* Frameworks */ = {

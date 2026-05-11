@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-nonisolated struct TodayRoutineProgress: Identifiable, Equatable, Sendable {
+nonisolated struct HomeRoutineProgress: Identifiable, Equatable, Sendable {
     let routine: Routine
     let completionLog: RoutineCompletionLog?
 
@@ -40,7 +40,7 @@ nonisolated struct TodayRoutineProgress: Identifiable, Equatable, Sendable {
     }
 }
 
-nonisolated struct TodayCalendarOverview: Equatable, Sendable {
+nonisolated struct HomeCalendarOverview: Equatable, Sendable {
     let events: [CalendarEventSnapshot]
     let nextEvent: CalendarEventSnapshot?
 
@@ -53,7 +53,7 @@ nonisolated struct TodayCalendarOverview: Equatable, Sendable {
     }
 }
 
-nonisolated struct TodayInboxSummary: Equatable, Sendable {
+nonisolated struct HomeInboxSummary: Equatable, Sendable {
     let pendingCaptures: [CaptureItem]
     let now: Date
 
@@ -88,7 +88,7 @@ nonisolated struct TodayInboxSummary: Equatable, Sendable {
     }
 }
 
-nonisolated struct TodayPinnedProjectSummary: Identifiable, Equatable, Sendable {
+nonisolated struct HomePinnedProjectSummary: Identifiable, Equatable, Sendable {
     let project: Project
     let activeTaskCount: Int
     let projectItemCount: Int
@@ -99,17 +99,56 @@ nonisolated struct TodayPinnedProjectSummary: Identifiable, Equatable, Sendable 
     }
 }
 
+nonisolated struct HomeHealthSummary: Equatable, Sendable {
+    let sleepCheckIn: SleepCheckIn?
+    let todaysMealLogs: [MealLog]
+    let recentWorkoutLogs: [WorkoutLog]
+
+    var detail: String {
+        let mealText = "\(todaysMealLogs.count) meal\(todaysMealLogs.count == 1 ? "" : "s")"
+
+        if let sleepCheckIn {
+            if let energyRating = sleepCheckIn.energyRating {
+                return "Energy \(energyRating)/5 · \(mealText)"
+            }
+
+            if let sleepQualityRating = sleepCheckIn.sleepQualityRating {
+                return "Sleep \(sleepQualityRating)/5 · \(mealText)"
+            }
+
+            return "Checked in · \(mealText)"
+        }
+
+        if let latestWorkout = recentWorkoutLogs.first {
+            return "\(mealText) · \(latestWorkout.workoutType.displayName)"
+        }
+
+        return "\(mealText) today"
+    }
+
+    var value: String {
+        sleepCheckIn == nil ? "Open" : "Done"
+    }
+}
+
 @MainActor
-final class TodayViewModel: ObservableObject {
+final class HomeExecutionViewModel: ObservableObject {
     @Published private(set) var activePromises: [Promise] = []
     @Published private(set) var duePromises: [Promise] = []
     @Published private(set) var promiseHistory: [Promise] = []
-    @Published private(set) var routineProgress: [TodayRoutineProgress] = []
+    @Published private(set) var routineProgress: [HomeRoutineProgress] = []
+    @Published private(set) var activeShoppingItems: [ShoppingItem] = []
+    @Published private(set) var shoppingHistory: [ShoppingItem] = []
+    @Published private(set) var healthSummary = HomeHealthSummary(
+        sleepCheckIn: nil,
+        todaysMealLogs: [],
+        recentWorkoutLogs: []
+    )
     @Published private(set) var tasks: [MyTask] = []
     @Published private(set) var captures: [CaptureItem] = []
     @Published private(set) var projects: [Project] = []
     @Published private(set) var projectItems: [ProjectItem] = []
-    @Published private(set) var calendarOverview: TodayCalendarOverview?
+    @Published private(set) var calendarOverview: HomeCalendarOverview?
     @Published private(set) var calendarPermissionStatus: CalendarPermissionStatus?
     @Published private(set) var errorMessage: String?
 
@@ -119,6 +158,8 @@ final class TodayViewModel: ObservableObject {
     private let projectItemRepository: (any ProjectItemRepository)?
     private let promiseRepository: any PromiseRepository
     private let routineRepository: any RoutineRepository
+    private let shoppingRepository: (any ShoppingRepository)?
+    private let healthRepository: (any HealthRepository)?
     private let calendarPermissionProvider: (any CalendarPermissionProviding)?
     private let calendarReader: (any CalendarReading)?
     private let calendar: Calendar
@@ -132,6 +173,8 @@ final class TodayViewModel: ObservableObject {
         projectItemRepository: (any ProjectItemRepository)? = nil,
         promiseRepository: any PromiseRepository,
         routineRepository: any RoutineRepository,
+        shoppingRepository: (any ShoppingRepository)? = nil,
+        healthRepository: (any HealthRepository)? = nil,
         calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
         calendarReader: (any CalendarReading)? = nil,
         calendar: Calendar = .current,
@@ -143,6 +186,8 @@ final class TodayViewModel: ObservableObject {
         self.projectItemRepository = projectItemRepository
         self.promiseRepository = promiseRepository
         self.routineRepository = routineRepository
+        self.shoppingRepository = shoppingRepository
+        self.healthRepository = healthRepository
         self.calendarPermissionProvider = calendarPermissionProvider
         self.calendarReader = calendarReader
         self.calendar = calendar
@@ -163,11 +208,38 @@ final class TodayViewModel: ObservableObject {
         }
     }
 
-    var inboxSummary: TodayInboxSummary {
-        TodayInboxSummary(pendingCaptures: captures, now: nowProvider())
+    var activeTaskCount: Int {
+        tasks.filter { task in
+            task.status != .completed && task.status != .archived
+        }.count
     }
 
-    var pinnedProjectSummaries: [TodayPinnedProjectSummary] {
+    var plannerSummary: String {
+        guard let overview = calendarOverview else {
+            return "Open planner"
+        }
+
+        if let nextEvent = overview.nextEvent {
+            return "Next \(nextEvent.start.formatted(date: .omitted, time: .shortened))"
+        }
+
+        return overview.events.isEmpty ? "Open day" : "\(overview.events.count) events"
+    }
+
+    var routineProgressSummary: String {
+        let completed = routineProgress.filter(\.isComplete).count
+        return "\(completed)/\(routineProgress.count)"
+    }
+
+    var activeShoppingItemCount: Int {
+        activeShoppingItems.count
+    }
+
+    var inboxSummary: HomeInboxSummary {
+        HomeInboxSummary(pendingCaptures: captures, now: nowProvider())
+    }
+
+    var pinnedProjectSummaries: [HomePinnedProjectSummary] {
         let activeTasks = tasks.filter { task in
             task.status != .completed && task.status != .archived
         }
@@ -178,7 +250,7 @@ final class TodayViewModel: ObservableObject {
             .map { project in
                 let projectTasks = activeTasks.filter { $0.projectID == project.id }
                 let nextTask = Self.nextTask(from: projectTasks)
-                return TodayPinnedProjectSummary(
+                return HomePinnedProjectSummary(
                     project: project,
                     activeTaskCount: projectTasks.count,
                     projectItemCount: activeItems.filter { $0.projectID == project.id }.count,
@@ -189,6 +261,26 @@ final class TodayViewModel: ObservableObject {
 
     var reservedTaskIDs: Set<UUID> {
         Set(tasks.map(\.id))
+    }
+
+    func projectSummary(for projectID: UUID) -> HomePinnedProjectSummary? {
+        let activeTasks = tasks.filter { task in
+            task.status != .completed && task.status != .archived && task.projectID == projectID
+        }
+        let activeItems = projectItems.filter {
+            $0.isArchived == false && $0.projectID == projectID
+        }
+
+        guard let project = projects.first(where: { $0.id == projectID && $0.isArchived == false }) else {
+            return nil
+        }
+
+        return HomePinnedProjectSummary(
+            project: project,
+            activeTaskCount: activeTasks.count,
+            projectItemCount: activeItems.count,
+            nextTask: Self.nextTask(from: activeTasks)
+        )
     }
 
     func loadIfNeeded() {
@@ -217,6 +309,13 @@ final class TodayViewModel: ObservableObject {
             activePromises = try promiseRepository.fetchActivePromises(at: now)
             duePromises = try promiseRepository.fetchDuePromises(at: now)
             promiseHistory = try promiseRepository.fetchPromiseHistory()
+            activeShoppingItems = try shoppingRepository?.fetchActiveShoppingItems() ?? []
+            shoppingHistory = try shoppingRepository?.fetchShoppingHistory() ?? []
+            healthSummary = HomeHealthSummary(
+                sleepCheckIn: try healthRepository?.fetchSleepCheckIn(on: now, calendar: calendar),
+                todaysMealLogs: try healthRepository?.fetchMealLogs(on: now, calendar: calendar) ?? [],
+                recentWorkoutLogs: try healthRepository?.fetchRecentWorkoutLogs(limit: 1) ?? []
+            )
             tasks = try taskRepository.fetchTasks()
             captures = try captureRepository?.fetchCaptures(
                 includeProcessed: false,
@@ -225,7 +324,7 @@ final class TodayViewModel: ObservableObject {
             projects = try projectRepository?.fetchProjects(includeArchived: false) ?? []
             projectItems = try projectItemRepository?.fetchProjectItems(includeArchived: false) ?? []
             routineProgress = activeRoutines.map { routine in
-                TodayRoutineProgress(routine: routine, completionLog: logLookup[routine.id])
+                HomeRoutineProgress(routine: routine, completionLog: logLookup[routine.id])
             }
             errorMessage = nil
             hasLoaded = true
@@ -273,7 +372,7 @@ final class TodayViewModel: ObservableObject {
                 return lhs.end < rhs.end
             }
 
-            calendarOverview = TodayCalendarOverview(
+            calendarOverview = HomeCalendarOverview(
                 events: events,
                 nextEvent: events.first(where: { $0.end > now && $0.isAllDay == false })
             )
@@ -370,7 +469,7 @@ final class TodayViewModel: ObservableObject {
         }
     }
 
-    func progress(for routineID: UUID) -> TodayRoutineProgress? {
+    func progress(for routineID: UUID) -> HomeRoutineProgress? {
         routineProgress.first { $0.routine.id == routineID }
     }
 

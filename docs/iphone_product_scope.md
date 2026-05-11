@@ -2,6 +2,8 @@
 
 Status: frozen for the first migration pass on April 6, 2026.
 
+The app remains work in progress. This document is historical scope for the first iPhone migration pass, not a complete inventory of newer modules.
+
 ## Product Scope
 
 - Supported platforms: macOS and iPhone only.

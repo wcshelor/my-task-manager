@@ -23,6 +23,11 @@ enum ModelContainerFactory {
             PromiseRecord.self,
             RoutineRecord.self,
             RoutineCompletionLogRecord.self,
+            ShoppingItemRecord.self,
+            SleepCheckInRecord.self,
+            MealLogRecord.self,
+            WorkoutLogRecord.self,
+            PVTSessionRecord.self,
         ])
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: isStoredInMemoryOnly

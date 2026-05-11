@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import Testing
 @testable import task_manager
@@ -37,6 +38,37 @@ struct SwiftDataHomeLayoutRepositoryTests {
         #expect(reloadedLayout.widgets.contains { $0.kind == .promiseHistory } == false)
     }
 
+    @Test @MainActor func homeLayoutRepositoryPreservesExplicitlyEmptyLayout() throws {
+        let repository = try makeRepository()
+
+        try repository.saveLayout(HomeLayout(widgets: []))
+        let reloadedLayout = try repository.loadLayout()
+
+        #expect(reloadedLayout.widgets.isEmpty)
+    }
+
+    @Test @MainActor func homeLayoutRepositoryPersistsRemovedWidgetConfigurations() throws {
+        let repository = try makeRepository()
+        var configuration = HomeWidgetConfiguration.empty
+        configuration.projectID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")
+        let layout = HomeLayout(
+            widgets: [],
+            removedWidgets: [
+                HomeWidgetInstance(
+                    kind: .projectNextTask,
+                    size: .small,
+                    sortOrder: 0,
+                    configuration: configuration
+                ),
+            ]
+        )
+
+        try repository.saveLayout(layout)
+        let reloadedLayout = try repository.loadLayout()
+
+        #expect(reloadedLayout.removedWidgets.first?.configuration == configuration)
+    }
+
     @Test @MainActor func homeLayoutRepositoryRepairsCorruptStoredLayout() throws {
         let container = try ModelContainerFactory.makeInMemoryContainer()
         let record = HomeLayoutRecord(layout: HomeLayout.defaultLayout)
@@ -50,7 +82,7 @@ struct SwiftDataHomeLayoutRepositoryTests {
         #expect(layout == HomeLayout.defaultLayout)
     }
 
-    @Test @MainActor func homeLayoutRepositoryIgnoresUnknownStoredWidgetKinds() throws {
+    @Test @MainActor func homeLayoutRepositoryPreservesUnknownStoredWidgetKinds() throws {
         let container = try ModelContainerFactory.makeInMemoryContainer()
         let record = HomeLayoutRecord(layout: HomeLayout.defaultLayout)
         record.widgetsJSON = """
@@ -77,7 +109,8 @@ struct SwiftDataHomeLayoutRepositoryTests {
         let repository = SwiftDataHomeLayoutRepository(modelContainer: container)
         let layout = try repository.loadLayout()
 
-        #expect(layout.widgets.map(\.kind) == [.inbox])
+        #expect(layout.widgets.map(\.kind) == [.inbox, HomeWidgetKind(rawValue: "futureUnknownWidget")])
+        #expect(HomeWidgetRegistry.standard.descriptor(for: HomeWidgetKind(rawValue: "futureUnknownWidget"))?.isAvailable == false)
     }
 
     @MainActor
