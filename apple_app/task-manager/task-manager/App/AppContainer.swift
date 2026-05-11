@@ -9,6 +9,7 @@ struct AppContainer {
     let projectItemRepository: any ProjectItemRepository
     let scheduledBlockRepository: any ScheduledBlockRepository
     let settingsRepository: any SettingsRepository
+    let homeLayoutRepository: any HomeLayoutRepository
     let promiseRepository: any PromiseRepository
     let routineRepository: any RoutineRepository
     let calendarPermissionProvider: any CalendarPermissionProviding
@@ -28,6 +29,9 @@ struct AppContainer {
             modelContainer: modelContainer
         )
         let settingsRepository = SwiftDataSettingsRepository(
+            modelContainer: modelContainer
+        )
+        let homeLayoutRepository = SwiftDataHomeLayoutRepository(
             modelContainer: modelContainer
         )
         let promiseRepository = SwiftDataPromiseRepository(modelContainer: modelContainer)
@@ -56,6 +60,7 @@ struct AppContainer {
         let calendarChangeObserver = calendarEventStore
 
         _ = try settingsRepository.loadSettings()
+        _ = try homeLayoutRepository.loadLayout()
 
         #if DEBUG
         try seedDevelopmentTasksIfNeeded(taskRepository: taskRepository)
@@ -69,6 +74,7 @@ struct AppContainer {
             projectItemRepository: projectItemRepository,
             scheduledBlockRepository: scheduledBlockRepository,
             settingsRepository: settingsRepository,
+            homeLayoutRepository: homeLayoutRepository,
             promiseRepository: promiseRepository,
             routineRepository: routineRepository,
             calendarPermissionProvider: calendarPermissionProvider,
@@ -114,6 +120,9 @@ struct AppContainer {
         let settingsRepository = SwiftDataSettingsRepository(
             modelContainer: modelContainer
         )
+        let homeLayoutRepository = SwiftDataHomeLayoutRepository(
+            modelContainer: modelContainer
+        )
         let promiseRepository = SwiftDataPromiseRepository(modelContainer: modelContainer)
         let routineRepository = SwiftDataRoutineRepository(modelContainer: modelContainer)
         let calendarPermissionProvider = StubCalendarPermissionService()
@@ -124,6 +133,7 @@ struct AppContainer {
         let calendarChangeObserver = StubCalendarChangeObserver()
 
         _ = try? settingsRepository.loadSettings()
+        _ = try? homeLayoutRepository.loadLayout()
 
         for task in seedTasks {
             try? taskRepository.saveTask(task, replacingTaskWithID: nil)
@@ -148,6 +158,7 @@ struct AppContainer {
             projectItemRepository: projectItemRepository,
             scheduledBlockRepository: scheduledBlockRepository,
             settingsRepository: settingsRepository,
+            homeLayoutRepository: homeLayoutRepository,
             promiseRepository: promiseRepository,
             routineRepository: routineRepository,
             calendarPermissionProvider: calendarPermissionProvider,

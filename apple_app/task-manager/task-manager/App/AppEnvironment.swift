@@ -27,6 +27,10 @@ final class AppEnvironment {
         container.settingsRepository
     }
 
+    var homeLayoutRepository: any HomeLayoutRepository {
+        container.homeLayoutRepository
+    }
+
     var promiseRepository: any PromiseRepository {
         container.promiseRepository
     }

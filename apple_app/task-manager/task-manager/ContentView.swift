@@ -28,13 +28,14 @@ private struct TaskManagerTabShell: View {
 
     var body: some View {
         TabView {
-            TodayView(
+            HomeView(
                 taskRepository: appEnvironment.taskRepository,
                 projectRepository: appEnvironment.projectRepository,
                 captureRepository: appEnvironment.captureRepository,
                 projectItemRepository: appEnvironment.projectItemRepository,
                 scheduledBlockRepository: appEnvironment.scheduledBlockRepository,
                 settingsRepository: appEnvironment.settingsRepository,
+                homeLayoutRepository: appEnvironment.homeLayoutRepository,
                 calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
                 calendarListingService: appEnvironment.calendarListingService,
                 calendarReader: appEnvironment.calendarReader,
@@ -45,7 +46,7 @@ private struct TaskManagerTabShell: View {
                 routineRepository: appEnvironment.routineRepository
             )
                 .tabItem {
-                    Label("Today", systemImage: "sun.max.fill")
+                    Label("Home", systemImage: "square.grid.2x2.fill")
                 }
 
             TaskListView(

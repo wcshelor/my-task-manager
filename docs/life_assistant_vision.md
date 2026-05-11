@@ -8,6 +8,8 @@ This repo is evolving from a task manager into a modular Life Assistant / person
 
 The product should feel like a practical personal secretary for daily planning, not a collection of disconnected trackers.
 
+Domain docs for implemented or active areas live in `docs/domains/`. Plan-only future module docs live in `docs/domains/future-modules/`.
+
 ## Current Implemented Modules
 
 The implemented Swift app currently centers on:
@@ -34,12 +36,13 @@ Likely future life domains include:
   - Sleep / PVT tracker
   - Fitness / workout tracking
   - Nutrition / meal tracking
-- Piano practice mode
+- Music practice mode
 - Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
 - Shopping list and wish list
 - Budgeting / purchase decision support
 - Vices Tracking
-- Reflection / anti-spiral journaling
+- People Memory
+- Journaling & Reflection
 - General life logs
 
 Today, Promises, and Routines now have first-pass Swift implementations. The remaining future modules are not implemented yet unless the README or feature-specific docs say otherwise.
@@ -68,13 +71,14 @@ Conceptual domain names:
 - `RoutineDomain`
 - `HealthDomain`
 - `SleepPVTSubdomain`
-- `PracticeDomain`
+- `MusicPracticeDomain`
 - `FitnessSubdomain`
 - `NutritionSubdomain`
 - `ShoppingDomain`
 - `BudgetingDomain`
 - `VicesDomain`
-- `ReflectionDomain`
+- `PeopleMemoryDomain`
+- `JournalingReflectionDomain`
 
 This is a documentation and folder-structure idea for now. Do not introduce protocols, generic registries, or plugin machinery unless a concrete implementation needs them.
 

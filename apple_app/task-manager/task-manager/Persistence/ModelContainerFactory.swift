@@ -19,6 +19,7 @@ enum ModelContainerFactory {
             ProjectItemRecord.self,
             ScheduledBlockRecord.self,
             AppSettingsRecord.self,
+            HomeLayoutRecord.self,
             PromiseRecord.self,
             RoutineRecord.self,
             RoutineCompletionLogRecord.self,
