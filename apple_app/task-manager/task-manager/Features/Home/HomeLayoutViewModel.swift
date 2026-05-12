@@ -4,6 +4,11 @@ import SwiftUI
 
 @MainActor
 final class HomeLayoutViewModel: ObservableObject {
+    enum WidgetDropPlacement {
+        case before
+        case after
+    }
+
     @Published private(set) var layout: HomeLayout
     @Published private(set) var errorMessage: String?
 
@@ -109,7 +114,11 @@ final class HomeLayoutViewModel: ObservableObject {
         save(HomeLayout(version: layout.version, widgets: widgets, removedWidgets: layout.removedWidgets))
     }
 
-    func moveWidget(withID movingID: UUID, beforeID targetID: UUID) {
+    func moveWidget(
+        withID movingID: UUID,
+        relativeTo targetID: UUID,
+        placement: WidgetDropPlacement
+    ) {
         guard movingID != targetID else {
             return
         }
@@ -121,8 +130,14 @@ final class HomeLayoutViewModel: ObservableObject {
         }
 
         let widget = widgets.remove(at: sourceIndex)
-        let adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
-        widgets.insert(widget, at: adjustedTargetIndex)
+        let targetIndexAfterRemoval = widgets.firstIndex(where: { $0.id == targetID }) ?? targetIndex
+        let insertionIndex = switch placement {
+        case .before:
+            targetIndexAfterRemoval
+        case .after:
+            targetIndexAfterRemoval + 1
+        }
+        widgets.insert(widget, at: min(insertionIndex, widgets.count))
         widgets = widgets.enumerated().map { index, widget in
             var updatedWidget = widget
             updatedWidget.sortOrder = index

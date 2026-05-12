@@ -9,6 +9,7 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
     case routines
     case shopping
     case health
+    case musicPractice
     case future
 
     var displayName: String {
@@ -29,6 +30,8 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
             return "Shopping"
         case .health:
             return "Health"
+        case .musicPractice:
+            return "Music Practice"
         case .future:
             return "Planned"
         }
@@ -58,6 +61,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
     static let routines = HomeWidgetKind(rawValue: "routines")
     static let currentRoutineStep = HomeWidgetKind(rawValue: "currentRoutineStep")
     static let promiseHistory = HomeWidgetKind(rawValue: "promiseHistory")
+    static let shoppingQuickAdd = HomeWidgetKind(rawValue: "shoppingQuickAdd")
     static let tasksModule = HomeWidgetKind(rawValue: "tasksModule")
     static let plannerModule = HomeWidgetKind(rawValue: "plannerModule")
     static let projectsModule = HomeWidgetKind(rawValue: "projectsModule")
@@ -65,6 +69,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
     static let routinesModule = HomeWidgetKind(rawValue: "routinesModule")
     static let shoppingModule = HomeWidgetKind(rawValue: "shoppingModule")
     static let healthModule = HomeWidgetKind(rawValue: "healthModule")
+    static let musicPracticeModule = HomeWidgetKind(rawValue: "musicPracticeModule")
     static let budgetModule = HomeWidgetKind(rawValue: "budgetModule")
 
     static let allCases: [HomeWidgetKind] = [
@@ -80,6 +85,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
         .routines,
         .currentRoutineStep,
         .promiseHistory,
+        .shoppingQuickAdd,
         .tasksModule,
         .plannerModule,
         .projectsModule,
@@ -87,6 +93,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
         .routinesModule,
         .shoppingModule,
         .healthModule,
+        .musicPracticeModule,
         .budgetModule,
     ]
 }
@@ -187,6 +194,7 @@ nonisolated struct HomeLayout: Equatable, Sendable {
             HomeWidgetInstance(kind: .promiseHistory, size: .large, sortOrder: 5),
             HomeWidgetInstance(kind: .shoppingModule, size: .small, sortOrder: 6),
             HomeWidgetInstance(kind: .healthModule, size: .small, sortOrder: 7),
+            HomeWidgetInstance(kind: .musicPracticeModule, size: .small, sortOrder: 8),
         ]
     )
 
@@ -299,7 +307,9 @@ nonisolated enum HomeWidgetDefaultAction: Equatable, Sendable {
     case newRoutine
     case openConfiguredRoutine
     case openShopping
+    case quickAddShopping
     case openHealth
+    case openMusicPractice
 }
 
 nonisolated enum HomeLayoutMigrator {
@@ -549,6 +559,16 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
+                kind: .shoppingQuickAdd,
+                displayName: "Shopping Quick Add",
+                iconSystemName: "cart.badge.plus",
+                module: .shopping,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                duplicatePolicy: .multiple,
+                defaultAction: .quickAddShopping
+            ),
+            HomeWidgetDescriptor(
                 kind: .healthModule,
                 displayName: "Health",
                 iconSystemName: "heart.text.square",
@@ -556,6 +576,16 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
                 defaultAction: .openHealth,
+                isModuleWidget: true
+            ),
+            HomeWidgetDescriptor(
+                kind: .musicPracticeModule,
+                displayName: "Music Practice",
+                iconSystemName: "music.note.list",
+                module: .musicPractice,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openMusicPractice,
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(

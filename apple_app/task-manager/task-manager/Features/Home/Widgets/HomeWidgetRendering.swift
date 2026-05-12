@@ -10,6 +10,7 @@ struct HomeWidgetRenderContext {
     let checkInPromise: (Promise) -> Void
     let openShopping: () -> Void
     let openHealth: () -> Void
+    let openMusicPractice: () -> Void
 }
 
 @MainActor
@@ -149,6 +150,16 @@ struct HomeWidgetRendererRegistry {
                     perform: { context.perform(.openShopping, widget) }
                 )
             },
+            AnyHomeWidgetRenderer(kind: .shoppingQuickAdd) { widget, context in
+                HomeActionWidget(
+                    title: "Shopping Quick Add",
+                    systemImage: "cart.badge.plus",
+                    value: widget.size == .small ? "Add" : "Capture an item as soon as you notice it.",
+                    actionTitle: "Add Item"
+                ) {
+                    context.perform(.quickAddShopping, widget)
+                }
+            },
             AnyHomeWidgetRenderer(kind: .healthModule) { widget, context in
                 HomeModuleRenderer.render(
                     widget: widget,
@@ -157,6 +168,16 @@ struct HomeWidgetRendererRegistry {
                     detail: context.execution.healthSummary.detail,
                     action: "Open Health",
                     perform: { context.perform(.openHealth, widget) }
+                )
+            },
+            AnyHomeWidgetRenderer(kind: .musicPracticeModule) { widget, context in
+                HomeModuleRenderer.render(
+                    widget: widget,
+                    title: "Music Practice",
+                    systemImage: "music.note.list",
+                    detail: context.execution.musicPracticeSummary.detail,
+                    action: "Open Practice",
+                    perform: { context.perform(.openMusicPractice, widget) }
                 )
             },
             AnyHomeWidgetRenderer(kind: .calendarOverview) { widget, context in

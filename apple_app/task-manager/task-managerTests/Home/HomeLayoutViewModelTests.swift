@@ -61,6 +61,30 @@ struct HomeLayoutViewModelTests {
         #expect(viewModel.widgets.map(\.kind) == [.promises, .inbox])
     }
 
+    @Test func viewModelCanMoveWidgetAfterTarget() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+                    HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 1),
+                    HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 2),
+                ]
+            )
+        )
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        viewModel.load()
+        let movingID = viewModel.widgets[0].id
+        let targetID = viewModel.widgets[1].id
+
+        viewModel.moveWidget(
+            withID: movingID,
+            relativeTo: targetID,
+            placement: .after
+        )
+
+        #expect(viewModel.widgets.map(\.kind) == [.promises, .inbox, .routines])
+    }
+
     @Test func viewModelRemovesWidgets() throws {
         let repository = InMemoryHomeLayoutRepository(
             layout: HomeLayout(

@@ -47,6 +47,10 @@ final class AppEnvironment {
         container.healthRepository
     }
 
+    var musicPracticeRepository: any MusicPracticeRepository {
+        container.musicPracticeRepository
+    }
+
     var calendarPermissionProvider: any CalendarPermissionProviding {
         container.calendarPermissionProvider
     }

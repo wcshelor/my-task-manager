@@ -1,17 +1,18 @@
 # Practice Feature
 
-Scaffold only. No piano practice mode, model, persistence, or view model is implemented yet.
+This scaffold has evolved into the lightweight Music Practice foundation in `Features/MusicPractice`.
 
 ## Purpose
 
 Future feature area for piano goals, active pieces, practice skills, and practice sessions.
 
-## Likely Future Objects
+## Implemented Foundation
 
-- `PieceGoal`
-- `PracticeSkill`
+- `PracticePiece`
 - `PracticeSession`
-- practice mode view model
+- `MusicPracticeRepository`
+- `MusicPracticeViewModel`
+- simple session and piece capture UI
 
 ## Interaction With Tasks / Planner
 

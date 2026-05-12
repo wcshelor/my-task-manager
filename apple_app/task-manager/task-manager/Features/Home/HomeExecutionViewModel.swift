@@ -146,6 +146,41 @@ nonisolated struct HomeHealthSummary: Equatable, Sendable {
     }
 }
 
+nonisolated struct HomeMusicPracticeSummary: Equatable, Sendable {
+    let summary: MusicPracticeSummary
+
+    init(
+        sessions: [PracticeSession] = [],
+        pieces: [PracticePiece] = [],
+        now: Date,
+        calendar: Calendar
+    ) {
+        summary = MusicPracticeSummary(
+            sessions: sessions,
+            pieces: pieces,
+            now: now,
+            calendar: calendar,
+            recentSessionLimit: 3
+        )
+    }
+
+    var detail: String {
+        if summary.totalMinutesLast7Days > 0 {
+            return "\(summary.totalMinutesLast7Days)m last 7 days"
+        }
+
+        if summary.totalMinutesLast30Days > 0 {
+            return "\(summary.totalMinutesLast30Days)m last 30 days"
+        }
+
+        return "No recent practice"
+    }
+
+    var value: String {
+        summary.totalMinutesLast7Days > 0 ? "\(summary.totalMinutesLast7Days)m" : "Open"
+    }
+}
+
 @MainActor
 final class HomeExecutionViewModel: ObservableObject {
     @Published private(set) var activePromises: [Promise] = []
@@ -158,6 +193,10 @@ final class HomeExecutionViewModel: ObservableObject {
         sleepCheckIn: nil,
         todaysMealLogs: [],
         recentWorkoutLogs: []
+    )
+    @Published private(set) var musicPracticeSummary = HomeMusicPracticeSummary(
+        now: Date(),
+        calendar: .current
     )
     @Published private(set) var tasks: [MyTask] = []
     @Published private(set) var captures: [CaptureItem] = []
@@ -175,6 +214,7 @@ final class HomeExecutionViewModel: ObservableObject {
     private let routineRepository: any RoutineRepository
     private let shoppingRepository: (any ShoppingRepository)?
     private let healthRepository: (any HealthRepository)?
+    private let musicPracticeRepository: (any MusicPracticeRepository)?
     private let calendarPermissionProvider: (any CalendarPermissionProviding)?
     private let calendarReader: (any CalendarReading)?
     private let calendar: Calendar
@@ -190,6 +230,7 @@ final class HomeExecutionViewModel: ObservableObject {
         routineRepository: any RoutineRepository,
         shoppingRepository: (any ShoppingRepository)? = nil,
         healthRepository: (any HealthRepository)? = nil,
+        musicPracticeRepository: (any MusicPracticeRepository)? = nil,
         calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
         calendarReader: (any CalendarReading)? = nil,
         calendar: Calendar = .current,
@@ -203,6 +244,7 @@ final class HomeExecutionViewModel: ObservableObject {
         self.routineRepository = routineRepository
         self.shoppingRepository = shoppingRepository
         self.healthRepository = healthRepository
+        self.musicPracticeRepository = musicPracticeRepository
         self.calendarPermissionProvider = calendarPermissionProvider
         self.calendarReader = calendarReader
         self.calendar = calendar
@@ -320,6 +362,16 @@ final class HomeExecutionViewModel: ObservableObject {
                 sleepCheckIn: try healthRepository?.fetchSleepCheckIn(on: now, calendar: calendar),
                 todaysMealLogs: try healthRepository?.fetchMealLogs(on: now, calendar: calendar) ?? [],
                 recentWorkoutLogs: try healthRepository?.fetchRecentWorkoutLogs(limit: 1) ?? []
+            )
+            let practiceWindow = PracticeDateWindow.current(days: 30, endingAt: now, calendar: calendar)
+            let practiceSessions = try practiceWindow.map { window in
+                try musicPracticeRepository?.fetchPracticeSessions(from: window.start, to: window.end) ?? []
+            } ?? []
+            musicPracticeSummary = HomeMusicPracticeSummary(
+                sessions: practiceSessions,
+                pieces: try musicPracticeRepository?.fetchPracticePieces(includeArchived: false) ?? [],
+                now: now,
+                calendar: calendar
             )
             tasks = try taskRepository.fetchTasks()
             captures = try captureRepository?.fetchCaptures(

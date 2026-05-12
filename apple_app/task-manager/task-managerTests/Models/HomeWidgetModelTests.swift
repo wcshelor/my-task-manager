@@ -15,9 +15,10 @@ struct HomeWidgetModelTests {
             .promiseHistory,
             .shoppingModule,
             .healthModule,
+            .musicPracticeModule,
         ])
-        #expect(HomeLayout.defaultLayout.orderedWidgets.dropLast(2).allSatisfy { $0.size == .large })
-        #expect(HomeLayout.defaultLayout.orderedWidgets.suffix(2).allSatisfy { $0.size == .small })
+        #expect(HomeLayout.defaultLayout.orderedWidgets.dropLast(3).allSatisfy { $0.size == .large })
+        #expect(HomeLayout.defaultLayout.orderedWidgets.suffix(3).allSatisfy { $0.size == .small })
     }
 
     @Test func layoutNormalizesSortOrderDeterministically() {
@@ -127,5 +128,45 @@ struct HomeWidgetModelTests {
                 HomeWidgetInstance(kind: .healthModule, size: .small, sortOrder: 0),
             ])
         ) == false)
+    }
+
+    @Test func musicPracticeModuleWidgetIsAvailable() {
+        let registry = HomeWidgetRegistry.standard
+        let descriptor = registry.descriptor(for: .musicPracticeModule)
+
+        #expect(descriptor?.module == .musicPractice)
+        #expect(descriptor?.isAvailable == true)
+        #expect(registry.moduleWidget(for: .musicPractice)?.kind == .musicPracticeModule)
+        #expect(registry.canAdd(
+            descriptor: descriptor!,
+            configuration: .empty,
+            to: HomeLayout(widgets: [])
+        ))
+        #expect(registry.canAdd(
+            descriptor: descriptor!,
+            configuration: .empty,
+            to: HomeLayout(widgets: [
+                HomeWidgetInstance(kind: .musicPracticeModule, size: .small, sortOrder: 0),
+            ])
+        ) == false)
+    }
+
+    @Test func shoppingQuickAddWidgetIsAvailableAndAllowsMultipleInstances() {
+        let registry = HomeWidgetRegistry.standard
+        let descriptor = registry.descriptor(for: .shoppingQuickAdd)
+
+        #expect(descriptor?.module == .shopping)
+        #expect(descriptor?.isAvailable == true)
+        #expect(registry.featureWidgets(for: .shopping).contains(where: { $0.kind == .shoppingQuickAdd }))
+
+        let layout = HomeLayout(widgets: [
+            HomeWidgetInstance(kind: .shoppingQuickAdd, size: .small, sortOrder: 0),
+        ])
+
+        #expect(registry.canAdd(
+            descriptor: descriptor!,
+            configuration: .empty,
+            to: layout
+        ))
     }
 }

@@ -28,6 +28,8 @@ enum ModelContainerFactory {
             MealLogRecord.self,
             WorkoutLogRecord.self,
             PVTSessionRecord.self,
+            PracticePieceRecord.self,
+            PracticeSessionRecord.self,
         ])
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: isStoredInMemoryOnly

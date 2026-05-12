@@ -98,7 +98,13 @@ struct TaskFormView: View {
         VStack(alignment: .leading, spacing: 16) {
             Form {
                 Section("Task Details") {
-                    TextField("Title", text: $formData.title)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Title")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        TextField("Task title", text: $formData.title)
+                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Notes")
@@ -136,14 +142,25 @@ struct TaskFormView: View {
                 }
 
                 Section("Scheduling") {
-                    Toggle("Set Due Date", isOn: $formData.hasDueDate)
-
                     if formData.hasDueDate {
-                        DatePicker(
-                            "Due Date",
-                            selection: $formData.dueDate,
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
+                        VStack(alignment: .leading, spacing: 12) {
+                            DatePicker(
+                                "Due Date",
+                                selection: $formData.dueDate,
+                                displayedComponents: [.date, .hourAndMinute]
+                            )
+
+                            Button("Remove Due Date", role: .destructive) {
+                                formData.hasDueDate = false
+                            }
+                            .font(.subheadline.weight(.medium))
+                        }
+                    } else {
+                        LabeledContent("Due Date") {
+                            Button("Add Due Date") {
+                                formData.hasDueDate = true
+                            }
+                        }
                     }
                 }
 
@@ -182,11 +199,23 @@ struct TaskFormView: View {
                         }
                     }
 
-                    TextField("Task Group", text: $formData.taskGroupText)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Task Group")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        TextField("Task group", text: $formData.taskGroupText)
+                    }
                 }
 
                 Section("Tags") {
-                    TextField("Comma-separated tags", text: $formData.tagsText)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Tags")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        TextField("Comma-separated tags", text: $formData.tagsText)
+                    }
                 }
 
                 if mode.showsDeleteAction, onDelete != nil {

@@ -14,7 +14,9 @@ struct HomeView: View {
         case routineBuilder
         case routineSession(UUID)
         case shoppingList
+        case shoppingQuickAdd
         case health
+        case musicPractice
 
         var id: String {
             switch self {
@@ -34,8 +36,12 @@ struct HomeView: View {
                 return "routineSession-\(routineID.uuidString)"
             case .shoppingList:
                 return "shoppingList"
+            case .shoppingQuickAdd:
+                return "shoppingQuickAdd"
             case .health:
                 return "health"
+            case .musicPractice:
+                return "musicPractice"
             }
         }
     }
@@ -70,6 +76,7 @@ struct HomeView: View {
     private let promiseRepository: any PromiseRepository
     private let shoppingRepository: any ShoppingRepository
     private let healthRepository: any HealthRepository
+    private let musicPracticeRepository: any MusicPracticeRepository
 
     init(
         taskRepository: any TaskRepository,
@@ -88,7 +95,8 @@ struct HomeView: View {
         promiseRepository: any PromiseRepository,
         routineRepository: any RoutineRepository,
         shoppingRepository: any ShoppingRepository,
-        healthRepository: any HealthRepository
+        healthRepository: any HealthRepository,
+        musicPracticeRepository: any MusicPracticeRepository
     ) {
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
@@ -106,6 +114,7 @@ struct HomeView: View {
         self.promiseRepository = promiseRepository
         self.shoppingRepository = shoppingRepository
         self.healthRepository = healthRepository
+        self.musicPracticeRepository = musicPracticeRepository
         _viewModel = StateObject(
             wrappedValue: HomeExecutionViewModel(
                 taskRepository: taskRepository,
@@ -116,6 +125,7 @@ struct HomeView: View {
                 routineRepository: routineRepository,
                 shoppingRepository: shoppingRepository,
                 healthRepository: healthRepository,
+                musicPracticeRepository: musicPracticeRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
                 calendarReader: calendarReader
             )
@@ -226,8 +236,17 @@ struct HomeView: View {
                         ShoppingListView(shoppingRepository: shoppingRepository) {
                             viewModel.load()
                         }
+                    case .shoppingQuickAdd:
+                        ShoppingQuickAddSheet(shoppingRepository: shoppingRepository) {
+                            viewModel.load()
+                            presentedSheet = nil
+                        }
                     case .health:
                         HealthView(healthRepository: healthRepository) {
+                            viewModel.load()
+                        }
+                    case .musicPractice:
+                        MusicPracticeView(musicPracticeRepository: musicPracticeRepository) {
                             viewModel.load()
                         }
                     }
@@ -408,17 +427,39 @@ struct HomeView: View {
                     isEditingHome = true
                 }
                 .draggable(widget.id.uuidString)
-                .dropDestination(for: String.self) { items, _ in
-                    guard let id = items.first.flatMap(UUID.init(uuidString:)) else {
-                        return false
-                    }
-                    homeViewModel.moveWidget(withID: id, beforeID: widget.id)
-                    return true
-                }
                 .accessibilityElement(children: .contain)
         }
-        .padding(isEditingHome ? 8 : 0)
-        .background(isEditingHome ? Color.primary.opacity(0.025) : Color.clear, in: RoundedRectangle(cornerRadius: 12))
+        .padding(isEditingHome ? 10 : 14)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(isEditingHome ? 0.12 : 0.08), lineWidth: 1)
+        }
+        .overlay {
+            GeometryReader { geometry in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .dropDestination(for: String.self) { items, location in
+                        guard let id = items.first.flatMap(UUID.init(uuidString:)),
+                              isEditingHome else {
+                            return false
+                        }
+
+                        let placement: HomeLayoutViewModel.WidgetDropPlacement =
+                            location.y < geometry.size.height / 2 ? .before : .after
+                        homeViewModel.moveWidget(
+                            withID: id,
+                            relativeTo: widget.id,
+                            placement: placement
+                        )
+                        return true
+                    }
+            }
+        }
+        .shadow(color: Color.black.opacity(0.03), radius: 12, y: 3)
     }
 
     private var widgetRenderContext: HomeWidgetRenderContext {
@@ -444,6 +485,9 @@ struct HomeView: View {
             },
             openHealth: {
                 presentedSheet = .health
+            },
+            openMusicPractice: {
+                presentedSheet = .musicPractice
             }
         )
     }
@@ -483,8 +527,12 @@ struct HomeView: View {
             }
         case .openShopping:
             presentedSheet = .shoppingList
+        case .quickAddShopping:
+            presentedSheet = .shoppingQuickAdd
         case .openHealth:
             presentedSheet = .health
+        case .openMusicPractice:
+            presentedSheet = .musicPractice
         }
     }
 
@@ -499,6 +547,70 @@ struct HomeView: View {
         }
     }
 
+}
+
+private struct ShoppingQuickAddSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel: ShoppingListViewModel
+    @State private var title = ""
+
+    let onSave: () -> Void
+
+    init(
+        shoppingRepository: any ShoppingRepository,
+        onSave: @escaping () -> Void
+    ) {
+        self.onSave = onSave
+        _viewModel = StateObject(
+            wrappedValue: ShoppingListViewModel(shoppingRepository: shoppingRepository)
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section("Item") {
+                TextField("Add item", text: $title)
+                    .submitLabel(.done)
+                    .onSubmit(save)
+            }
+
+            if let errorMessage = viewModel.errorMessage {
+                Section {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("Add Shopping Item")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Add") {
+                    save()
+                }
+                .disabled(ShoppingItem.cleanedTitle(from: title) == nil)
+            }
+        }
+    }
+
+    private func save() {
+        guard ShoppingItem.cleanedTitle(from: title) != nil else {
+            return
+        }
+
+        viewModel.quickAdd(title: title)
+        guard viewModel.errorMessage == nil else {
+            return
+        }
+
+        onSave()
+    }
 }
 
 struct HomeCalendarOverviewCard: View {
@@ -2261,6 +2373,7 @@ private struct ProjectItemFormView: View {
         promiseRepository: container.promiseRepository,
         routineRepository: container.routineRepository,
         shoppingRepository: container.shoppingRepository,
-        healthRepository: container.healthRepository
+        healthRepository: container.healthRepository,
+        musicPracticeRepository: container.musicPracticeRepository
     )
 }

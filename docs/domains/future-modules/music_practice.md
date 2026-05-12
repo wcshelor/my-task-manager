@@ -154,4 +154,12 @@ Keep practice suggestion logic outside SwiftUI.
 
 ## Status
 
-Planning only. No Music Practice model, persistence, or UI exists yet.
+First foundation implemented in the Swift app:
+
+- `PracticePiece` and `PracticeSession` domain models
+- SwiftData records and repository
+- `MusicPracticeViewModel`
+- simple Home module entry, session logging, piece capture, and recent summary UI
+- targeted model, repository, and view model tests
+
+Still incomplete: routines, skills, practice mode, task links, planner integration, and richer repertoire review.
