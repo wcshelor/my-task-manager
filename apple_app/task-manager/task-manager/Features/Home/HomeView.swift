@@ -1132,6 +1132,7 @@ struct HomePinnedProjectCard: View {
             HStack(spacing: 10) {
                 Label("\(summary.activeTaskCount)", systemImage: "checklist")
                 Label("\(summary.projectItemCount)", systemImage: "sparkle.magnifyingglass")
+                Text(summary.progressSummary)
                 if let nextTask = summary.nextTask {
                     Text("Next: \(nextTask.title)")
                         .lineLimit(1)
@@ -1727,7 +1728,7 @@ struct ProjectsView: View {
                         } label: {
                             ProjectListRow(
                                 project: project,
-                                taskCount: viewModel.tasks.filter { $0.projectID == project.id && $0.status != .archived }.count,
+                                taskSummary: project.taskSummary(from: viewModel.tasks),
                                 itemCount: viewModel.projectItems.filter { $0.projectID == project.id }.count
                             )
                         }
@@ -1764,7 +1765,7 @@ struct ProjectsView: View {
 
 private struct ProjectListRow: View {
     let project: Project
-    let taskCount: Int
+    let taskSummary: ProjectTaskSummary
     let itemCount: Int
 
     var body: some View {
@@ -1784,9 +1785,15 @@ private struct ProjectListRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            Text("\(taskCount) tasks • \(itemCount) project items")
+            Text("\(taskSummary.progressSummary) • \(itemCount) project items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let nextAction = taskSummary.nextAction {
+                Text("Next: \(nextAction.title)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -1844,26 +1851,15 @@ struct ProjectDetailView: View {
     }
 
     private var projectTasks: [MyTask] {
-        tasks.filter { $0.projectID == projectID && $0.status != .archived }
+        projectTaskSummary?.activeTasks ?? []
     }
 
     private var nextTasks: [MyTask] {
-        projectTasks
-            .filter { $0.status != .completed }
-            .sorted { leftTask, rightTask in
-                switch (leftTask.dueDate, rightTask.dueDate) {
-                case (.some(let left), .some(let right)) where left != right:
-                    return left < right
-                case (.some, .none):
-                    return true
-                case (.none, .some):
-                    return false
-                default:
-                    return leftTask.createdAt > rightTask.createdAt
-                }
-            }
-            .prefix(3)
-            .map { $0 }
+        projectTaskSummary?.nextActions(limit: 3) ?? []
+    }
+
+    private var projectTaskSummary: ProjectTaskSummary? {
+        project?.taskSummary(from: tasks)
     }
 
     private var maybes: [ProjectItem] {
@@ -1982,8 +1978,21 @@ struct ProjectDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let taskSummary = projectTaskSummary {
+                Text(taskSummary.progressSummary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if let nextAction = taskSummary.nextAction {
+                    Text("Next: \(nextAction.title)")
+                        .font(.footnote.weight(.medium))
+                        .lineLimit(2)
+                }
+            }
+
             HStack {
-                ProjectMetricView(title: "Tasks", value: projectTasks.count)
+                ProjectMetricView(title: "Tasks", value: projectTaskSummary?.activeTaskCount ?? projectTasks.count)
+                ProjectMetricView(title: "Done", value: projectTaskSummary?.completedActiveTaskCount ?? 0)
                 ProjectMetricView(title: "Maybes", value: maybes.count)
                 ProjectMetricView(title: "Notes", value: notes.count)
             }

@@ -111,6 +111,117 @@ nonisolated struct Project: Identifiable, Equatable, Sendable {
     }
 }
 
+nonisolated struct ProjectTaskSummary: Equatable, Sendable {
+    let projectID: UUID
+    let activeTasks: [MyTask]
+
+    init(project: Project, tasks: [MyTask]) {
+        self.init(projectID: project.id, tasks: tasks)
+    }
+
+    init(projectID: UUID, tasks: [MyTask]) {
+        self.projectID = projectID
+        self.activeTasks = tasks
+            .filter { task in
+                task.projectID == projectID && task.status != .archived
+            }
+            .sorted { leftTask, rightTask in
+                if leftTask.createdAt != rightTask.createdAt {
+                    return leftTask.createdAt < rightTask.createdAt
+                }
+
+                return leftTask.id.uuidString < rightTask.id.uuidString
+            }
+    }
+
+    var activeTaskCount: Int {
+        activeTasks.count
+    }
+
+    var completedActiveTaskCount: Int {
+        activeTasks.filter { $0.status == .completed }.count
+    }
+
+    var incompleteActiveTaskCount: Int {
+        activeTasks.filter { $0.status != .completed }.count
+    }
+
+    var progressFraction: Double {
+        guard activeTaskCount > 0 else {
+            return 0
+        }
+
+        return Double(completedActiveTaskCount) / Double(activeTaskCount)
+    }
+
+    var progressSummary: String {
+        guard activeTaskCount > 0 else {
+            return "No tasks"
+        }
+
+        return "\(completedActiveTaskCount)/\(activeTaskCount) tasks complete"
+    }
+
+    var nextAction: MyTask? {
+        nextActions(limit: 1).first
+    }
+
+    func nextActions(limit: Int? = nil) -> [MyTask] {
+        let sortedActions = Self.sortedNextActions(from: activeTasks)
+
+        guard let limit else {
+            return sortedActions
+        }
+
+        return Array(sortedActions.prefix(limit))
+    }
+
+    static func sortedNextActions(from tasks: [MyTask]) -> [MyTask] {
+        tasks
+            .filter { task in
+                task.status != .completed && task.status != .archived
+            }
+            .sorted(by: isHigherRankedNextAction)
+    }
+
+    private static func isHigherRankedNextAction(
+        _ leftTask: MyTask,
+        _ rightTask: MyTask
+    ) -> Bool {
+        // Deterministic project next-action order: due date, priority, creation date, UUID.
+        switch (leftTask.dueDate, rightTask.dueDate) {
+        case (.some(let leftDueDate), .some(let rightDueDate)):
+            if leftDueDate != rightDueDate {
+                return leftDueDate < rightDueDate
+            }
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            break
+        }
+
+        let leftPriorityRank = leftTask.priority?.projectNextActionRank ?? Int.max
+        let rightPriorityRank = rightTask.priority?.projectNextActionRank ?? Int.max
+        if leftPriorityRank != rightPriorityRank {
+            return leftPriorityRank < rightPriorityRank
+        }
+
+        if leftTask.createdAt != rightTask.createdAt {
+            return leftTask.createdAt < rightTask.createdAt
+        }
+
+        return leftTask.id.uuidString < rightTask.id.uuidString
+    }
+}
+
+extension Project {
+    nonisolated func taskSummary(from tasks: [MyTask]) -> ProjectTaskSummary {
+        ProjectTaskSummary(project: self, tasks: tasks)
+    }
+}
+
 nonisolated enum ProjectItemKind: String, CaseIterable, Codable, Sendable {
     case maybe
     case note
@@ -528,5 +639,20 @@ extension Array where Element == MyTask {
 
     func task(withID id: UUID) -> MyTask? {
         first { $0.id == id }
+    }
+}
+
+private extension PriorityLevel {
+    nonisolated var projectNextActionRank: Int {
+        switch self {
+        case .urgent:
+            return 0
+        case .high:
+            return 1
+        case .medium:
+            return 2
+        case .low:
+            return 3
+        }
     }
 }

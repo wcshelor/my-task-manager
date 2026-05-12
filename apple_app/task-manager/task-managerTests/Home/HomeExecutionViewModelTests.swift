@@ -107,9 +107,15 @@ struct HomeExecutionViewModelTests {
             createdAt: now.addingTimeInterval(-3_600)
         )
         let task = MyTask(title: "Draft outline", dueDate: now.addingTimeInterval(86_400), projectID: project.id)
+        let completedTask = MyTask(
+            title: "Submit intro",
+            status: .completed,
+            dueDate: now.addingTimeInterval(-86_400),
+            projectID: project.id
+        )
         let item = ProjectItem(projectID: project.id, kind: .maybe, title: "Explore method")
         let viewModel = HomeExecutionViewModel(
-            taskRepository: FakeTaskRepository(tasks: [task]),
+            taskRepository: FakeTaskRepository(tasks: [task, completedTask]),
             projectRepository: FakeProjectRepository(projects: [project]),
             captureRepository: FakeCaptureRepository(captures: [capture]),
             projectItemRepository: FakeProjectItemRepository(items: [item]),
@@ -125,6 +131,8 @@ struct HomeExecutionViewModelTests {
         #expect(viewModel.inboxSummary.oldestAgeLabel == "1h")
         #expect(viewModel.pinnedProjectSummaries.count == 1)
         #expect(viewModel.pinnedProjectSummaries.first?.activeTaskCount == 1)
+        #expect(viewModel.pinnedProjectSummaries.first?.completedTaskCount == 1)
+        #expect(viewModel.pinnedProjectSummaries.first?.progressSummary == "1/2 tasks complete")
         #expect(viewModel.pinnedProjectSummaries.first?.projectItemCount == 1)
         #expect(viewModel.pinnedProjectSummaries.first?.nextTask == task)
     }

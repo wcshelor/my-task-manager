@@ -81,6 +81,124 @@ struct MyTaskTests {
         #expect(task.completedAt == nil)
     }
 
+    @Test func projectTaskSummaryCalculatesProgressFromUnarchivedTasks() {
+        let project = Project(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174111")!,
+            name: "Launch"
+        )
+        let otherProjectID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174222")!
+        let completedTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174001")!,
+            title: "Done",
+            status: .completed,
+            projectID: project.id,
+            createdAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let openTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174002")!,
+            title: "Open",
+            status: .active,
+            projectID: project.id,
+            createdAt: Date(timeIntervalSince1970: 2_000)
+        )
+        let archivedTask = MyTask(
+            title: "Archived",
+            status: .archived,
+            projectID: project.id
+        )
+        let otherProjectTask = MyTask(
+            title: "Other project",
+            status: .active,
+            projectID: otherProjectID
+        )
+
+        let summary = project.taskSummary(from: [
+            otherProjectTask,
+            archivedTask,
+            openTask,
+            completedTask,
+        ])
+
+        #expect(summary.activeTasks.map(\.title) == ["Done", "Open"])
+        #expect(summary.activeTaskCount == 2)
+        #expect(summary.completedActiveTaskCount == 1)
+        #expect(summary.incompleteActiveTaskCount == 1)
+        #expect(summary.progressFraction == 0.5)
+        #expect(summary.progressSummary == "1/2 tasks complete")
+    }
+
+    @Test func projectTaskSummarySelectsNextActionByDueDatePriorityAndCreationDate() {
+        let project = Project(name: "Launch")
+        let sharedDueDate = Date(timeIntervalSince1970: 10_000)
+        let lowPriorityTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174001")!,
+            title: "Soon low",
+            status: .active,
+            dueDate: sharedDueDate,
+            priority: .low,
+            projectID: project.id,
+            createdAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let highPriorityTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174002")!,
+            title: "Soon high",
+            status: .active,
+            dueDate: sharedDueDate,
+            priority: .high,
+            projectID: project.id,
+            createdAt: Date(timeIntervalSince1970: 2_000)
+        )
+        let noDueUrgentTask = MyTask(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174003")!,
+            title: "No due urgent",
+            status: .active,
+            priority: .urgent,
+            projectID: project.id,
+            createdAt: Date(timeIntervalSince1970: 3_000)
+        )
+
+        let summary = project.taskSummary(from: [
+            noDueUrgentTask,
+            lowPriorityTask,
+            highPriorityTask,
+        ])
+
+        #expect(summary.nextAction == highPriorityTask)
+        #expect(summary.nextActions().map(\.title) == ["Soon high", "Soon low", "No due urgent"])
+    }
+
+    @Test func projectTaskSummaryExcludesCompletedAndArchivedTasksFromNextAction() {
+        let project = Project(name: "Launch")
+        let completedTask = MyTask(
+            title: "Already done",
+            status: .completed,
+            dueDate: Date(timeIntervalSince1970: 1_000),
+            priority: .urgent,
+            projectID: project.id
+        )
+        let archivedTask = MyTask(
+            title: "Archived",
+            status: .archived,
+            dueDate: Date(timeIntervalSince1970: 2_000),
+            priority: .urgent,
+            projectID: project.id
+        )
+        let openTask = MyTask(
+            title: "Still open",
+            status: .active,
+            dueDate: Date(timeIntervalSince1970: 3_000),
+            priority: .low,
+            projectID: project.id
+        )
+
+        let summary = project.taskSummary(from: [completedTask, archivedTask, openTask])
+
+        #expect(summary.activeTaskCount == 2)
+        #expect(summary.completedActiveTaskCount == 1)
+        #expect(summary.nextAction == openTask)
+        #expect(project.taskSummary(from: [completedTask, archivedTask]).nextAction == nil)
+    }
+
     @Test func captureItemMarksProcessedAndArchived() {
         let processedAt = Date(timeIntervalSince1970: 1_000)
         let taskID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!

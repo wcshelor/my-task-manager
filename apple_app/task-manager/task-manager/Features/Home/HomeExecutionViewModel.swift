@@ -90,12 +90,27 @@ nonisolated struct HomeInboxSummary: Equatable, Sendable {
 
 nonisolated struct HomePinnedProjectSummary: Identifiable, Equatable, Sendable {
     let project: Project
-    let activeTaskCount: Int
+    let taskSummary: ProjectTaskSummary
     let projectItemCount: Int
-    let nextTask: MyTask?
 
     var id: UUID {
         project.id
+    }
+
+    var activeTaskCount: Int {
+        taskSummary.incompleteActiveTaskCount
+    }
+
+    var completedTaskCount: Int {
+        taskSummary.completedActiveTaskCount
+    }
+
+    var progressSummary: String {
+        taskSummary.progressSummary
+    }
+
+    var nextTask: MyTask? {
+        taskSummary.nextAction
     }
 }
 
@@ -240,21 +255,15 @@ final class HomeExecutionViewModel: ObservableObject {
     }
 
     var pinnedProjectSummaries: [HomePinnedProjectSummary] {
-        let activeTasks = tasks.filter { task in
-            task.status != .completed && task.status != .archived
-        }
         let activeItems = projectItems.filter { $0.isArchived == false }
 
         return projects
             .filter { $0.isPinned && $0.isArchived == false }
             .map { project in
-                let projectTasks = activeTasks.filter { $0.projectID == project.id }
-                let nextTask = Self.nextTask(from: projectTasks)
                 return HomePinnedProjectSummary(
                     project: project,
-                    activeTaskCount: projectTasks.count,
-                    projectItemCount: activeItems.filter { $0.projectID == project.id }.count,
-                    nextTask: nextTask
+                    taskSummary: project.taskSummary(from: tasks),
+                    projectItemCount: activeItems.filter { $0.projectID == project.id }.count
                 )
             }
     }
@@ -264,9 +273,6 @@ final class HomeExecutionViewModel: ObservableObject {
     }
 
     func projectSummary(for projectID: UUID) -> HomePinnedProjectSummary? {
-        let activeTasks = tasks.filter { task in
-            task.status != .completed && task.status != .archived && task.projectID == projectID
-        }
         let activeItems = projectItems.filter {
             $0.isArchived == false && $0.projectID == projectID
         }
@@ -277,9 +283,8 @@ final class HomeExecutionViewModel: ObservableObject {
 
         return HomePinnedProjectSummary(
             project: project,
-            activeTaskCount: activeTasks.count,
-            projectItemCount: activeItems.count,
-            nextTask: Self.nextTask(from: activeTasks)
+            taskSummary: project.taskSummary(from: tasks),
+            projectItemCount: activeItems.count
         )
     }
 
@@ -481,29 +486,6 @@ final class HomeExecutionViewModel: ObservableObject {
         setRoutineItem(routineID: routineID, itemID: item.id, completed: true)
     }
 
-    private static func nextTask(from tasks: [MyTask]) -> MyTask? {
-        tasks.sorted { leftTask, rightTask in
-            switch (leftTask.dueDate, rightTask.dueDate) {
-            case (.some(let leftDueDate), .some(let rightDueDate)):
-                if leftDueDate != rightDueDate {
-                    return leftDueDate < rightDueDate
-                }
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
-            case (.none, .none):
-                break
-            }
-
-            if leftTask.createdAt != rightTask.createdAt {
-                return leftTask.createdAt < rightTask.createdAt
-            }
-
-            return leftTask.id.uuidString < rightTask.id.uuidString
-        }
-        .first
-    }
 }
 
 @MainActor
