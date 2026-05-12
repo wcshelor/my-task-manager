@@ -230,6 +230,7 @@ struct HomeView: View {
                     case .routineSession(let routineID):
                         RoutineSessionView(
                             viewModel: viewModel,
+                            healthRepository: healthRepository,
                             routineID: routineID
                         )
                     case .shoppingList:
@@ -1046,27 +1047,38 @@ private struct RoutineBuilderView: View {
 private struct RoutineSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: HomeExecutionViewModel
+    @State private var currentIndex = 0
+    @State private var presentedLinkSheet: RoutineStepLinkSheet?
+    @State private var pendingLinkStepID: UUID?
+    @State private var isShowingLinkPicker = false
 
+    let healthRepository: any HealthRepository
     let routineID: UUID
 
     var body: some View {
         Group {
             if let progress = viewModel.progress(for: routineID) {
+                let steps = progress.routine.orderedItems
+                let isFinished = steps.isEmpty || currentIndex >= steps.count
+
                 VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(progress.progressLabel)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(progress.routine.name)
+                            .font(.title3.weight(.semibold))
+
+                        Text(progressText(totalCount: steps.count, isFinished: isFinished))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
 
                         ProgressView(
-                            value: Double(progress.completedCount),
+                            value: Double(progress.completedCount + progress.skippedCount),
                             total: Double(max(progress.totalCount, 1))
                         )
                     }
 
                     Spacer()
 
-                    if progress.isComplete {
+                    if isFinished {
                         VStack(alignment: .center, spacing: 16) {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 56))
@@ -1075,46 +1087,110 @@ private struct RoutineSessionView: View {
                             Text("Routine Complete")
                                 .font(.title2.weight(.semibold))
 
-                            Text("All items are done for today.")
+                            Text("Completed \(progress.completedCount) · Skipped \(progress.skippedCount)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity)
-                    } else if let item = progress.currentItem {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("Current Step")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                    } else if steps.indices.contains(currentIndex) {
+                        let item = steps[currentIndex]
+                        let state = progress.completionLog?.state(for: item.id) ?? .untouched
 
+                        VStack(alignment: .leading, spacing: 14) {
                             Text(item.title)
                                 .font(.title2.weight(.semibold))
                                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if state != .untouched {
+                                Text(stateLabel(for: state))
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(state == .completed ? .green : .orange)
+                            }
                         }
                         .padding(18)
                         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        Button {
-                            viewModel.completeCurrentRoutineItem(routineID: routineID)
-                        } label: {
-                            Label("Complete Step", systemImage: "checkmark.circle.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
+                        routineStepLinksSection(progress: progress, item: item)
+
+                        HStack(spacing: 12) {
+                            Button("Back") {
+                                currentIndex = max(0, currentIndex - 1)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(currentIndex == 0)
+
+                            Button("Skip") {
+                                advance(stepID: item.id, state: .skipped, totalCount: steps.count)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button(isLastStep(totalCount: steps.count) ? "Done" : "Next") {
+                                advance(stepID: item.id, state: .completed, totalCount: steps.count)
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
 
                     Spacer()
-
-                    Button("Leave Routine") {
-                        dismiss()
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
                 }
                 .padding()
-                .navigationTitle(progress.routine.name)
+                .navigationTitle("Routine")
                 .navigationBarTitleDisplayMode(.inline)
+                .confirmationDialog(
+                    "Add Routine Link",
+                    isPresented: $isShowingLinkPicker,
+                    titleVisibility: .visible
+                ) {
+                    ForEach(RoutineStepLinkKind.allCases, id: \.self) { kind in
+                        Button(kind.displayTitle) {
+                            addLink(kind: kind)
+                        }
+                    }
+                }
+                .sheet(item: $presentedLinkSheet) { sheet in
+                    NavigationStack {
+                        switch sheet {
+                        case .promiseCheckIn(let promise):
+                            PromiseCheckInView(
+                                promise: promise,
+                                onResolve: { outcome, reflection in
+                                    viewModel.resolvePromise(
+                                        withID: promise.id,
+                                        outcome: outcome,
+                                        reflection: reflection
+                                    )
+                                    presentedLinkSheet = nil
+                                },
+                                onReset: { title, checkInAt in
+                                    viewModel.makeResetPromise(
+                                        from: promise,
+                                        title: title,
+                                        checkInAt: checkInAt
+                                    )
+                                    presentedLinkSheet = nil
+                                }
+                            )
+                        case .pvtTest:
+                            PVTTestView { session in
+                                do {
+                                    try healthRepository.savePVTSession(session)
+                                    viewModel.load()
+                                    presentedLinkSheet = nil
+                                } catch {
+                                    viewModel.reportError("Unable to save PVT session: \(error.localizedDescription)")
+                                }
+                            }
+                        case .unavailable(let title, let message):
+                            RoutineLinkUnavailableView(title: title, message: message)
+                        }
+                    }
+                }
+                .onAppear {
+                    alignCurrentIndex(with: progress)
+                }
+                .onChange(of: progress.completionLog) { _, _ in
+                    alignCurrentIndex(with: progress)
+                }
             } else {
                 ContentUnavailableView(
                     "Routine Not Available",
@@ -1124,6 +1200,242 @@ private struct RoutineSessionView: View {
                 .navigationTitle("Routine")
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func routineStepLinksSection(
+        progress: HomeRoutineProgress,
+        item: RoutineItem
+    ) -> some View {
+        let links = progress.routine.orderedStepLinks(for: item.id)
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Routine Links")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if links.isEmpty {
+                HStack {
+                    Spacer()
+                    Button {
+                        pendingLinkStepID = item.id
+                        isShowingLinkPicker = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.caption.weight(.bold))
+                            .padding(10)
+                            .background(.quaternary.opacity(0.4), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 10)], spacing: 10) {
+                    ForEach(links) { link in
+                        RoutineStepLinkCard(
+                            link: link,
+                            onOpen: { open(link: link) },
+                            onRemove: { remove(linkID: link.id, from: progress.routine) }
+                        )
+                    }
+
+                    Button {
+                        pendingLinkStepID = item.id
+                        isShowingLinkPicker = true
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    private func progressText(totalCount: Int, isFinished: Bool) -> String {
+        guard totalCount > 0 else {
+            return "0 / 0"
+        }
+
+        let position = isFinished ? totalCount : min(currentIndex + 1, totalCount)
+        return "\(position) / \(totalCount)"
+    }
+
+    private func stateLabel(for state: RoutineStepCompletionState) -> String {
+        switch state {
+        case .untouched:
+            return ""
+        case .completed:
+            return "Completed"
+        case .skipped:
+            return "Skipped"
+        }
+    }
+
+    private func isLastStep(totalCount: Int) -> Bool {
+        currentIndex == totalCount - 1
+    }
+
+    private func advance(stepID: UUID, state: RoutineStepCompletionState, totalCount: Int) {
+        viewModel.setRoutineItem(routineID: routineID, itemID: stepID, state: state)
+        currentIndex = min(currentIndex + 1, totalCount)
+    }
+
+    private func alignCurrentIndex(with progress: HomeRoutineProgress) {
+        let steps = progress.routine.orderedItems
+        if currentIndex >= steps.count {
+            return
+        }
+
+        if let firstUntouchedIndex = steps.firstIndex(where: {
+            (progress.completionLog?.state(for: $0.id) ?? .untouched) == .untouched
+        }) {
+            currentIndex = max(currentIndex, firstUntouchedIndex)
+        } else {
+            currentIndex = steps.count
+        }
+    }
+
+    private func addLink(kind: RoutineStepLinkKind) {
+        guard let progress = viewModel.progress(for: routineID),
+              let stepID = pendingLinkStepID else {
+            return
+        }
+
+        let nextOrder = progress.routine.orderedStepLinks(for: stepID).count
+        var updatedRoutine = progress.routine
+        updatedRoutine.stepLinks.append(
+            RoutineStepLink(
+                routineStepID: stepID,
+                kind: kind,
+                displayOrder: nextOrder
+            )
+        )
+        viewModel.saveRoutine(updatedRoutine, replacingRoutineWithID: updatedRoutine.id)
+    }
+
+    private func remove(linkID: UUID, from routine: Routine) {
+        var updatedRoutine = routine
+        updatedRoutine.stepLinks.removeAll { $0.id == linkID }
+        updatedRoutine.stepLinks = reindexedLinks(updatedRoutine.stepLinks)
+        viewModel.saveRoutine(updatedRoutine, replacingRoutineWithID: updatedRoutine.id)
+    }
+
+    private func reindexedLinks(_ links: [RoutineStepLink]) -> [RoutineStepLink] {
+        let grouped = Dictionary(grouping: links, by: \.routineStepID)
+        return grouped.values.flatMap { group in
+            group
+                .sorted {
+                    if $0.displayOrder != $1.displayOrder {
+                        return $0.displayOrder < $1.displayOrder
+                    }
+
+                    return $0.id.uuidString < $1.id.uuidString
+                }
+                .enumerated()
+                .map { index, link in
+                    RoutineStepLink(
+                        id: link.id,
+                        routineStepID: link.routineStepID,
+                        kind: link.kind,
+                        displayTitle: link.displayTitle,
+                        displayOrder: index
+                    )
+                }
+        }
+    }
+
+    private func open(link: RoutineStepLink) {
+        switch link.kind {
+        case .pvtTest:
+            presentedLinkSheet = .pvtTest
+        case .promiseCheckIn:
+            if let promise = viewModel.duePromises.first ?? viewModel.activePromises.first {
+                presentedLinkSheet = .promiseCheckIn(promise)
+            } else {
+                presentedLinkSheet = .unavailable(
+                    title: "No Active Promises",
+                    message: "Create or start a promise first, then reopen this link from the routine step."
+                )
+            }
+        }
+    }
+}
+
+private enum RoutineStepLinkSheet: Identifiable {
+    case promiseCheckIn(Promise)
+    case pvtTest
+    case unavailable(title: String, message: String)
+
+    var id: String {
+        switch self {
+        case .promiseCheckIn(let promise):
+            return "promise-\(promise.id.uuidString)"
+        case .pvtTest:
+            return "pvt-test"
+        case .unavailable(let title, _):
+            return "unavailable-\(title)"
+        }
+    }
+}
+
+private struct RoutineStepLinkCard: View {
+    let link: RoutineStepLink
+    let onOpen: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                onOpen()
+            } label: {
+                Text(link.displayTitle)
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .padding(8)
+            }
+            .buttonStyle(.plain)
+        }
+        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.12), lineWidth: 1)
+        )
+    }
+}
+
+private struct RoutineLinkUnavailableView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let title: String
+    let message: String
+
+    var body: some View {
+        ContentUnavailableView(
+            title,
+            systemImage: "rectangle.on.rectangle.slash",
+            description: Text(message)
+        )
+        .navigationTitle("Routine Link")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {

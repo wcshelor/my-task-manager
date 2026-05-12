@@ -71,7 +71,7 @@ struct HomeExecutionViewModelTests {
         )
 
         viewModel.loadIfNeeded()
-        viewModel.setRoutineItem(routineID: routine.id, itemID: item.id, completed: true)
+        viewModel.setRoutineItem(routineID: routine.id, itemID: item.id, state: .completed)
 
         #expect(viewModel.routineProgress.first?.completedCount == 1)
     }

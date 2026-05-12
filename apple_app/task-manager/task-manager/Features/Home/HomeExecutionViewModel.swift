@@ -13,6 +13,10 @@ nonisolated struct HomeRoutineProgress: Identifiable, Equatable, Sendable {
         completionLog?.completionCount(for: routine) ?? 0
     }
 
+    var skippedCount: Int {
+        completionLog?.skippedCount(for: routine) ?? 0
+    }
+
     var totalCount: Int {
         routine.orderedItems.count
     }
@@ -27,7 +31,7 @@ nonisolated struct HomeRoutineProgress: Identifiable, Equatable, Sendable {
 
     var currentItem: RoutineItem? {
         routine.orderedItems.first { item in
-            completionLog?.completedItemIDs.contains(item.id) != true
+            (completionLog?.state(for: item.id) ?? .untouched) == .untouched
         }
     }
 
@@ -508,7 +512,7 @@ final class HomeExecutionViewModel: ObservableObject {
     func setRoutineItem(
         routineID: UUID,
         itemID: UUID,
-        completed: Bool
+        state: RoutineStepCompletionState
     ) {
         do {
             let now = nowProvider()
@@ -518,7 +522,7 @@ final class HomeExecutionViewModel: ObservableObject {
                 on: dayStart,
                 calendar: calendar
             ) ?? RoutineCompletionLog(routineID: routineID, date: dayStart, createdAt: now)
-            log.setItem(itemID, completed: completed, updatedAt: now)
+            log.setItem(itemID, state: state, updatedAt: now)
             try routineRepository.saveCompletionLog(log, replacingLogWithID: log.id)
             load()
         } catch {
@@ -535,7 +539,11 @@ final class HomeExecutionViewModel: ObservableObject {
             return
         }
 
-        setRoutineItem(routineID: routineID, itemID: item.id, completed: true)
+        setRoutineItem(routineID: routineID, itemID: item.id, state: .completed)
+    }
+
+    func reportError(_ message: String) {
+        errorMessage = message
     }
 
 }

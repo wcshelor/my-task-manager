@@ -8,6 +8,7 @@ final class RoutineRecord {
     var notes: String?
     var activeWeekdayRawValues: String = ""
     var itemsData: Data = Data()
+    var stepLinksData: Data = Data()
     var isArchived: Bool = false
     var createdAt: Date = Date.distantPast
     var updatedAt: Date = Date.distantPast
@@ -23,6 +24,7 @@ final class RoutineRecord {
             notes: notes,
             activeWeekdays: Self.decodeWeekdays(activeWeekdayRawValues),
             items: Self.decodeItems(itemsData),
+            stepLinks: Self.decodeStepLinks(stepLinksData),
             isArchived: isArchived,
             createdAt: createdAt,
             updatedAt: updatedAt
@@ -35,6 +37,7 @@ final class RoutineRecord {
         notes = routine.notes
         activeWeekdayRawValues = Self.encodeWeekdays(routine.activeWeekdays)
         itemsData = Self.encodeItems(routine.items)
+        stepLinksData = Self.encodeStepLinks(routine.stepLinks)
         isArchived = routine.isArchived
         createdAt = routine.createdAt
         updatedAt = routine.updatedAt
@@ -56,5 +59,13 @@ final class RoutineRecord {
 
     private static func decodeItems(_ data: Data) -> [RoutineItem] {
         (try? JSONDecoder().decode([RoutineItem].self, from: data)) ?? []
+    }
+
+    private static func encodeStepLinks(_ links: [RoutineStepLink]) -> Data {
+        (try? JSONEncoder().encode(links)) ?? Data()
+    }
+
+    private static func decodeStepLinks(_ data: Data) -> [RoutineStepLink] {
+        (try? JSONDecoder().decode([RoutineStepLink].self, from: data)) ?? []
     }
 }

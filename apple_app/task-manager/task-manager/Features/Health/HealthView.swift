@@ -1020,14 +1020,14 @@ private struct WorkoutLogFormView: View {
     }
 }
 
-private enum PVTTestPhase {
+enum PVTTestPhase {
     case idle
     case waiting
     case stimulus
     case complete
 }
 
-private struct PVTTestView: View {
+struct PVTTestView: View {
     @Environment(\.dismiss) private var dismiss
     let onComplete: (PVTSession) -> Void
 

@@ -46,12 +46,49 @@ nonisolated struct RoutineItem: Identifiable, Equatable, Codable, Sendable {
     }
 }
 
+nonisolated enum RoutineStepLinkKind: String, CaseIterable, Codable, Sendable {
+    case pvtTest
+    case promiseCheckIn
+
+    var displayTitle: String {
+        switch self {
+        case .pvtTest:
+            return "PVT Test"
+        case .promiseCheckIn:
+            return "Promises"
+        }
+    }
+}
+
+nonisolated struct RoutineStepLink: Identifiable, Equatable, Codable, Sendable {
+    let id: UUID
+    var routineStepID: UUID
+    var kind: RoutineStepLinkKind
+    var displayTitle: String
+    var displayOrder: Int
+
+    init(
+        id: UUID = UUID(),
+        routineStepID: UUID,
+        kind: RoutineStepLinkKind,
+        displayTitle: String? = nil,
+        displayOrder: Int
+    ) {
+        self.id = id
+        self.routineStepID = routineStepID
+        self.kind = kind
+        self.displayTitle = Routine.cleanedName(from: displayTitle ?? kind.displayTitle) ?? kind.displayTitle
+        self.displayOrder = max(0, displayOrder)
+    }
+}
+
 nonisolated struct Routine: Identifiable, Equatable, Sendable {
     let id: UUID
     var name: String
     var notes: String?
     var activeWeekdays: [RoutineWeekday]
     var items: [RoutineItem]
+    var stepLinks: [RoutineStepLink]
     var isArchived: Bool
     let createdAt: Date
     var updatedAt: Date
@@ -62,6 +99,7 @@ nonisolated struct Routine: Identifiable, Equatable, Sendable {
         notes: String? = nil,
         activeWeekdays: [RoutineWeekday] = [],
         items: [RoutineItem],
+        stepLinks: [RoutineStepLink] = [],
         isArchived: Bool = false,
         createdAt: Date = .now,
         updatedAt: Date? = nil
@@ -71,6 +109,7 @@ nonisolated struct Routine: Identifiable, Equatable, Sendable {
         self.notes = MyTask.cleanedOptionalText(from: notes)
         self.activeWeekdays = Self.cleanedWeekdays(activeWeekdays)
         self.items = Self.cleanedItems(items)
+        self.stepLinks = Self.cleanedStepLinks(stepLinks, validStepIDs: Set(self.items.map(\.id)))
         self.isArchived = isArchived
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
@@ -121,6 +160,18 @@ nonisolated struct Routine: Identifiable, Equatable, Sendable {
         }
     }
 
+    func orderedStepLinks(for stepID: UUID) -> [RoutineStepLink] {
+        stepLinks
+            .filter { $0.routineStepID == stepID }
+            .sorted { leftLink, rightLink in
+                if leftLink.displayOrder != rightLink.displayOrder {
+                    return leftLink.displayOrder < rightLink.displayOrder
+                }
+
+                return leftLink.id.uuidString < rightLink.id.uuidString
+            }
+    }
+
     static func cleanedName(from rawName: String) -> String? {
         let cleanedName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         return cleanedName.isEmpty ? nil : cleanedName
@@ -147,6 +198,30 @@ nonisolated struct Routine: Identifiable, Equatable, Sendable {
                 return leftItem.id.uuidString < rightItem.id.uuidString
             }
     }
+
+    static func cleanedStepLinks(
+        _ stepLinks: [RoutineStepLink],
+        validStepIDs: Set<UUID>
+    ) -> [RoutineStepLink] {
+        stepLinks
+            .filter { validStepIDs.contains($0.routineStepID) }
+            .map { link in
+                RoutineStepLink(
+                    id: link.id,
+                    routineStepID: link.routineStepID,
+                    kind: link.kind,
+                    displayTitle: link.displayTitle,
+                    displayOrder: link.displayOrder
+                )
+            }
+            .sorted { leftLink, rightLink in
+                if leftLink.displayOrder != rightLink.displayOrder {
+                    return leftLink.displayOrder < rightLink.displayOrder
+                }
+
+                return leftLink.id.uuidString < rightLink.id.uuidString
+            }
+    }
 }
 
 nonisolated struct RoutineCompletionLog: Identifiable, Equatable, Sendable {
@@ -154,6 +229,7 @@ nonisolated struct RoutineCompletionLog: Identifiable, Equatable, Sendable {
     var routineID: UUID
     var date: Date
     var completedItemIDs: Set<UUID>
+    var skippedItemIDs: Set<UUID>
     let createdAt: Date
     var updatedAt: Date
 
@@ -162,6 +238,7 @@ nonisolated struct RoutineCompletionLog: Identifiable, Equatable, Sendable {
         routineID: UUID,
         date: Date,
         completedItemIDs: Set<UUID> = [],
+        skippedItemIDs: Set<UUID> = [],
         createdAt: Date = .now,
         updatedAt: Date? = nil
     ) {
@@ -169,6 +246,7 @@ nonisolated struct RoutineCompletionLog: Identifiable, Equatable, Sendable {
         self.routineID = routineID
         self.date = date
         self.completedItemIDs = completedItemIDs
+        self.skippedItemIDs = skippedItemIDs.subtracting(completedItemIDs)
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
     }
@@ -177,18 +255,50 @@ nonisolated struct RoutineCompletionLog: Identifiable, Equatable, Sendable {
         routine.orderedItems.filter { completedItemIDs.contains($0.id) }.count
     }
 
-    func isComplete(for routine: Routine) -> Bool {
-        let itemIDs = Set(routine.orderedItems.map(\.id))
-        return itemIDs.isEmpty == false && itemIDs.isSubset(of: completedItemIDs)
+    func skippedCount(for routine: Routine) -> Int {
+        routine.orderedItems.filter { skippedItemIDs.contains($0.id) }.count
     }
 
-    mutating func setItem(_ itemID: UUID, completed: Bool, updatedAt: Date = .now) {
-        if completed {
+    func isComplete(for routine: Routine) -> Bool {
+        let itemIDs = Set(routine.orderedItems.map(\.id))
+        return itemIDs.isEmpty == false && itemIDs.isSubset(of: completedItemIDs.union(skippedItemIDs))
+    }
+
+    func state(for itemID: UUID) -> RoutineStepCompletionState {
+        if completedItemIDs.contains(itemID) {
+            return .completed
+        }
+
+        if skippedItemIDs.contains(itemID) {
+            return .skipped
+        }
+
+        return .untouched
+    }
+
+    mutating func setItem(
+        _ itemID: UUID,
+        state: RoutineStepCompletionState,
+        updatedAt: Date = .now
+    ) {
+        switch state {
+        case .completed:
             completedItemIDs.insert(itemID)
-        } else {
+            skippedItemIDs.remove(itemID)
+        case .skipped:
             completedItemIDs.remove(itemID)
+            skippedItemIDs.insert(itemID)
+        case .untouched:
+            completedItemIDs.remove(itemID)
+            skippedItemIDs.remove(itemID)
         }
 
         self.updatedAt = updatedAt
     }
+}
+
+nonisolated enum RoutineStepCompletionState: String, CaseIterable, Codable, Sendable {
+    case untouched
+    case completed
+    case skipped
 }

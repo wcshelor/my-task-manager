@@ -34,14 +34,34 @@ struct RoutineModelTests {
         let routine = Routine(name: "Reset", items: [firstItem, secondItem])
         var log = RoutineCompletionLog(routineID: routine.id, date: Date(timeIntervalSince1970: 1_000))
 
-        log.setItem(firstItem.id, completed: true, updatedAt: Date(timeIntervalSince1970: 2_000))
+        log.setItem(firstItem.id, state: .completed, updatedAt: Date(timeIntervalSince1970: 2_000))
 
         #expect(log.completionCount(for: routine) == 1)
         #expect(log.isComplete(for: routine) == false)
+        #expect(log.state(for: firstItem.id) == .completed)
 
-        log.setItem(secondItem.id, completed: true, updatedAt: Date(timeIntervalSince1970: 3_000))
+        log.setItem(secondItem.id, state: .skipped, updatedAt: Date(timeIntervalSince1970: 3_000))
 
-        #expect(log.completionCount(for: routine) == 2)
+        #expect(log.completionCount(for: routine) == 1)
+        #expect(log.skippedCount(for: routine) == 1)
+        #expect(log.state(for: secondItem.id) == .skipped)
         #expect(log.isComplete(for: routine))
+    }
+
+    @Test func routineCleansStepLinksAgainstExistingSteps() {
+        let firstItem = RoutineItem(title: "One", position: 0)
+        let secondItem = RoutineItem(title: "Two", position: 1)
+        let routine = Routine(
+            name: "Reset",
+            items: [firstItem, secondItem],
+            stepLinks: [
+                RoutineStepLink(routineStepID: secondItem.id, kind: .promiseCheckIn, displayOrder: 1),
+                RoutineStepLink(routineStepID: secondItem.id, kind: .pvtTest, displayOrder: 0),
+                RoutineStepLink(routineStepID: UUID(), kind: .pvtTest, displayOrder: 0),
+            ]
+        )
+
+        #expect(routine.stepLinks.count == 2)
+        #expect(routine.orderedStepLinks(for: secondItem.id).map(\.kind) == [.pvtTest, .promiseCheckIn])
     }
 }

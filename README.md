@@ -114,7 +114,7 @@ If changing Sync:
 | Calendar/EventKit | `Calendar/` | Permission, calendar reads/writes, and reconciliation. |
 | Settings | `AppSettingsRecord`, `SettingsRepository`, settings views | User-facing settings UI should use repository-backed state. |
 | Promises | promise models/repository/views | Avoid guilt/shame mechanics; keep recovery-oriented tone. |
-| Routines | routine models/repository/views | User-authored recurring checklists. |
+| Routines | routine models/repository/views | User-authored recurring page-based routines with per-step logs and optional routine step links. |
 | Health | health models/repository/views | Work in progress; not medical diagnosis. |
 | Music Practice | music practice models/repository/views | Lightweight practice tracking, not a full practice planner yet. |
 | Shopping | shopping models/repository/views | Practical capture module. |
@@ -207,6 +207,8 @@ Expected behavior:
 - Separate editing, execution, and stats.
 - Keep daily checklist uncluttered.
 - Avoid hardcoding personal routines.
+- Keep routine creation simple: title plus multiline step text, one non-empty line per step.
+- Treat routine step links as routine-specific shortcuts, not Home widgets.
 - If adding step states or statistics, keep the stats behind a separate screen/sheet.
 
 ### Planner / Calendar Task
@@ -255,11 +257,11 @@ Every feature should support at least one of these jobs:
 - Home widget hub
 - Projects
 - Promises
-- User-authored Routines
+- User-authored Routines with page-by-page execution, durable completed/skipped step state, and optional per-step routine links
 - Shopping list
 - Health work in progress: sleep check-ins, one-minute PVT sessions, lightweight meal/workout logs, and neutral rolling trend summaries
 - Music Practice foundation: lightweight piece records, session logging, recent summaries, and Home access
-- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine completion logs, work-in-progress Health records, and Music Practice records
+- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine step links, routine completion logs, work-in-progress Health records, and Music Practice records
 - EventKit integration for calendar permission, reads, writes, and scheduled-block reconciliation
 
 Future or incomplete areas remain product ideas, scaffolding, or active work in progress until the app and docs say otherwise:
@@ -331,7 +333,7 @@ Home supports a persisted vertical widget board. Users can long-press to edit, r
 
 The Shopping module now also exposes a dedicated `Shopping Quick Add` sub-widget so users can add list items directly from Home without opening the full shopping list.
 
-Home can create captures, promises, and routines; check in on promises as kept or missed; create reset promises; complete routine checklist items for the current day; open Planner; and navigate into module pages where available.
+Home can create captures, promises, and routines; check in on promises as kept or missed; create reset promises; run routines as one-step-at-a-time page flows; add or remove per-step routine links; open routine-linked PVT or Promise sheets without leaving the routine; open Planner; and navigate into module pages where available.
 
 ### Tasks
 
@@ -394,7 +396,7 @@ The module is intentionally small: it does not include practice plans, audio rec
 - Scheduled blocks live in app-owned SwiftData storage.
 - Home widget layout lives in app-owned SwiftData storage.
 - Promises live in app-owned SwiftData storage.
-- Routine definitions and daily completion logs live in app-owned SwiftData storage.
+- Routine definitions, routine step links, and daily completion logs live in app-owned SwiftData storage.
 - Health check-ins, PVT sessions, meal logs, and workout logs live in app-owned SwiftData storage.
 - Music Practice pieces and sessions live in app-owned SwiftData storage.
 - Apple Calendar is the external source of truth for calendar busy time.

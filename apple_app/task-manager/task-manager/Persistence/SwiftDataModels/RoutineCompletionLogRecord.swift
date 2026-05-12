@@ -7,6 +7,7 @@ final class RoutineCompletionLogRecord {
     var routineID: UUID = UUID()
     var date: Date = Date.distantPast
     var completedItemIDsText: String = ""
+    var skippedItemIDsText: String = ""
     var createdAt: Date = Date.distantPast
     var updatedAt: Date = Date.distantPast
 
@@ -20,6 +21,7 @@ final class RoutineCompletionLogRecord {
             routineID: routineID,
             date: date,
             completedItemIDs: Self.decodeCompletedItemIDs(completedItemIDsText),
+            skippedItemIDs: Self.decodeCompletedItemIDs(skippedItemIDsText),
             createdAt: createdAt,
             updatedAt: updatedAt
         )
@@ -30,6 +32,7 @@ final class RoutineCompletionLogRecord {
         routineID = log.routineID
         date = log.date
         completedItemIDsText = Self.encodeCompletedItemIDs(log.completedItemIDs)
+        skippedItemIDsText = Self.encodeCompletedItemIDs(log.skippedItemIDs)
         createdAt = log.createdAt
         updatedAt = log.updatedAt
     }
