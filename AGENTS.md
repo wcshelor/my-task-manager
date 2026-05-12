@@ -14,6 +14,7 @@
 ## Verification
 
 - Prefer targeted tests/checks over full-suite runs.
+- Do not prioritize iPhone simulator testing unless it is necessary for the change.
 - Do not claim UI behavior was verified unless actually tested.
 - Clearly state what still needs manual QA.
 
