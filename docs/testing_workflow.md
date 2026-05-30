@@ -23,6 +23,7 @@ Current automated confidence covers:
 - promise models, repositories, and Today aggregation behavior
 - routine models, repositories, and daily completion behavior
 - work-in-progress Health model calculations, SwiftData repository round trips, and Health view-model summaries
+- Fitness model validation, SwiftData repository round trips, Fitness view-model state, and Home Fitness summaries
 
 ## 2. Focused Swift Runs
 
@@ -122,6 +123,20 @@ Validate:
 - meal and workout quick logs
 - Health history and delete flows
 - neutral 7/30-day trend summaries
+
+### Fitness
+
+Validate:
+
+- open Fitness from Home
+- create Push Day, Pull Day, and Leg Day workout days
+- create one strength exercise and one bike-style metric exercise
+- add existing exercises to a workout day
+- log sessions from both the exercise list and workout day flow
+- confirm last-session references refresh immediately
+- confirm logged-today state appears after same-day logging
+- confirm Recent, A-Z, and Tag sorting
+- confirm the older Health workout log still works unchanged
 
 ### iPhone Runtime Pass
 

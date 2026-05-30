@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -7,7 +8,7 @@ struct HomeView: View {
 
     private enum SheetDestination: Identifiable {
         case addWidget
-        case captureQuickAdd
+        case customizeHome
         case inboxReview
         case promiseForm
         case promiseCheckIn(Promise)
@@ -17,13 +18,15 @@ struct HomeView: View {
         case shoppingQuickAdd
         case health
         case musicPractice
+        case fitness
+        case peopleMemory
 
         var id: String {
             switch self {
             case .addWidget:
                 return "addWidget"
-            case .captureQuickAdd:
-                return "captureQuickAdd"
+            case .customizeHome:
+                return "customizeHome"
             case .inboxReview:
                 return "inboxReview"
             case .promiseForm:
@@ -42,6 +45,10 @@ struct HomeView: View {
                 return "health"
             case .musicPractice:
                 return "musicPractice"
+            case .fitness:
+                return "fitness"
+            case .peopleMemory:
+                return "peopleMemory"
             }
         }
     }
@@ -53,11 +60,19 @@ struct HomeView: View {
         case project(UUID)
     }
 
+    fileprivate struct PreviewDropTarget: Equatable {
+        let widgetID: UUID
+        let placement: HomeLayoutViewModel.WidgetDropPlacement
+    }
+
     @StateObject private var viewModel: HomeExecutionViewModel
     @StateObject private var homeViewModel: HomeLayoutViewModel
     @State private var presentedSheet: SheetDestination?
+    @State private var isShowingCaptureOverlay = false
     @State private var navigationPath: [NavigationDestination] = []
     @State private var isEditingHome = false
+    @State private var draggingWidgetID: UUID?
+    @State private var previewDropTarget: PreviewDropTarget?
     private let widgetRendererRegistry = HomeWidgetRendererRegistry.standard
 
     private let taskRepository: any TaskRepository
@@ -77,6 +92,8 @@ struct HomeView: View {
     private let shoppingRepository: any ShoppingRepository
     private let healthRepository: any HealthRepository
     private let musicPracticeRepository: any MusicPracticeRepository
+    private let fitnessRepository: any FitnessRepository
+    private let peopleMemoryRepository: any PeopleMemoryRepository
 
     init(
         taskRepository: any TaskRepository,
@@ -96,7 +113,9 @@ struct HomeView: View {
         routineRepository: any RoutineRepository,
         shoppingRepository: any ShoppingRepository,
         healthRepository: any HealthRepository,
-        musicPracticeRepository: any MusicPracticeRepository
+        musicPracticeRepository: any MusicPracticeRepository,
+        fitnessRepository: any FitnessRepository,
+        peopleMemoryRepository: any PeopleMemoryRepository
     ) {
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
@@ -115,6 +134,8 @@ struct HomeView: View {
         self.shoppingRepository = shoppingRepository
         self.healthRepository = healthRepository
         self.musicPracticeRepository = musicPracticeRepository
+        self.fitnessRepository = fitnessRepository
+        self.peopleMemoryRepository = peopleMemoryRepository
         _viewModel = StateObject(
             wrappedValue: HomeExecutionViewModel(
                 taskRepository: taskRepository,
@@ -126,12 +147,17 @@ struct HomeView: View {
                 shoppingRepository: shoppingRepository,
                 healthRepository: healthRepository,
                 musicPracticeRepository: musicPracticeRepository,
+                fitnessRepository: fitnessRepository,
+                peopleMemoryRepository: peopleMemoryRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
                 calendarReader: calendarReader
             )
         )
         _homeViewModel = StateObject(
-            wrappedValue: HomeLayoutViewModel(homeLayoutRepository: homeLayoutRepository)
+            wrappedValue: HomeLayoutViewModel(
+                homeLayoutRepository: homeLayoutRepository,
+                settingsRepository: settingsRepository
+            )
         )
     }
 
@@ -141,7 +167,32 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            homeBoard
+            ZStack(alignment: .topTrailing) {
+                homeBoard
+                    .disabled(isShowingCaptureOverlay)
+
+                if isShowingCaptureOverlay {
+                    Color.black.opacity(0.28)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            dismissCaptureOverlay()
+                        }
+                        .transition(.opacity)
+
+                    captureOverlay
+                        .padding(.top, 10)
+                        .padding(.trailing, 16)
+                        .transition(
+                            .asymmetric(
+                                insertion: .scale(scale: 0.94, anchor: .topTrailing)
+                                    .combined(with: .opacity)
+                                    .combined(with: .offset(x: 18, y: -18)),
+                                removal: .scale(scale: 0.96, anchor: .topTrailing)
+                                    .combined(with: .opacity)
+                            )
+                        )
+                }
+            }
             .navigationTitle("Home")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -151,8 +202,16 @@ struct HomeView: View {
                 }
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    if isEditingHome {
+                        Button {
+                            presentedSheet = .customizeHome
+                        } label: {
+                            Label("Customize", systemImage: "slider.horizontal.3")
+                        }
+                    }
+
                     Button {
-                        presentedSheet = .captureQuickAdd
+                        presentCaptureOverlay()
                     } label: {
                         Label("Capture", systemImage: "tray.and.arrow.down")
                     }
@@ -181,9 +240,8 @@ struct HomeView: View {
                         ) {
                             presentedSheet = nil
                         }
-                    case .captureQuickAdd:
-                        CaptureQuickAddView(projects: viewModel.projects) { capture in
-                            viewModel.saveCapture(capture)
+                    case .customizeHome:
+                        HomeCustomizationView(viewModel: homeViewModel) {
                             presentedSheet = nil
                         }
                     case .inboxReview:
@@ -192,8 +250,12 @@ struct HomeView: View {
                             projectRepository: projectRepository,
                             captureRepository: captureRepository,
                             projectItemRepository: projectItemRepository,
+                            shoppingRepository: shoppingRepository,
                             initialCaptures: viewModel.captures,
-                            initialProjects: viewModel.projects
+                            initialProjects: viewModel.projects,
+                            onInboxChanged: {
+                                viewModel.load()
+                            }
                         ) {
                             viewModel.load()
                         }
@@ -248,6 +310,14 @@ struct HomeView: View {
                         }
                     case .musicPractice:
                         MusicPracticeView(musicPracticeRepository: musicPracticeRepository) {
+                            viewModel.load()
+                        }
+                    case .fitness:
+                        FitnessView(fitnessRepository: fitnessRepository) {
+                            viewModel.load()
+                        }
+                    case .peopleMemory:
+                        PeopleMemoryView(peopleMemoryRepository: peopleMemoryRepository) {
                             viewModel.load()
                         }
                     }
@@ -335,9 +405,9 @@ struct HomeView: View {
 
                 HStack(spacing: 12) {
                     Button {
-                        presentedSheet = .addWidget
+                        presentedSheet = isEditingHome ? .customizeHome : .addWidget
                     } label: {
-                        Label("Add Widget", systemImage: "plus.circle.fill")
+                        Label(isEditingHome ? "Customize Home" : "Add Widget", systemImage: isEditingHome ? "slider.horizontal.3" : "plus.circle.fill")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
@@ -346,6 +416,7 @@ struct HomeView: View {
 
                     if isEditingHome {
                         Button {
+                            clearWidgetDragPreview()
                             homeViewModel.resetToDefaultLayout()
                             isEditingHome = false
                         } label: {
@@ -358,6 +429,21 @@ struct HomeView: View {
                 }
             }
             .padding(isCompactWidth ? 16 : 20)
+        }
+        .onChange(of: isEditingHome) { _, isEditing in
+            if isEditing == false {
+                clearWidgetDragPreview()
+            }
+        }
+        .onChange(of: homeViewModel.widgets.map(\.id)) { _, widgetIDs in
+            if let draggingWidgetID, widgetIDs.contains(draggingWidgetID) == false {
+                clearWidgetDragPreview()
+                return
+            }
+
+            if let previewDropTarget, widgetIDs.contains(previewDropTarget.widgetID) == false {
+                clearWidgetDragPreview()
+            }
         }
     }
 
@@ -391,76 +477,119 @@ struct HomeView: View {
         for widget: HomeWidgetInstance,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if isEditingHome {
-                HStack(spacing: 8) {
-                    Label(
-                        homeViewModel.descriptor(for: widget)?.displayName ?? widget.kind.rawValue,
-                        systemImage: homeViewModel.descriptor(for: widget)?.iconSystemName ?? "square.grid.2x2"
-                    )
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            insertionIndicator(
+                isVisible: previewDropTarget?.widgetID == widget.id && previewDropTarget?.placement == .before
+            )
 
-                    Spacer()
+            VStack(alignment: .leading, spacing: 8) {
+                if isEditingHome {
+                    HStack(spacing: 8) {
+                        Label(
+                            homeViewModel.descriptor(for: widget)?.displayName ?? widget.kind.rawValue,
+                            systemImage: homeViewModel.descriptor(for: widget)?.iconSystemName ?? "square.grid.2x2"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
 
-                    if let alternateSize = homeViewModel.alternateSize(for: widget) {
-                        Button {
-                            homeViewModel.resizeWidget(withID: widget.id, to: alternateSize)
+                        Spacer()
+
+                        if let alternateSize = homeViewModel.alternateSize(for: widget) {
+                            Button {
+                                homeViewModel.resizeWidget(withID: widget.id, to: alternateSize)
+                            } label: {
+                                Image(systemName: alternateSize == .large ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        Button(role: .destructive) {
+                            clearWidgetDragPreview()
+                            homeViewModel.removeWidget(withID: widget.id)
                         } label: {
-                            Image(systemName: alternateSize == .large ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+                            Image(systemName: "minus.circle.fill")
                         }
                         .buttonStyle(.bordered)
                     }
-
-                    Button(role: .destructive) {
-                        homeViewModel.removeWidget(withID: widget.id)
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                    }
-                    .buttonStyle(.bordered)
                 }
-            }
 
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onLongPressGesture {
-                    isEditingHome = true
-                }
-                .draggable(widget.id.uuidString)
-                .accessibilityElement(children: .contain)
-        }
-        .padding(isEditingHome ? 10 : 14)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.primary.opacity(isEditingHome ? 0.12 : 0.08), lineWidth: 1)
-        }
-        .overlay {
-            GeometryReader { geometry in
-                Color.clear
+                content()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
-                    .dropDestination(for: String.self) { items, location in
-                        guard let id = items.first.flatMap(UUID.init(uuidString:)),
-                              isEditingHome else {
-                            return false
-                        }
-
-                        let placement: HomeLayoutViewModel.WidgetDropPlacement =
-                            location.y < geometry.size.height / 2 ? .before : .after
-                        homeViewModel.moveWidget(
-                            withID: id,
-                            relativeTo: widget.id,
-                            placement: placement
-                        )
-                        return true
+                    .onLongPressGesture {
+                        isEditingHome = true
                     }
+                    .onDrag {
+                        draggingWidgetID = widget.id
+                        previewDropTarget = nil
+                        return NSItemProvider(object: widget.id.uuidString as NSString)
+                    }
+                    .accessibilityElement(children: .contain)
             }
+            .padding(isEditingHome ? 10 : 14)
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(isEditingHome ? 0.12 : 0.08), lineWidth: 1)
+            }
+            .overlay {
+                if isEditingHome {
+                    GeometryReader { geometry in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onDrop(
+                                of: [UTType.text],
+                                delegate: HomeWidgetDropDelegate(
+                                    targetWidgetID: widget.id,
+                                    targetHeight: geometry.size.height,
+                                    draggingWidgetID: $draggingWidgetID,
+                                    previewDropTarget: $previewDropTarget,
+                                    viewModel: homeViewModel,
+                                    clearPreview: clearWidgetDragPreview
+                                )
+                            )
+                    }
+                }
+            }
+            .opacity(draggingWidgetID == widget.id ? 0.72 : 1)
+            .scaleEffect(draggingWidgetID == widget.id ? 0.985 : 1)
+            .shadow(
+                color: Color.black.opacity(draggingWidgetID == widget.id ? 0.12 : 0.03),
+                radius: draggingWidgetID == widget.id ? 20 : 12,
+                y: draggingWidgetID == widget.id ? 8 : 3
+            )
+
+            insertionIndicator(
+                isVisible: previewDropTarget?.widgetID == widget.id && previewDropTarget?.placement == .after
+            )
         }
-        .shadow(color: Color.black.opacity(0.03), radius: 12, y: 3)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: previewDropTarget)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: draggingWidgetID)
+    }
+
+    private func insertionIndicator(isVisible: Bool) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+                .frame(height: isVisible ? 8 : 0)
+
+            Capsule()
+                .fill(Color.accentColor.opacity(isVisible ? 0.9 : 0))
+                .frame(maxWidth: .infinity)
+                .frame(height: isVisible ? 4 : 0)
+                .padding(.horizontal, 18)
+
+            Spacer()
+                .frame(height: isVisible ? 8 : 0)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func clearWidgetDragPreview() {
+        draggingWidgetID = nil
+        previewDropTarget = nil
     }
 
     private var widgetRenderContext: HomeWidgetRenderContext {
@@ -489,6 +618,12 @@ struct HomeView: View {
             },
             openMusicPractice: {
                 presentedSheet = .musicPractice
+            },
+            openFitness: {
+                presentedSheet = .fitness
+            },
+            openPeopleMemory: {
+                presentedSheet = .peopleMemory
             }
         )
     }
@@ -499,9 +634,13 @@ struct HomeView: View {
     ) {
         switch action {
         case .openCapture:
-            presentedSheet = .captureQuickAdd
+            presentCaptureOverlay()
         case .reviewInbox:
-            presentedSheet = viewModel.inboxSummary.count > 0 ? .inboxReview : .captureQuickAdd
+            if viewModel.inboxSummary.count > 0 {
+                presentedSheet = .inboxReview
+            } else {
+                presentCaptureOverlay()
+            }
         case .openTasks:
             navigationPath.append(.tasks)
         case .openPlanner:
@@ -534,6 +673,10 @@ struct HomeView: View {
             presentedSheet = .health
         case .openMusicPractice:
             presentedSheet = .musicPractice
+        case .openFitness:
+            presentedSheet = .fitness
+        case .openPeopleMemory:
+            presentedSheet = .peopleMemory
         }
     }
 
@@ -548,6 +691,219 @@ struct HomeView: View {
         }
     }
 
+    private var captureOverlay: some View {
+        CaptureQuickAddPopover(
+            projects: viewModel.projects,
+            onCancel: dismissCaptureOverlay
+        ) { capture in
+            viewModel.saveCapture(capture)
+            dismissCaptureOverlay()
+        }
+    }
+
+    private func presentCaptureOverlay() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            isShowingCaptureOverlay = true
+        }
+    }
+
+    private func dismissCaptureOverlay() {
+        withAnimation(.easeOut(duration: 0.18)) {
+            isShowingCaptureOverlay = false
+        }
+    }
+
+}
+
+private struct HomeWidgetDropDelegate: DropDelegate {
+    let targetWidgetID: UUID
+    let targetHeight: CGFloat
+    @Binding var draggingWidgetID: UUID?
+    @Binding var previewDropTarget: HomeView.PreviewDropTarget?
+    let viewModel: HomeLayoutViewModel
+    let clearPreview: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        updatePreview(for: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updatePreview(for: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        guard previewDropTarget?.widgetID == targetWidgetID else {
+            return
+        }
+        previewDropTarget = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggingWidgetID else {
+            clearPreview()
+            return false
+        }
+
+        let placement = resolvedPlacement(for: info.location)
+        let reorderedWidgets = viewModel.reorderedWidgets(
+            movingID: draggingWidgetID,
+            relativeTo: targetWidgetID,
+            placement: placement
+        )
+        defer { clearPreview() }
+
+        guard reorderedWidgets.map(\.id) != viewModel.widgets.map(\.id) else {
+            return false
+        }
+
+        viewModel.moveWidget(
+            withID: draggingWidgetID,
+            relativeTo: targetWidgetID,
+            placement: placement
+        )
+        return true
+    }
+
+    private func updatePreview(for info: DropInfo) {
+        guard let draggingWidgetID, draggingWidgetID != targetWidgetID else {
+            previewDropTarget = nil
+            return
+        }
+
+        let placement = resolvedPlacement(for: info.location)
+        let reorderedWidgets = viewModel.reorderedWidgets(
+            movingID: draggingWidgetID,
+            relativeTo: targetWidgetID,
+            placement: placement
+        )
+        guard reorderedWidgets.map(\.id) != viewModel.widgets.map(\.id) else {
+            previewDropTarget = nil
+            return
+        }
+
+        previewDropTarget = HomeView.PreviewDropTarget(
+            widgetID: targetWidgetID,
+            placement: placement
+        )
+    }
+
+    private func resolvedPlacement(for location: CGPoint) -> HomeLayoutViewModel.WidgetDropPlacement {
+        location.y < targetHeight / 2 ? .before : .after
+    }
+}
+
+private struct HomeCustomizationView: View {
+    @ObservedObject var viewModel: HomeLayoutViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    let onDone: () -> Void
+
+    var body: some View {
+        List {
+            ForEach(viewModel.registry.modules, id: \.self) { module in
+                Section(module.displayName) {
+                    moduleSummary(for: module)
+
+                    ForEach(descriptors(for: module)) { descriptor in
+                        descriptorRow(descriptor)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Customize Home")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    onDone()
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func descriptors(for module: HomeWidgetModule) -> [HomeWidgetDescriptor] {
+        let moduleDescriptor = viewModel.registry.moduleWidget(for: module).map { [$0] } ?? []
+        return moduleDescriptor + viewModel.registry.featureWidgets(for: module)
+    }
+
+    private func moduleSummary(for module: HomeWidgetModule) -> some View {
+        let descriptors = descriptors(for: module)
+        let visibleCount = descriptors.filter { viewModel.isVisible($0) }.count
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(module.displayName)
+                .font(.headline)
+            Text("\(visibleCount) visible of \(descriptors.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func descriptorRow(_ descriptor: HomeWidgetDescriptor) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: descriptor.iconSystemName)
+                .foregroundStyle(descriptor.isAvailable ? Color.blue : Color.secondary)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(descriptor.displayName)
+                    .foregroundStyle(descriptor.isAvailable ? Color.primary : Color.secondary)
+                Text(customizationSubtitle(for: descriptor))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if viewModel.supportsVisibilityToggle(descriptor) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { viewModel.isVisible(descriptor) },
+                        set: { viewModel.setVisibility($0, for: descriptor) }
+                    )
+                )
+                .labelsHidden()
+                .disabled(descriptor.isAvailable == false)
+            } else {
+                Text(stateLabel(for: descriptor))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func customizationSubtitle(for descriptor: HomeWidgetDescriptor) -> String {
+        switch viewModel.visibilityState(for: descriptor) {
+        case .visible:
+            return "Visible on Home"
+        case .hidden:
+            return "Hidden by Home customization"
+        case .added:
+            return "Added on Home"
+        case .available:
+            return descriptor.requiresConfiguration ? "Add from gallery to configure" : "Available to add"
+        case .planned:
+            return descriptor.availability.message ?? "Planned"
+        }
+    }
+
+    private func stateLabel(for descriptor: HomeWidgetDescriptor) -> String {
+        switch viewModel.visibilityState(for: descriptor) {
+        case .visible:
+            return "Visible"
+        case .hidden:
+            return "Hidden"
+        case .added:
+            return "Added"
+        case .available:
+            return descriptor.isAvailable ? "Optional" : "Planned"
+        case .planned:
+            return "Planned"
+        }
+    }
 }
 
 private struct ShoppingQuickAddSheet: View {
@@ -1620,8 +1976,72 @@ struct CaptureQuickAddView: View {
     }
 }
 
+private struct CaptureQuickAddPopover: View {
+    @FocusState private var isTitleFocused: Bool
+    @State private var title = ""
+    @State private var selectedProjectID: UUID?
+
+    let projects: [Project]
+    let onCancel: () -> Void
+    let onSave: (CaptureItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Quick Capture")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .font(.subheadline.weight(.medium))
+            }
+
+            TextField("Jot it down", text: $title, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
+                .focused($isTitleFocused)
+
+            if projects.isEmpty == false {
+                Picker("Project", selection: $selectedProjectID) {
+                    Text("None").tag(nil as UUID?)
+                    ForEach(projects) { project in
+                        Text(project.name).tag(project.id as UUID?)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    guard let capture = CaptureItem(newTitle: title, projectID: selectedProjectID) else {
+                        return
+                    }
+
+                    onSave(capture)
+                } label: {
+                    Label("Save", systemImage: "tray.and.arrow.down.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(CaptureItem.cleanedTitle(from: title) == nil)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: 360, alignment: .topLeading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
+        )
+        .shadow(color: Color.black.opacity(0.18), radius: 24, y: 10)
+        .onAppear {
+            isTitleFocused = true
+        }
+    }
+}
+
 private enum InboxConversionMode: String, CaseIterable, Identifiable {
     case task
+    case shopping
     case maybe
     case note
 
@@ -1631,6 +2051,8 @@ private enum InboxConversionMode: String, CaseIterable, Identifiable {
         switch self {
         case .task:
             return "Task"
+        case .shopping:
+            return "Shopping"
         case .maybe:
             return "Maybe"
         case .note:
@@ -1650,6 +2072,7 @@ final class InboxReviewViewModel: ObservableObject {
     private let projectRepository: any ProjectRepository
     private let captureRepository: any CaptureRepository
     private let projectItemRepository: any ProjectItemRepository
+    private let shoppingRepository: any ShoppingRepository
     private let nowProvider: @Sendable () -> Date
 
     init(
@@ -1657,6 +2080,7 @@ final class InboxReviewViewModel: ObservableObject {
         projectRepository: any ProjectRepository,
         captureRepository: any CaptureRepository,
         projectItemRepository: any ProjectItemRepository,
+        shoppingRepository: any ShoppingRepository,
         initialCaptures: [CaptureItem],
         initialProjects: [Project],
         nowProvider: @escaping @Sendable () -> Date = Date.init
@@ -1665,6 +2089,7 @@ final class InboxReviewViewModel: ObservableObject {
         self.projectRepository = projectRepository
         self.captureRepository = captureRepository
         self.projectItemRepository = projectItemRepository
+        self.shoppingRepository = shoppingRepository
         self.captures = initialCaptures
         self.projects = initialProjects
         self.nowProvider = nowProvider
@@ -1707,9 +2132,9 @@ final class InboxReviewViewModel: ObservableObject {
         }
     }
 
-    func convertCurrentCaptureToTask(_ formData: MyTaskFormData) {
+    func convertCurrentCaptureToTask(_ formData: MyTaskFormData) -> Bool {
         guard var capture = currentCapture, let task = formData.makeTask(savedAt: nowProvider()) else {
-            return
+            return false
         }
 
         do {
@@ -1717,8 +2142,10 @@ final class InboxReviewViewModel: ObservableObject {
             capture.markProcessed(at: nowProvider(), convertedTaskID: task.id)
             try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
             load()
+            return true
         } catch {
             errorMessage = "Unable to create task: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -1730,15 +2157,15 @@ final class InboxReviewViewModel: ObservableObject {
         source: String?,
         pressure: ProjectItemPressure?,
         reviewAfter: Date?
-    ) {
+    ) -> Bool {
         guard var capture = currentCapture, let projectID else {
             errorMessage = "Choose a project first."
-            return
+            return false
         }
 
         guard ProjectItem.cleanedTitle(from: title) != nil else {
             errorMessage = "Enter a title."
-            return
+            return false
         }
 
         do {
@@ -1756,22 +2183,49 @@ final class InboxReviewViewModel: ObservableObject {
             capture.markProcessed(at: nowProvider(), convertedProjectItemID: item.id)
             try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
             load()
+            return true
         } catch {
             errorMessage = "Unable to save project item: \(error.localizedDescription)"
+            return false
         }
     }
 
-    func archiveCurrentCapture() {
+    func convertCurrentCaptureToShoppingItem(_ formData: ShoppingItemFormData) -> Bool {
         guard var capture = currentCapture else {
-            return
+            return false
+        }
+
+        let now = nowProvider()
+        guard let item = formData.makeItem(createdAt: now, updatedAt: now) else {
+            errorMessage = "Enter a shopping item title."
+            return false
+        }
+
+        do {
+            try shoppingRepository.saveShoppingItem(item, replacingItemWithID: nil)
+            capture.markProcessed(at: now)
+            try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
+            load()
+            return true
+        } catch {
+            errorMessage = "Unable to create shopping item: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    func archiveCurrentCapture() -> Bool {
+        guard var capture = currentCapture else {
+            return false
         }
 
         do {
             capture.archive(at: nowProvider())
             try captureRepository.saveCapture(capture, replacingCaptureWithID: capture.id)
             load()
+            return true
         } catch {
             errorMessage = "Unable to archive capture: \(error.localizedDescription)"
+            return false
         }
     }
 }
@@ -1787,10 +2241,12 @@ struct InboxReviewView: View {
     @State private var itemPressure: ProjectItemPressure? = .noPressure
     @State private var itemHasReviewDate = false
     @State private var itemReviewAfter = Date()
+    @State private var shoppingFormData = ShoppingItemFormData()
     @State private var selectedProjectID: UUID?
     @State private var newProjectName = ""
     @State private var showsTaskDetails = false
     @State private var showsItemDetails = false
+    let onInboxChanged: () -> Void
     let onDone: () -> Void
 
     init(
@@ -1798,8 +2254,10 @@ struct InboxReviewView: View {
         projectRepository: any ProjectRepository,
         captureRepository: any CaptureRepository,
         projectItemRepository: any ProjectItemRepository,
+        shoppingRepository: any ShoppingRepository,
         initialCaptures: [CaptureItem],
         initialProjects: [Project],
+        onInboxChanged: @escaping () -> Void = {},
         onDone: @escaping () -> Void
     ) {
         _viewModel = StateObject(
@@ -1808,10 +2266,12 @@ struct InboxReviewView: View {
                 projectRepository: projectRepository,
                 captureRepository: captureRepository,
                 projectItemRepository: projectItemRepository,
+                shoppingRepository: shoppingRepository,
                 initialCaptures: initialCaptures,
                 initialProjects: initialProjects
             )
         )
+        self.onInboxChanged = onInboxChanged
         self.onDone = onDone
     }
 
@@ -1831,8 +2291,10 @@ struct InboxReviewView: View {
                         conversionForm(for: capture)
 
                         Button(role: .destructive) {
-                            viewModel.archiveCurrentCapture()
-                            resetDrafts()
+                            if viewModel.archiveCurrentCapture() {
+                                onInboxChanged()
+                                resetDrafts()
+                            }
                         } label: {
                             Label("Archive Capture", systemImage: "archivebox")
                                 .frame(maxWidth: .infinity)
@@ -1853,6 +2315,7 @@ struct InboxReviewView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
+                    onInboxChanged()
                     onDone()
                     dismiss()
                 }
@@ -1864,6 +2327,9 @@ struct InboxReviewView: View {
         }
         .onChange(of: viewModel.currentCapture?.id) { _, _ in
             resetDrafts()
+        }
+        .onDisappear {
+            onInboxChanged()
         }
     }
 
@@ -1896,6 +2362,8 @@ struct InboxReviewView: View {
         switch mode {
         case .task:
             taskConversionForm
+        case .shopping:
+            shoppingConversionForm
         case .maybe:
             projectItemConversionForm(kind: .maybe)
         case .note:
@@ -1909,6 +2377,10 @@ struct InboxReviewView: View {
                 .textFieldStyle(.roundedBorder)
 
             projectPicker(selection: $taskFormData.projectID, requiresProject: false)
+
+            LabeledContent("Estimated Duration") {
+                EstimatedDurationControl(estimatedMinutesText: $taskFormData.estimatedMinutesText)
+            }
 
             DisclosureGroup("Optional Details", isExpanded: $showsTaskDetails) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -1948,7 +2420,9 @@ struct InboxReviewView: View {
             }
 
             Button {
-                viewModel.convertCurrentCaptureToTask(taskFormData)
+                if viewModel.convertCurrentCaptureToTask(taskFormData) {
+                    onInboxChanged()
+                }
             } label: {
                 Label("Create Task", systemImage: "checklist")
                     .frame(maxWidth: .infinity)
@@ -1988,7 +2462,7 @@ struct InboxReviewView: View {
             }
 
             Button {
-                viewModel.convertCurrentCaptureToProjectItem(
+                if viewModel.convertCurrentCaptureToProjectItem(
                     kind: kind,
                     title: itemTitle,
                     notes: itemNotes,
@@ -1996,13 +2470,101 @@ struct InboxReviewView: View {
                     source: itemSource,
                     pressure: itemPressure,
                     reviewAfter: itemHasReviewDate ? itemReviewAfter : nil
-                )
+                ) {
+                    onInboxChanged()
+                }
             } label: {
                 Label("Save \(kind.displayName)", systemImage: kind == .maybe ? "sparkle.magnifyingglass" : "note.text")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .disabled(ProjectItem.cleanedTitle(from: itemTitle) == nil || selectedProjectID == nil)
+        }
+    }
+
+    private var shoppingConversionForm: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Item")
+                    .font(.headline)
+
+                TextField("Shopping item", text: $shoppingFormData.title)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Notes", text: $shoppingFormData.notes, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(2...5)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Trip")
+                    .font(.headline)
+
+                shoppingSuggestionField(
+                    title: "Category",
+                    text: $shoppingFormData.category,
+                    suggestions: ShoppingItemFieldSuggestions.categories
+                )
+                shoppingSuggestionField(
+                    title: "Store Type",
+                    text: $shoppingFormData.storeType,
+                    suggestions: ShoppingItemFieldSuggestions.storeTypes
+                )
+                shoppingSuggestionField(
+                    title: "Store",
+                    text: $shoppingFormData.storeName,
+                    suggestions: ShoppingItemFieldSuggestions.storeNames
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Priority")
+                    .font(.headline)
+
+                Picker("Urgency", selection: $shoppingFormData.urgency) {
+                    ForEach(ShoppingUrgency.allCases, id: \.self) { urgency in
+                        Text(urgency.displayName).tag(urgency)
+                    }
+                }
+
+                Picker("Necessity", selection: $shoppingFormData.necessity) {
+                    ForEach(ShoppingNecessity.allCases, id: \.self) { necessity in
+                        Text(necessity.displayName).tag(necessity)
+                    }
+                }
+            }
+
+            Button {
+                if viewModel.convertCurrentCaptureToShoppingItem(shoppingFormData) {
+                    onInboxChanged()
+                }
+            } label: {
+                Label("Add Shopping Item", systemImage: "cart")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(ShoppingItem.cleanedTitle(from: shoppingFormData.title) == nil)
+        }
+    }
+
+    private func shoppingSuggestionField(
+        title: String,
+        text: Binding<String>,
+        suggestions: [String]
+    ) -> some View {
+        HStack {
+            TextField(title, text: text)
+                .textFieldStyle(.roundedBorder)
+
+            Menu {
+                ForEach(suggestions, id: \.self) { suggestion in
+                    Button(suggestion) {
+                        text.wrappedValue = suggestion
+                    }
+                }
+            } label: {
+                Image(systemName: "text.badge.plus")
+            }
+            .accessibilityLabel("\(title) Suggestions")
         }
     }
 
@@ -2044,6 +2606,10 @@ struct InboxReviewView: View {
         itemNotes = capture.notes ?? ""
         itemSource = capture.source ?? ""
         selectedProjectID = capture.projectID
+        shoppingFormData = ShoppingItemFormData(
+            title: capture.title,
+            notes: capture.notes ?? ""
+        )
         showsTaskDetails = false
         showsItemDetails = false
     }
@@ -2686,6 +3252,8 @@ private struct ProjectItemFormView: View {
         routineRepository: container.routineRepository,
         shoppingRepository: container.shoppingRepository,
         healthRepository: container.healthRepository,
-        musicPracticeRepository: container.musicPracticeRepository
+        musicPracticeRepository: container.musicPracticeRepository,
+        fitnessRepository: container.fitnessRepository,
+        peopleMemoryRepository: container.peopleMemoryRepository
     )
 }

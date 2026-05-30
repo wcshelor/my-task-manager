@@ -51,6 +51,7 @@ final class SwiftDataSettingsRepository: SettingsRepository {
     ) -> Bool {
         record.writeCalendarIdentifier != normalizedSettings.writeCalendarIdentifier
             || record.writeCalendarTitle != normalizedSettings.writeCalendarTitle
+            || record.hiddenHomeWidgetKindsText != normalizedSettings.hiddenHomeWidgetKinds.joined(separator: "\n")
             || record.minimumGapMinutes != normalizedSettings.minimumGapMinutes
             || record.defaultAssumedDurationMinutes != normalizedSettings.defaultAssumedDurationMinutes
             || record.plannerSuggestionCap != normalizedSettings.plannerSuggestionCap

@@ -51,6 +51,14 @@ final class AppEnvironment {
         container.musicPracticeRepository
     }
 
+    var fitnessRepository: any FitnessRepository {
+        container.fitnessRepository
+    }
+
+    var peopleMemoryRepository: any PeopleMemoryRepository {
+        container.peopleMemoryRepository
+    }
+
     var calendarPermissionProvider: any CalendarPermissionProviding {
         container.calendarPermissionProvider
     }

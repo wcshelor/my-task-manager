@@ -2,7 +2,7 @@
 
 This repo contains a SwiftUI Apple app evolving from a task manager into a broader Life Assistant / personal planning hub.
 
-Status: active work in progress. Implemented areas are usable development surfaces, while newer modules, especially Health and Music Practice, should still be treated as incomplete until manual QA and product polish catch up.
+Status: active work in progress. Implemented areas are usable development surfaces, while newer modules, especially Health, Music Practice, and Fitness, should still be treated as incomplete until manual QA and product polish catch up.
 
 The product framing is:
 
@@ -117,6 +117,7 @@ If changing Sync:
 | Routines | routine models/repository/views | User-authored recurring page-based routines with per-step logs and optional routine step links. |
 | Health | health models/repository/views | Work in progress; not medical diagnosis. |
 | Music Practice | music practice models/repository/views | Lightweight practice tracking, not a full practice planner yet. |
+| Fitness | fitness models/repository/views | Standalone Home-reachable structured exercise tracking. |
 | Shopping | shopping models/repository/views | Practical capture module. |
 | Sync | `Sync/` | Scaffolding only unless explicitly asked. |
 | Tests | `task-managerTests/`, `scripts/` | Run Swift tests and smoke helpers after meaningful changes. |
@@ -260,8 +261,9 @@ Every feature should support at least one of these jobs:
 - User-authored Routines with page-by-page execution, durable completed/skipped step state, and optional per-step routine links
 - Shopping list
 - Health work in progress: sleep check-ins, one-minute PVT sessions, lightweight meal/workout logs, and neutral rolling trend summaries
+- Fitness work in progress: workout days, exercise library, exercise-owned history, and structured session logging
 - Music Practice foundation: lightweight piece records, session logging, recent summaries, and Home access
-- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine step links, routine completion logs, work-in-progress Health records, and Music Practice records
+- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine step links, routine completion logs, work-in-progress Health records, Music Practice records, and Fitness records
 - EventKit integration for calendar permission, reads, writes, and scheduled-block reconciliation
 
 Future or incomplete areas remain product ideas, scaffolding, or active work in progress until the app and docs say otherwise:
@@ -287,10 +289,10 @@ Implemented or active domain docs:
 - `docs/domains/routines.md`: user-authored recurring routine checklists.
 - `docs/domains/shopping.md`: active shopping list, trip grouping, and future wish-list support.
 - `docs/domains/today_dashboard.md`: Today / Home as the execution hub.
-- `docs/domains/future-modules/health.md`: active work-in-progress Health section for Sleep / PVT, Nutrition, Fitness, and daily context.
+- `docs/domains/future-modules/health.md`: active work-in-progress Health section for Sleep / PVT, Nutrition, lightweight workout logs, and daily context.
 - `docs/domains/future-modules/sleep_pvt.md`: active work-in-progress Health subdomain for sleep check-ins, PVT sessions, and trend tracking.
 - `docs/domains/future-modules/nutrition.md`: active work-in-progress Health subdomain for lightweight meal logging and trends.
-- `docs/domains/future-modules/fitness.md`: active work-in-progress Health subdomain for workout logging and trends.
+- `docs/domains/future-modules/fitness.md`: active work-in-progress standalone Fitness module for workout days, exercises, and exercise history.
 - `docs/domains/future-modules/music_practice.md`: active work-in-progress Music Practice foundation for pieces, sessions, and recent practice summaries.
 
 Plan-only future module docs:
@@ -329,11 +331,11 @@ Home is the widget-based execution hub. The default layout migrates the old Toda
 - today’s active routines
 - simple promise history counts
 
-Home supports a persisted vertical widget board. Users can long-press to edit, reorder widgets, remove widgets, resize supported widgets between small and large, and add more widgets from a module-grouped Add Widget screen.
+Home supports a persisted vertical widget board. Users can long-press any widget or tap `Edit` to enter edit mode, then reorder widgets, remove widgets, resize supported widgets between small and large, and add more widgets from a module-grouped Add Widget screen.
 
 The Shopping module now also exposes a dedicated `Shopping Quick Add` sub-widget so users can add list items directly from Home without opening the full shopping list.
 
-Home can create captures, promises, and routines; check in on promises as kept or missed; create reset promises; run routines as one-step-at-a-time page flows; add or remove per-step routine links; open routine-linked PVT or Promise sheets without leaving the routine; open Planner; and navigate into module pages where available.
+Home can create captures, promises, and routines; check in on promises as kept or missed; create reset promises; run routines as one-step-at-a-time page flows; add or remove per-step routine links; open routine-linked PVT or Promise sheets without leaving the routine; open Planner; and navigate into module pages where available. Home quick capture now uses a lightweight overlay with a dimmed background instead of a full-screen sheet, and inbox review refreshes Home counts after convert/archive changes as well as on dismiss.
 
 ### Tasks
 
@@ -343,7 +345,8 @@ The Tasks tab supports:
 - search, sort, group
 - complete, archive, reopen
 - iPhone quick-add capture
-- task metadata: status, due date, estimated minutes, priority, energy level, work mode, tags, and notes
+- task metadata: status, due date, optional estimated duration, priority, energy level, work mode, tags, and notes
+- new-task flows default estimated duration to `None`; duration can be added or cleared in 15-minute steps
 
 When promises are active, Tasks shows a compact promise-presence banner so current commitments stay visible while using the app.
 
@@ -377,6 +380,10 @@ When promises are active, Planner also shows a compact promise-presence banner.
 
 Health is active work in progress and is reached from Home. The current app supports quick sleep check-ins, a rough one-minute in-app PVT reaction test, lightweight meal and workout logs, and neutral rolling 7/30-day trend summaries.
 
+### Fitness
+
+Fitness is active work in progress and is reached from Home through its module widget. The current app supports workout days, an exercise library, per-exercise recent history, structured strength-set logging, metric-summary cardio logging, and same-day logged-state surfacing.
+
 The module is for personal tracking and progress visibility, not diagnosis or judging health state. Manual QA still needs to verify the real-time PVT tap flow on device or simulator.
 
 ### Shopping
@@ -398,6 +405,7 @@ The module is intentionally small: it does not include practice plans, audio rec
 - Promises live in app-owned SwiftData storage.
 - Routine definitions, routine step links, and daily completion logs live in app-owned SwiftData storage.
 - Health check-ins, PVT sessions, meal logs, and workout logs live in app-owned SwiftData storage.
+- Fitness exercises, workout days, and exercise sessions live in app-owned SwiftData storage.
 - Music Practice pieces and sessions live in app-owned SwiftData storage.
 - Apple Calendar is the external source of truth for calendar busy time.
 - Accepted planner suggestions are written to Apple Calendar only after explicit user acceptance.
@@ -405,7 +413,7 @@ The module is intentionally small: it does not include practice plans, audio rec
 - Calendar drift must be reconciled back into scheduled-block state.
 - Planner suggestions remain ephemeral until accepted.
 - Only Planner / ScheduledBlock flows should write to Apple Calendar.
-- Promises, Routines, Music Practice, Health, Shopping, Budgeting, Vices Tracking, People Memory, and Journaling & Reflection should not write directly to Apple Calendar.
+- Promises, Routines, Music Practice, Fitness, Health, Shopping, Budgeting, Vices Tracking, People Memory, and Journaling & Reflection should not write directly to Apple Calendar.
 - Cross-device sync is not active today.
 - CloudKit is not the planned near-term sync path because it depends on Apple developer capabilities that may not be available to every user or build setup.
 - The planned sync extension is optional folder-based sync: the user chooses a cloud-backed folder, the app keeps SwiftData as the local source of truth, and sync reads/writes portable files in that folder.
@@ -482,9 +490,10 @@ Prefer injecting repositories/services through the app container instead of cons
 - `PromiseRepository`
 - `RoutineRepository`
 - `HealthRepository`
+- `FitnessRepository`
 - `MusicPracticeRepository`
 
-SwiftData records include tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine completion logs, work-in-progress Health records, and Music Practice records.
+SwiftData records include tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine completion logs, work-in-progress Health records, Music Practice records, and Fitness records.
 
 ### Planned Folder Sync
 

@@ -9,6 +9,7 @@ final class AppSettingsRecord {
     var excludedReadCalendarTitlesText: String = ""
     var writeCalendarIdentifier: String = ""
     var writeCalendarTitle: String = ""
+    var hiddenHomeWidgetKindsText: String = ""
     var minimumGapMinutes: Int = AppSettings.mvpDefault.minimumGapMinutes
     var defaultAssumedDurationMinutes: Int = AppSettings.mvpDefault.defaultAssumedDurationMinutes
     var plannerSuggestionCap: Int = AppSettings.mvpDefault.plannerSuggestionCap
@@ -21,6 +22,7 @@ final class AppSettingsRecord {
         self.excludedReadCalendarTitlesText = Self.encodeTitles(settings.excludedReadCalendarTitles)
         self.writeCalendarIdentifier = settings.writeCalendarIdentifier
         self.writeCalendarTitle = settings.writeCalendarTitle
+        self.hiddenHomeWidgetKindsText = Self.encodeTitles(settings.hiddenHomeWidgetKinds)
         self.minimumGapMinutes = settings.minimumGapMinutes
         self.defaultAssumedDurationMinutes = settings.defaultAssumedDurationMinutes
         self.plannerSuggestionCap = settings.plannerSuggestionCap
@@ -31,6 +33,7 @@ final class AppSettingsRecord {
             excludedReadCalendarTitles: Self.decodeTitles(excludedReadCalendarTitlesText),
             writeCalendarIdentifier: writeCalendarIdentifier,
             writeCalendarTitle: writeCalendarTitle,
+            hiddenHomeWidgetKinds: Self.decodeTitles(hiddenHomeWidgetKindsText),
             minimumGapMinutes: minimumGapMinutes,
             defaultAssumedDurationMinutes: defaultAssumedDurationMinutes,
             plannerSuggestionCap: plannerSuggestionCap
@@ -41,6 +44,7 @@ final class AppSettingsRecord {
         excludedReadCalendarTitlesText = Self.encodeTitles(settings.excludedReadCalendarTitles)
         writeCalendarIdentifier = settings.writeCalendarIdentifier
         writeCalendarTitle = settings.writeCalendarTitle
+        hiddenHomeWidgetKindsText = Self.encodeTitles(settings.hiddenHomeWidgetKinds)
         minimumGapMinutes = settings.minimumGapMinutes
         defaultAssumedDurationMinutes = settings.defaultAssumedDurationMinutes
         plannerSuggestionCap = settings.plannerSuggestionCap

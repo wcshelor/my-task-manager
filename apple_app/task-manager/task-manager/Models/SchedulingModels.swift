@@ -82,6 +82,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
     var excludedReadCalendarTitles: [String]
     var writeCalendarIdentifier: String
     var writeCalendarTitle: String
+    var hiddenHomeWidgetKinds: [String]
     var minimumGapMinutes: Int
     private var storedDefaultAssumedDurationMinutes: Int
     var defaultAssumedDurationMinutes: Int {
@@ -99,6 +100,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         excludedReadCalendarTitles: [String],
         writeCalendarIdentifier: String = "",
         writeCalendarTitle: String,
+        hiddenHomeWidgetKinds: [String] = [],
         minimumGapMinutes: Int,
         defaultAssumedDurationMinutes: Int,
         plannerSuggestionCap: Int
@@ -106,6 +108,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         self.excludedReadCalendarTitles = excludedReadCalendarTitles
         self.writeCalendarIdentifier = Self.normalizedCalendarValue(writeCalendarIdentifier)
         self.writeCalendarTitle = Self.normalizedCalendarValue(writeCalendarTitle)
+        self.hiddenHomeWidgetKinds = Self.normalizedWidgetKinds(hiddenHomeWidgetKinds)
         self.minimumGapMinutes = max(1, minimumGapMinutes)
         self.storedDefaultAssumedDurationMinutes =
             TaskDurationRules.cleanedDefaultAssumedDurationMinutes(defaultAssumedDurationMinutes)
@@ -120,6 +123,7 @@ nonisolated struct AppSettings: Equatable, Sendable {
         excludedReadCalendarTitles: ["Birthdays"],
         writeCalendarIdentifier: "",
         writeCalendarTitle: defaultWriteCalendarTitle,
+        hiddenHomeWidgetKinds: [],
         minimumGapMinutes: 15,
         defaultAssumedDurationMinutes: 30,
         plannerSuggestionCap: 5
@@ -127,5 +131,16 @@ nonisolated struct AppSettings: Equatable, Sendable {
 
     private static func normalizedCalendarValue(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizedWidgetKinds(_ kinds: [String]) -> [String] {
+        Array(
+            Set(
+                kinds
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { $0.isEmpty == false }
+            )
+        )
+        .sorted()
     }
 }

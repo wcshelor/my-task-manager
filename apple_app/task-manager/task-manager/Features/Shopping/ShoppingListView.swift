@@ -290,19 +290,108 @@ private struct ShoppingItemRow: View {
     }
 }
 
+struct ShoppingItemFormData: Equatable {
+    var title: String
+    var notes: String
+    var category: String
+    var storeType: String
+    var storeName: String
+    var urgency: ShoppingUrgency
+    var necessity: ShoppingNecessity
+
+    init(
+        title: String = "",
+        notes: String = "",
+        category: String = "",
+        storeType: String = "",
+        storeName: String = "",
+        urgency: ShoppingUrgency = .nextTrip,
+        necessity: ShoppingNecessity = .necessary
+    ) {
+        self.title = title
+        self.notes = notes
+        self.category = category
+        self.storeType = storeType
+        self.storeName = storeName
+        self.urgency = urgency
+        self.necessity = necessity
+    }
+
+    init(item: ShoppingItem) {
+        self.init(
+            title: item.title,
+            notes: item.notes ?? "",
+            category: item.category ?? "",
+            storeType: item.storeType ?? "",
+            storeName: item.storeName ?? "",
+            urgency: item.urgency,
+            necessity: item.necessity
+        )
+    }
+
+    func makeItem(
+        id: UUID = UUID(),
+        status: ShoppingItemStatus = .needed,
+        createdAt: Date = .now,
+        updatedAt: Date? = nil,
+        completedAt: Date? = nil
+    ) -> ShoppingItem? {
+        guard ShoppingItem.cleanedTitle(from: title) != nil else {
+            return nil
+        }
+
+        return ShoppingItem(
+            id: id,
+            title: title,
+            notes: notes,
+            category: category,
+            storeType: storeType,
+            storeName: storeName,
+            urgency: urgency,
+            necessity: necessity,
+            status: status,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            completedAt: completedAt
+        )
+    }
+}
+
+enum ShoppingItemFieldSuggestions {
+    static let categories = [
+        "Groceries",
+        "Household",
+        "Pharmacy",
+        "Personal Care",
+        "Hardware",
+        "Clothing",
+    ]
+
+    static let storeTypes = [
+        "Grocery",
+        "Drugstore",
+        "Hardware",
+        "Online",
+        "Department Store",
+        "Market",
+    ]
+
+    static let storeNames = [
+        "Aldi",
+        "dm",
+        "Rewe",
+        "Edeka",
+        "Amazon",
+    ]
+}
+
 private struct ShoppingItemFormView: View {
     @Environment(\.dismiss) private var dismiss
 
     let initialItem: ShoppingItem
     let onSave: (ShoppingItem) -> Void
 
-    @State private var title: String
-    @State private var notes: String
-    @State private var category: String
-    @State private var storeType: String
-    @State private var storeName: String
-    @State private var urgency: ShoppingUrgency
-    @State private var necessity: ShoppingNecessity
+    @State private var formData: ShoppingItemFormData
 
     init(
         initialItem: ShoppingItem,
@@ -310,49 +399,43 @@ private struct ShoppingItemFormView: View {
     ) {
         self.initialItem = initialItem
         self.onSave = onSave
-        _title = State(initialValue: initialItem.title)
-        _notes = State(initialValue: initialItem.notes ?? "")
-        _category = State(initialValue: initialItem.category ?? "")
-        _storeType = State(initialValue: initialItem.storeType ?? "")
-        _storeName = State(initialValue: initialItem.storeName ?? "")
-        _urgency = State(initialValue: initialItem.urgency)
-        _necessity = State(initialValue: initialItem.necessity)
+        _formData = State(initialValue: ShoppingItemFormData(item: initialItem))
     }
 
     var body: some View {
         Form {
             Section("Item") {
-                TextField("Title", text: $title)
-                TextField("Notes", text: $notes, axis: .vertical)
+                TextField("Title", text: $formData.title)
+                TextField("Notes", text: $formData.notes, axis: .vertical)
                     .lineLimit(2...5)
             }
 
             Section("Trip") {
                 suggestionField(
                     title: "Category",
-                    text: $category,
-                    suggestions: Self.categorySuggestions
+                    text: $formData.category,
+                    suggestions: ShoppingItemFieldSuggestions.categories
                 )
                 suggestionField(
                     title: "Store Type",
-                    text: $storeType,
-                    suggestions: Self.storeTypeSuggestions
+                    text: $formData.storeType,
+                    suggestions: ShoppingItemFieldSuggestions.storeTypes
                 )
                 suggestionField(
                     title: "Store",
-                    text: $storeName,
-                    suggestions: Self.storeNameSuggestions
+                    text: $formData.storeName,
+                    suggestions: ShoppingItemFieldSuggestions.storeNames
                 )
             }
 
             Section("Priority") {
-                Picker("Urgency", selection: $urgency) {
+                Picker("Urgency", selection: $formData.urgency) {
                     ForEach(ShoppingUrgency.allCases, id: \.self) { urgency in
                         Text(urgency.displayName).tag(urgency)
                     }
                 }
 
-                Picker("Necessity", selection: $necessity) {
+                Picker("Necessity", selection: $formData.necessity) {
                     ForEach(ShoppingNecessity.allCases, id: \.self) { necessity in
                         Text(necessity.displayName).tag(necessity)
                     }
@@ -371,7 +454,7 @@ private struct ShoppingItemFormView: View {
                 Button("Save") {
                     save()
                 }
-                .disabled(ShoppingItem.cleanedTitle(from: title) == nil)
+                .disabled(ShoppingItem.cleanedTitle(from: formData.title) == nil)
             }
         }
     }
@@ -399,47 +482,16 @@ private struct ShoppingItemFormView: View {
 
     private func save() {
         let now = Date()
-        let item = ShoppingItem(
+        guard let item = formData.makeItem(
             id: initialItem.id,
-            title: title,
-            notes: notes,
-            category: category,
-            storeType: storeType,
-            storeName: storeName,
-            urgency: urgency,
-            necessity: necessity,
             status: initialItem.status,
             createdAt: initialItem.createdAt,
             updatedAt: now,
             completedAt: initialItem.completedAt
-        )
+        ) else {
+            return
+        }
+
         onSave(item)
     }
-
-    private static let categorySuggestions = [
-        "Groceries",
-        "Household",
-        "Pharmacy",
-        "Personal Care",
-        "Hardware",
-        "Clothing",
-    ]
-
-    private static let storeTypeSuggestions = [
-        "Grocery",
-        "Drugstore",
-        "Hardware",
-        "Online",
-        "Department Store",
-        "Market",
-    ]
-
-    private static let storeNameSuggestions = [
-        "Aldi",
-        "dm",
-        "Rewe",
-        "Edeka",
-        "Amazon",
-    ]
 }
-

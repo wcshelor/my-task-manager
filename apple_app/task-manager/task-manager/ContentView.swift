@@ -46,7 +46,9 @@ private struct TaskManagerTabShell: View {
                 routineRepository: appEnvironment.routineRepository,
                 shoppingRepository: appEnvironment.shoppingRepository,
                 healthRepository: appEnvironment.healthRepository,
-                musicPracticeRepository: appEnvironment.musicPracticeRepository
+                musicPracticeRepository: appEnvironment.musicPracticeRepository,
+                fitnessRepository: appEnvironment.fitnessRepository,
+                peopleMemoryRepository: appEnvironment.peopleMemoryRepository
             )
                 .tabItem {
                     Label("Home", systemImage: "square.grid.2x2.fill")
@@ -71,6 +73,18 @@ private struct TaskManagerTabShell: View {
             )
                 .tabItem {
                     Label("Projects", systemImage: "folder.fill")
+                }
+
+            SettingsView(
+                settingsRepository: appEnvironment.settingsRepository,
+                homeLayoutRepository: appEnvironment.homeLayoutRepository,
+                projectRepository: appEnvironment.projectRepository,
+                routineRepository: appEnvironment.routineRepository,
+                calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
+                calendarListingService: appEnvironment.calendarListingService
+            )
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

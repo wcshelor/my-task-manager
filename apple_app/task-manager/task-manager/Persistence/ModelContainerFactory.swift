@@ -30,6 +30,11 @@ enum ModelContainerFactory {
             PVTSessionRecord.self,
             PracticePieceRecord.self,
             PracticeSessionRecord.self,
+            FitnessExerciseRecord.self,
+            WorkoutTemplateRecord.self,
+            ExerciseSessionRecord.self,
+            PersonMemoryRecord.self,
+            PersonTagRecord.self,
         ])
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: isStoredInMemoryOnly

@@ -76,20 +76,6 @@ struct TaskFormView: View {
         )
     }
 
-    private var hasEstimatedDurationBinding: Binding<Bool> {
-        Binding(
-            get: { formData.hasEstimatedDuration },
-            set: { formData.hasEstimatedDuration = $0 }
-        )
-    }
-
-    private var estimatedMinutesSelectionBinding: Binding<Int> {
-        Binding(
-            get: { formData.estimatedMinutesSelection },
-            set: { formData.estimatedMinutesSelection = $0 }
-        )
-    }
-
     private var isCompactWidth: Bool {
         horizontalSizeClass == .compact
     }
@@ -121,23 +107,10 @@ struct TaskFormView: View {
                         }
                     }
 
-                    Toggle("Add Estimated Duration", isOn: hasEstimatedDurationBinding)
-
-                    if formData.hasEstimatedDuration {
-                        LabeledContent("Estimated Duration") {
-                            HStack(spacing: 12) {
-                                Text(formData.estimatedMinutesDisplayText)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-
-                                Stepper(
-                                    "",
-                                    value: estimatedMinutesSelectionBinding,
-                                    step: TaskDurationRules.minutesIncrement
-                                )
-                                .labelsHidden()
-                            }
-                        }
+                    LabeledContent("Estimated Duration") {
+                        EstimatedDurationControl(
+                            estimatedMinutesText: $formData.estimatedMinutesText
+                        )
                     }
                 }
 

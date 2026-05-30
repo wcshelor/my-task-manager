@@ -63,20 +63,22 @@ struct AddHomeWidgetView: View {
         Button {
             toggle(module)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(module.displayName)
-                        .font(.headline)
-                    Text(moduleSubtitle(for: module))
-                        .font(.caption)
+            HomeWidgetCardSurface {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(module.displayName)
+                            .font(.headline)
+                        Text(moduleSubtitle(for: module))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: expandedModules.contains(module) ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
-
-                Spacer()
-
-                Image(systemName: expandedModules.contains(module) ? "chevron.up" : "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)
@@ -101,6 +103,10 @@ struct AddHomeWidgetView: View {
 
             if descriptor.isAvailable == false {
                 Text("Planned")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            } else if viewModel.supportsVisibilityToggle(descriptor) && viewModel.isHiddenBySettings(descriptor) {
+                Text("Hidden")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             } else if descriptor.requiresConfiguration {
@@ -165,6 +171,8 @@ struct AddHomeWidgetView: View {
 
         if descriptor.requiresConfiguration {
             parts.append("configuration required")
+        } else if viewModel.isHiddenBySettings(descriptor) {
+            parts.append("hidden in Home customization")
         } else if viewModel.canAdd(descriptor: descriptor) == false {
             parts.append("already on Home")
         }

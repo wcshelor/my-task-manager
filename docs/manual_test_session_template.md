@@ -51,6 +51,28 @@
 - [ ] Edited, moved, canceled, and deleted accepted blocks where relevant
 - [ ] Confirmed promises and routines do not write directly to Apple Calendar
 
+## Health
+
+- [ ] Created a sleep check-in
+- [ ] Saved a completed PVT session
+- [ ] Added a meal log
+- [ ] Added a generic Health workout log
+- [ ] Confirmed Health history and delete flows still work
+
+## Fitness
+
+- [ ] Opened Fitness from Home
+- [ ] Created Push Day, Pull Day, and Leg Day
+- [ ] Created a strength exercise
+- [ ] Created a bike-style metric exercise
+- [ ] Added existing exercises to a workout day
+- [ ] Logged at least one session from an exercise detail screen
+- [ ] Logged at least one session from a workout day flow
+- [ ] Confirmed last-session references update immediately
+- [ ] Confirmed logged-today badges appear
+- [ ] Checked Recent, A-Z, and Tag sorting
+- [ ] Confirmed the older Health workout log still behaves unchanged
+
 ## iPhone Runtime
 
 - [ ] App launches

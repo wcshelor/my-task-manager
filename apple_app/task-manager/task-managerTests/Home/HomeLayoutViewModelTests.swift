@@ -85,6 +85,93 @@ struct HomeLayoutViewModelTests {
         #expect(viewModel.widgets.map(\.kind) == [.promises, .inbox, .routines])
     }
 
+    @Test func reorderedWidgetsCanMoveBeforeTarget() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+                    HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 1),
+                    HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 2),
+                ]
+            )
+        )
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        viewModel.load()
+
+        let reorderedWidgets = viewModel.reorderedWidgets(
+            movingID: viewModel.widgets[2].id,
+            relativeTo: viewModel.widgets[0].id,
+            placement: .before
+        )
+
+        #expect(reorderedWidgets.map(\.kind) == [.routines, .inbox, .promises])
+    }
+
+    @Test func reorderedWidgetsCanMoveAfterTarget() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+                    HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 1),
+                    HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 2),
+                ]
+            )
+        )
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        viewModel.load()
+
+        let reorderedWidgets = viewModel.reorderedWidgets(
+            movingID: viewModel.widgets[0].id,
+            relativeTo: viewModel.widgets[1].id,
+            placement: .after
+        )
+
+        #expect(reorderedWidgets.map(\.kind) == [.promises, .inbox, .routines])
+    }
+
+    @Test func reorderedWidgetsIsNoOpWhenMovingRelativeToSelf() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+                    HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 1),
+                ]
+            )
+        )
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        viewModel.load()
+
+        let reorderedWidgets = viewModel.reorderedWidgets(
+            movingID: viewModel.widgets[0].id,
+            relativeTo: viewModel.widgets[0].id,
+            placement: .before
+        )
+
+        #expect(reorderedWidgets.map(\.id) == viewModel.widgets.map(\.id))
+    }
+
+    @Test func reorderedWidgetsPreservesStableSortOrder() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+                    HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 1),
+                    HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 2),
+                ]
+            )
+        )
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        viewModel.load()
+
+        let reorderedWidgets = viewModel.reorderedWidgets(
+            movingID: viewModel.widgets[2].id,
+            relativeTo: viewModel.widgets[0].id,
+            placement: .before
+        )
+
+        #expect(reorderedWidgets.map(\.sortOrder) == [0, 1, 2])
+    }
+
     @Test func viewModelRemovesWidgets() throws {
         let repository = InMemoryHomeLayoutRepository(
             layout: HomeLayout(
@@ -192,6 +279,93 @@ struct HomeLayoutViewModelTests {
 
         #expect(viewModel.widgets.map(\.kind) == HomeLayout.defaultLayout.widgets.map(\.kind))
     }
+
+    @Test func viewModelHidesVisibleWidgetIntoRemovedWidgets() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .tasksModule, size: .small, sortOrder: 0),
+                ]
+            )
+        )
+        let settingsRepository = InMemorySettingsRepository()
+        let viewModel = HomeLayoutViewModel(
+            homeLayoutRepository: repository,
+            settingsRepository: settingsRepository
+        )
+        let descriptor = viewModel.registry.descriptor(for: .tasksModule)!
+        viewModel.load()
+
+        viewModel.setVisibility(false, for: descriptor)
+
+        #expect(viewModel.widgets.isEmpty)
+        #expect(repository.layout.removedWidgets.map(\.kind) == [.tasksModule])
+        #expect(settingsRepository.settings.hiddenHomeWidgetKinds == ["tasksModule"])
+    }
+
+    @Test func viewModelRestoresHiddenWidgetWithSameIdentifier() throws {
+        let removedID = UUID(uuidString: "00000000-0000-0000-0000-000000000010")!
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [],
+                removedWidgets: [
+                    HomeWidgetInstance(
+                        id: removedID,
+                        kind: .tasksModule,
+                        size: .small,
+                        sortOrder: 0
+                    ),
+                ]
+            )
+        )
+        let settingsRepository = InMemorySettingsRepository(
+            settings: AppSettings(
+                excludedReadCalendarTitles: ["Birthdays"],
+                writeCalendarIdentifier: "",
+                writeCalendarTitle: "Tasks",
+                hiddenHomeWidgetKinds: ["tasksModule"],
+                minimumGapMinutes: 15,
+                defaultAssumedDurationMinutes: 30,
+                plannerSuggestionCap: 5
+            )
+        )
+        let viewModel = HomeLayoutViewModel(
+            homeLayoutRepository: repository,
+            settingsRepository: settingsRepository
+        )
+        let descriptor = viewModel.registry.descriptor(for: .tasksModule)!
+        viewModel.load()
+
+        viewModel.setVisibility(true, for: descriptor)
+
+        #expect(viewModel.widgets.first?.id == removedID)
+        #expect(repository.layout.removedWidgets.isEmpty)
+        #expect(settingsRepository.settings.hiddenHomeWidgetKinds.isEmpty)
+    }
+
+    @Test func viewModelCanReorderAfterVisibilityToggle() throws {
+        let repository = InMemoryHomeLayoutRepository(
+            layout: HomeLayout(
+                widgets: [
+                    HomeWidgetInstance(kind: .tasksModule, size: .small, sortOrder: 0),
+                    HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 1),
+                ]
+            )
+        )
+        let settingsRepository = InMemorySettingsRepository()
+        let viewModel = HomeLayoutViewModel(
+            homeLayoutRepository: repository,
+            settingsRepository: settingsRepository
+        )
+        let descriptor = viewModel.registry.descriptor(for: .tasksModule)!
+        viewModel.load()
+
+        viewModel.setVisibility(false, for: descriptor)
+        viewModel.setVisibility(true, for: descriptor)
+        viewModel.moveWidgets(from: IndexSet(integer: 0), to: 2)
+
+        #expect(viewModel.widgets.map(\.kind) == [.tasksModule, .promises])
+    }
 }
 
 @MainActor
@@ -208,5 +382,22 @@ private final class InMemoryHomeLayoutRepository: HomeLayoutRepository {
 
     func saveLayout(_ layout: HomeLayout) throws {
         self.layout = layout
+    }
+}
+
+@MainActor
+private final class InMemorySettingsRepository: SettingsRepository {
+    var settings: AppSettings
+
+    init(settings: AppSettings = .mvpDefault) {
+        self.settings = settings
+    }
+
+    func loadSettings() throws -> AppSettings {
+        settings
+    }
+
+    func saveSettings(_ settings: AppSettings) throws {
+        self.settings = settings
     }
 }

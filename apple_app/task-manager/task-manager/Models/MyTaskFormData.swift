@@ -91,7 +91,7 @@ struct MyTaskFormData {
             hasEstimatedMinutesInput
         }
         set {
-            estimatedMinutesText = newValue ? String(estimatedMinutesSelection) : ""
+            estimatedMinutesText = newValue ? String(TaskDurationRules.minutesIncrement) : ""
         }
     }
 
@@ -107,7 +107,11 @@ struct MyTaskFormData {
     }
 
     var estimatedMinutesDisplayText: String {
-        "\(estimatedMinutesSelection) min"
+        parsedEstimatedMinutes.map { "\($0) min" } ?? "None"
+    }
+
+    var estimatedMinutesSummaryText: String {
+        parsedEstimatedMinutes.map { "\($0) min" } ?? "No estimate"
     }
 
     var isCompleted: Bool {

@@ -17,6 +17,7 @@ struct SwiftDataSettingsRepositoryTests {
             excludedReadCalendarTitles: ["Birthdays", "Holidays"],
             writeCalendarIdentifier: "planner",
             writeCalendarTitle: "Important",
+            hiddenHomeWidgetKinds: ["tasksModule", "healthModule"],
             minimumGapMinutes: 20,
             defaultAssumedDurationMinutes: 45,
             plannerSuggestionCap: 7
@@ -45,6 +46,38 @@ struct SwiftDataSettingsRepositoryTests {
         let reloadedSettings = try repository.loadSettings()
 
         #expect(reloadedSettings.defaultAssumedDurationMinutes == 30)
+    }
+
+    @Test @MainActor func settingsRepositoryPersistsHiddenHomeWidgetKinds() throws {
+        let repository = try makeRepository()
+        let updatedSettings = AppSettings(
+            excludedReadCalendarTitles: [],
+            writeCalendarIdentifier: "",
+            writeCalendarTitle: "Tasks",
+            hiddenHomeWidgetKinds: ["tasksModule", "healthModule", "tasksModule"],
+            minimumGapMinutes: 15,
+            defaultAssumedDurationMinutes: 30,
+            plannerSuggestionCap: 5
+        )
+
+        try repository.saveSettings(updatedSettings)
+
+        let reloadedSettings = try repository.loadSettings()
+
+        #expect(reloadedSettings.hiddenHomeWidgetKinds == ["healthModule", "tasksModule"])
+    }
+
+    @Test @MainActor func settingsRepositoryBackfillsMissingHiddenHomeWidgetKinds() throws {
+        let container = try ModelContainerFactory.makeInMemoryContainer()
+        let record = AppSettingsRecord(settings: .mvpDefault)
+        record.hiddenHomeWidgetKindsText = ""
+        container.mainContext.insert(record)
+        try container.mainContext.save()
+
+        let repository = SwiftDataSettingsRepository(modelContainer: container)
+        let settings = try repository.loadSettings()
+
+        #expect(settings.hiddenHomeWidgetKinds.isEmpty)
     }
 
     @Test @MainActor func settingsRepositoryRepairsLegacyInvalidDefaultAssumedDurationOnLoad() throws {

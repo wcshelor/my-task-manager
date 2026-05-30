@@ -10,6 +10,8 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
     case shopping
     case health
     case musicPractice
+    case fitness
+    case peopleMemory
     case future
 
     var displayName: String {
@@ -32,6 +34,10 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
             return "Health"
         case .musicPractice:
             return "Music Practice"
+        case .fitness:
+            return "Fitness"
+        case .peopleMemory:
+            return "People"
         case .future:
             return "Planned"
         }
@@ -70,6 +76,9 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
     static let shoppingModule = HomeWidgetKind(rawValue: "shoppingModule")
     static let healthModule = HomeWidgetKind(rawValue: "healthModule")
     static let musicPracticeModule = HomeWidgetKind(rawValue: "musicPracticeModule")
+    static let fitnessModule = HomeWidgetKind(rawValue: "fitnessModule")
+    static let peopleMemoryModule = HomeWidgetKind(rawValue: "peopleMemoryModule")
+    static let moduleCarousel = HomeWidgetKind(rawValue: "moduleCarousel")
     static let budgetModule = HomeWidgetKind(rawValue: "budgetModule")
 
     static let allCases: [HomeWidgetKind] = [
@@ -94,6 +103,9 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
         .shoppingModule,
         .healthModule,
         .musicPracticeModule,
+        .fitnessModule,
+        .peopleMemoryModule,
+        .moduleCarousel,
         .budgetModule,
     ]
 }
@@ -168,7 +180,7 @@ nonisolated struct HomeWidgetInstance: Identifiable, Equatable, Sendable {
 }
 
 nonisolated struct HomeLayout: Equatable, Sendable {
-    static let currentVersion = 2
+    static let currentVersion = 4
 
     var version: Int
     var widgets: [HomeWidgetInstance]
@@ -195,6 +207,8 @@ nonisolated struct HomeLayout: Equatable, Sendable {
             HomeWidgetInstance(kind: .shoppingModule, size: .small, sortOrder: 6),
             HomeWidgetInstance(kind: .healthModule, size: .small, sortOrder: 7),
             HomeWidgetInstance(kind: .musicPracticeModule, size: .small, sortOrder: 8),
+            HomeWidgetInstance(kind: .fitnessModule, size: .small, sortOrder: 9),
+            HomeWidgetInstance(kind: .peopleMemoryModule, size: .small, sortOrder: 10),
         ]
     )
 
@@ -203,7 +217,7 @@ nonisolated struct HomeLayout: Equatable, Sendable {
     }
 
     func normalized(using registry: HomeWidgetRegistry = .standard) -> HomeLayout {
-        let normalized = orderedWidgets
+        var normalized = orderedWidgets
             .enumerated()
             .map { index, widget in
                 var normalizedWidget = widget
@@ -226,6 +240,12 @@ nonisolated struct HomeLayout: Equatable, Sendable {
                 normalizedWidget.sortOrder = index
                 return normalizedWidget
             }
+
+        normalized = HomeLayoutMigrator.migrateWidgets(
+            normalized,
+            removedWidgets: normalizedRemoved,
+            fromVersion: version
+        )
 
         return HomeLayout(
             version: HomeLayoutMigrator.currentVersion(for: version),
@@ -310,11 +330,57 @@ nonisolated enum HomeWidgetDefaultAction: Equatable, Sendable {
     case quickAddShopping
     case openHealth
     case openMusicPractice
+    case openFitness
+    case openPeopleMemory
 }
 
 nonisolated enum HomeLayoutMigrator {
     static func currentVersion(for version: Int) -> Int {
         max(version, HomeLayout.currentVersion)
+    }
+
+    static func migrateWidgets(
+        _ widgets: [HomeWidgetInstance],
+        removedWidgets: [HomeWidgetInstance],
+        fromVersion version: Int
+    ) -> [HomeWidgetInstance] {
+        var migratedWidgets = widgets
+
+        if version < 3 {
+            let hasFitness = migratedWidgets.contains { $0.kind == .fitnessModule }
+            let removedFitness = removedWidgets.contains { $0.kind == .fitnessModule }
+
+            if hasFitness == false, removedFitness == false {
+                migratedWidgets.append(
+                    HomeWidgetInstance(
+                        kind: .fitnessModule,
+                        size: .small,
+                        sortOrder: migratedWidgets.count
+                    )
+                )
+            }
+        }
+
+        if version < 4 {
+            let hasPeopleMemory = migratedWidgets.contains { $0.kind == .peopleMemoryModule }
+            let removedPeopleMemory = removedWidgets.contains { $0.kind == .peopleMemoryModule }
+
+            if hasPeopleMemory == false, removedPeopleMemory == false {
+                migratedWidgets.append(
+                    HomeWidgetInstance(
+                        kind: .peopleMemoryModule,
+                        size: .small,
+                        sortOrder: migratedWidgets.count
+                    )
+                )
+            }
+        }
+
+        return migratedWidgets.enumerated().map { index, widget in
+            var updatedWidget = widget
+            updatedWidget.sortOrder = index
+            return updatedWidget
+        }
     }
 }
 
@@ -392,6 +458,14 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
                 defaultAction: .openCapture
+            ),
+            HomeWidgetDescriptor(
+                kind: .moduleCarousel,
+                displayName: "Module Carousel",
+                iconSystemName: "square.grid.3x1.below.line.grid.1x2",
+                module: .capture,
+                supportedSizes: [.large],
+                defaultSize: .large
             ),
             HomeWidgetDescriptor(
                 kind: .tasksModule,
@@ -589,6 +663,26 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
+                kind: .fitnessModule,
+                displayName: "Fitness",
+                iconSystemName: "dumbbell.fill",
+                module: .fitness,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openFitness,
+                isModuleWidget: true
+            ),
+            HomeWidgetDescriptor(
+                kind: .peopleMemoryModule,
+                displayName: "People",
+                iconSystemName: "person.2.fill",
+                module: .peopleMemory,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openPeopleMemory,
+                isModuleWidget: true
+            ),
+            HomeWidgetDescriptor(
                 kind: .budgetModule,
                 displayName: "Budget",
                 iconSystemName: "creditcard.fill",
@@ -621,6 +715,21 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
     func featureWidgets(for module: HomeWidgetModule) -> [HomeWidgetDescriptor] {
         descriptors.filter {
             $0.module == module && $0.isModuleWidget == false
+        }
+    }
+
+    func supportsVisibilityToggle(for descriptor: HomeWidgetDescriptor) -> Bool {
+        guard descriptor.isAvailable else {
+            return false
+        }
+
+        switch descriptor.duplicatePolicy {
+        case .multiple:
+            return false
+        case .singleUnconfigured:
+            return true
+        case .uniqueConfiguration:
+            return false
         }
     }
 

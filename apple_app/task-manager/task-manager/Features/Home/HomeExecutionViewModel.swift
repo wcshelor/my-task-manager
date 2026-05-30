@@ -202,6 +202,14 @@ final class HomeExecutionViewModel: ObservableObject {
         now: Date(),
         calendar: .current
     )
+    @Published private(set) var fitnessSummary = HomeFitnessSummary(
+        now: Date(),
+        calendar: .current
+    )
+    @Published private(set) var peopleMemorySummary = HomePeopleMemorySummary(
+        people: [],
+        now: Date()
+    )
     @Published private(set) var tasks: [MyTask] = []
     @Published private(set) var captures: [CaptureItem] = []
     @Published private(set) var projects: [Project] = []
@@ -219,6 +227,8 @@ final class HomeExecutionViewModel: ObservableObject {
     private let shoppingRepository: (any ShoppingRepository)?
     private let healthRepository: (any HealthRepository)?
     private let musicPracticeRepository: (any MusicPracticeRepository)?
+    private let fitnessRepository: (any FitnessRepository)?
+    private let peopleMemoryRepository: (any PeopleMemoryRepository)?
     private let calendarPermissionProvider: (any CalendarPermissionProviding)?
     private let calendarReader: (any CalendarReading)?
     private let calendar: Calendar
@@ -235,6 +245,8 @@ final class HomeExecutionViewModel: ObservableObject {
         shoppingRepository: (any ShoppingRepository)? = nil,
         healthRepository: (any HealthRepository)? = nil,
         musicPracticeRepository: (any MusicPracticeRepository)? = nil,
+        fitnessRepository: (any FitnessRepository)? = nil,
+        peopleMemoryRepository: (any PeopleMemoryRepository)? = nil,
         calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
         calendarReader: (any CalendarReading)? = nil,
         calendar: Calendar = .current,
@@ -249,6 +261,8 @@ final class HomeExecutionViewModel: ObservableObject {
         self.shoppingRepository = shoppingRepository
         self.healthRepository = healthRepository
         self.musicPracticeRepository = musicPracticeRepository
+        self.fitnessRepository = fitnessRepository
+        self.peopleMemoryRepository = peopleMemoryRepository
         self.calendarPermissionProvider = calendarPermissionProvider
         self.calendarReader = calendarReader
         self.calendar = calendar
@@ -376,6 +390,17 @@ final class HomeExecutionViewModel: ObservableObject {
                 pieces: try musicPracticeRepository?.fetchPracticePieces(includeArchived: false) ?? [],
                 now: now,
                 calendar: calendar
+            )
+            fitnessSummary = HomeFitnessSummary(
+                exercises: try fitnessRepository?.fetchExercises() ?? [],
+                templates: try fitnessRepository?.fetchWorkoutTemplates() ?? [],
+                sessions: try fitnessRepository?.fetchExerciseSessions() ?? [],
+                now: now,
+                calendar: calendar
+            )
+            peopleMemorySummary = HomePeopleMemorySummary(
+                people: try peopleMemoryRepository?.fetchPeople() ?? [],
+                now: now
             )
             tasks = try taskRepository.fetchTasks()
             captures = try captureRepository?.fetchCaptures(

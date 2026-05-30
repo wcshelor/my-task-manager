@@ -16,9 +16,11 @@ struct HomeWidgetModelTests {
             .shoppingModule,
             .healthModule,
             .musicPracticeModule,
+            .fitnessModule,
+            .peopleMemoryModule,
         ])
-        #expect(HomeLayout.defaultLayout.orderedWidgets.dropLast(3).allSatisfy { $0.size == .large })
-        #expect(HomeLayout.defaultLayout.orderedWidgets.suffix(3).allSatisfy { $0.size == .small })
+        #expect(HomeLayout.defaultLayout.orderedWidgets.dropLast(5).allSatisfy { $0.size == .large })
+        #expect(HomeLayout.defaultLayout.orderedWidgets.suffix(5).allSatisfy { $0.size == .small })
     }
 
     @Test func layoutNormalizesSortOrderDeterministically() {
@@ -151,6 +153,68 @@ struct HomeWidgetModelTests {
         ) == false)
     }
 
+    @Test func fitnessModuleWidgetIsAvailable() {
+        let registry = HomeWidgetRegistry.standard
+        let descriptor = registry.descriptor(for: .fitnessModule)
+
+        #expect(descriptor?.module == .fitness)
+        #expect(descriptor?.isAvailable == true)
+        #expect(registry.moduleWidget(for: .fitness)?.kind == .fitnessModule)
+    }
+
+    @Test func peopleMemoryModuleWidgetIsAvailable() {
+        let registry = HomeWidgetRegistry.standard
+        let descriptor = registry.descriptor(for: .peopleMemoryModule)
+
+        #expect(descriptor?.module == .peopleMemory)
+        #expect(descriptor?.iconSystemName == "person.2.fill")
+        #expect(descriptor?.defaultAction == .openPeopleMemory)
+        #expect(descriptor?.isAvailable == true)
+        #expect(registry.moduleWidget(for: .peopleMemory)?.kind == .peopleMemoryModule)
+    }
+
+    @Test func homeLayoutMigrationInjectsFitnessUnlessExplicitlyRemoved() {
+        let legacyLayout = HomeLayout(
+            version: 2,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ]
+        )
+        let removedLegacyLayout = HomeLayout(
+            version: 2,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ],
+            removedWidgets: [
+                HomeWidgetInstance(kind: .fitnessModule, size: .small, sortOrder: 0),
+            ]
+        )
+
+        #expect(legacyLayout.normalized().widgets.map(\.kind).contains(.fitnessModule))
+        #expect(removedLegacyLayout.normalized().widgets.map(\.kind).contains(.fitnessModule) == false)
+    }
+
+    @Test func homeLayoutMigrationInjectsPeopleMemoryUnlessExplicitlyRemoved() {
+        let legacyLayout = HomeLayout(
+            version: 3,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ]
+        )
+        let removedLegacyLayout = HomeLayout(
+            version: 3,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ],
+            removedWidgets: [
+                HomeWidgetInstance(kind: .peopleMemoryModule, size: .small, sortOrder: 0),
+            ]
+        )
+
+        #expect(legacyLayout.normalized().widgets.map(\.kind).contains(.peopleMemoryModule))
+        #expect(removedLegacyLayout.normalized().widgets.map(\.kind).contains(.peopleMemoryModule) == false)
+    }
+
     @Test func shoppingQuickAddWidgetIsAvailableAndAllowsMultipleInstances() {
         let registry = HomeWidgetRegistry.standard
         let descriptor = registry.descriptor(for: .shoppingQuickAdd)
@@ -168,5 +232,13 @@ struct HomeWidgetModelTests {
             configuration: .empty,
             to: layout
         ))
+    }
+
+    @Test func visibilityToggleSupportExcludesConfiguredAndMultipleWidgets() {
+        let registry = HomeWidgetRegistry.standard
+
+        #expect(registry.supportsVisibilityToggle(for: registry.descriptor(for: .tasksModule)!) == true)
+        #expect(registry.supportsVisibilityToggle(for: registry.descriptor(for: .projectNextTask)!) == false)
+        #expect(registry.supportsVisibilityToggle(for: registry.descriptor(for: .shoppingQuickAdd)!) == false)
     }
 }

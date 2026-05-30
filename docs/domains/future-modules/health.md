@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Health is the overall app section for tracking sleep quality, vigilance, workouts, meals, and related daily context.
+Health is the overall app section for tracking sleep quality, vigilance, lightweight workouts, meals, and related daily context.
 
 The goal is not medical-grade health tracking. The goal is personal pattern awareness: understanding how sleep, food, exercise, routines, vices, and the previous night's behavior affect energy, focus, and planning.
 
-Health should be a cohesive section of the app, with Fitness, Nutrition, and Sleep / PVT as subdomains.
+Health should remain a cohesive section of the app, with Nutrition and Sleep / PVT as active Health-owned surfaces, while structured Fitness progression now lives in its own standalone module.
 
 ## Product Shape
 
@@ -43,11 +43,13 @@ Nutrition should start as lightweight meal logging, not calorie accounting.
 
 Meal logs should help explain energy, sleep, workout performance, spending, and planning patterns.
 
-### Fitness
+### Fitness Relationship
 
-Fitness should track workout sessions and consistency.
+Health still keeps the older lightweight generic workout log.
 
-Workout logs should remain separate from routines. A routine can remind the user to work out, but Health records what actually happened.
+Structured exercise progression, workout days, sets, and exercise-owned history now live in the standalone Fitness module.
+
+Workout logging should remain separate from routines. A routine can remind the user to work out, but the durable workout records live in Health or Fitness depending on which workflow the user used.
 
 ## Possible Health Objects
 
@@ -110,8 +112,6 @@ Models/
   HealthModels.swift
   SleepPVTModels.swift
   NutritionModels.swift
-  FitnessModels.swift
-
 Persistence/
   SwiftDataModels/
     PVTSessionRecord.swift
@@ -128,10 +128,7 @@ Features/Health/
   Morning check-in
   Sleep / PVT
   Nutrition
-  Fitness
 ```
-
-This structure can be split if the repository grows too broad. The important product point is that these records appear together as Health.
 
 ## Current Implementation (Work In Progress)
 
@@ -140,7 +137,7 @@ The app now has a first-pass Health module. Current work-in-progress behavior in
 - sleep check-ins with duration, quality, energy, and notes,
 - completed-session PVT persistence with response metrics,
 - a one-minute in-app PVT test flow,
-- lightweight meal and workout logs,
+- lightweight meal and workout logs inside Health,
 - Health history and delete flows,
 - neutral rolling 7/30-day trend summaries for sleep/PVT, nutrition, and workouts.
 
@@ -168,4 +165,4 @@ Still pending:
 
 ## Status
 
-Active work in progress. Sleep / PVT, Nutrition, and Fitness have first-pass Swift models, SwiftData persistence, quick-entry UI, and trend summaries, but the module is not considered complete.
+Active work in progress. Sleep / PVT and Nutrition remain Health-owned work in progress. Health also still contains the older generic workout log, while the standalone Fitness module now owns structured exercise progression.

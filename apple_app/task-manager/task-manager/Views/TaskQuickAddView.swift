@@ -15,9 +15,6 @@ struct TaskQuickAddView: View {
         case notes
         case newTaskGroup
     }
-    private let hourOptions = Array(0...12)
-    private let minuteOptions = [0, 15, 30, 45]
-
     let taskGroups: [String]
     let reservedTaskIDs: Set<UUID>
     let onSave: (MyTask) -> Void
@@ -28,11 +25,7 @@ struct TaskQuickAddView: View {
         reservedTaskIDs: Set<UUID> = [],
         onSave: @escaping (MyTask) -> Void
     ) {
-        var preparedFormData = initialFormData
-        if preparedFormData.hasEstimatedDuration == false {
-            preparedFormData.estimatedMinutesSelection = TaskDurationRules.defaultAssumedMinutes
-        }
-        _formData = State(initialValue: preparedFormData)
+        _formData = State(initialValue: initialFormData)
         self.taskGroups = taskGroups
         self.reservedTaskIDs = reservedTaskIDs
         self.onSave = onSave
@@ -148,26 +141,7 @@ struct TaskQuickAddView: View {
             Text("Estimated Duration")
                 .font(.headline)
 
-            HStack(spacing: 12) {
-                Picker("Hours", selection: durationHoursBinding) {
-                    ForEach(hourOptions, id: \.self) { hour in
-                        Text("\(hour) hr").tag(hour)
-                    }
-                }
-                .pickerStyle(.wheel)
-                .frame(maxWidth: .infinity)
-                .clipped()
-
-                Picker("Minutes", selection: durationMinutesBinding) {
-                    ForEach(minuteOptions, id: \.self) { minutes in
-                        Text("\(minutes) min").tag(minutes)
-                    }
-                }
-                .pickerStyle(.wheel)
-                .frame(maxWidth: .infinity)
-                .clipped()
-            }
-            .frame(height: 132)
+            EstimatedDurationControl(estimatedMinutesText: $formData.estimatedMinutesText)
         }
     }
 
@@ -268,33 +242,14 @@ struct TaskQuickAddView: View {
         }
     }
 
-    private var durationHoursBinding: Binding<Int> {
-        Binding(
-            get: { formData.estimatedMinutesSelection / 60 },
-            set: { setDuration(hours: $0, minutes: formData.estimatedMinutesSelection % 60) }
-        )
-    }
-
-    private var durationMinutesBinding: Binding<Int> {
-        Binding(
-            get: { formData.estimatedMinutesSelection % 60 },
-            set: { setDuration(hours: formData.estimatedMinutesSelection / 60, minutes: $0) }
-        )
-    }
-
     private var taskSummaryText: String {
         let title = MyTask.cleanedTitle(from: formData.title) ?? "Untitled task"
-        let duration = formData.estimatedMinutesDisplayText
+        let duration = formData.estimatedMinutesSummaryText
         let dueDateSummary = formData.hasDueDate
             ? "\nDue \(formData.dueDate.formatted(date: .abbreviated, time: .shortened))"
             : ""
 
         return "\(title)\n\(duration)\(dueDateSummary)"
-    }
-
-    private func setDuration(hours: Int, minutes: Int) {
-        let totalMinutes = max(TaskDurationRules.minutesIncrement, hours * 60 + minutes)
-        formData.estimatedMinutesSelection = totalMinutes
     }
 
     private func createTaskGroup() {

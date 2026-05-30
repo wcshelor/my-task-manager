@@ -22,6 +22,8 @@ The implemented Swift app currently centers on:
 - Promises
 - Routines
 - Health, as an active work in progress
+- Music Practice, as an active work in progress
+- Fitness, as an active work in progress
 
 Current foundations to preserve:
 
@@ -39,7 +41,8 @@ Likely future life domains include:
   - manual QA for the real-time PVT flow
   - richer Home / Routine prompts
   - more useful review surfaces
-- Music practice mode
+- Music practice polish
+- Fitness polish
 - Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
 - Shopping list and wish list
 - Budgeting / purchase decision support
@@ -75,7 +78,7 @@ Conceptual domain names:
 - `HealthDomain`
 - `SleepPVTSubdomain`
 - `MusicPracticeDomain`
-- `FitnessSubdomain`
+- `FitnessDomain`
 - `NutritionSubdomain`
 - `ShoppingDomain`
 - `BudgetingDomain`
@@ -140,6 +143,7 @@ Examples:
 - meal logs
 - reflection entries
 - workout logs
+- exercise sessions
 
 Ephemeral UI/session state should not be synced or persisted unless there is a clear reason.
 

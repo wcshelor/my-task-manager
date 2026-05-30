@@ -144,22 +144,32 @@ struct MyTaskFormDataTests {
         #expect(task?.completedAt == nil)
     }
 
-    @Test func estimatedDurationTogglePreservesNoDurationAndDefaultsToThirtyMinutes() {
+    @Test func newTaskFormDefaultsToNoEstimatedDuration() {
         var formData = MyTaskFormData(title: "Plan week")
 
         #expect(formData.hasEstimatedDuration == false)
         #expect(formData.estimatedMinutesText.isEmpty)
+        #expect(formData.estimatedMinutesDisplayText == "None")
+        #expect(formData.makeTask()?.estimatedMinutes == nil)
+    }
+
+    @Test func addingEquivalentSetsFifteenMinutesFromNone() {
+        var formData = MyTaskFormData(title: "Read")
 
         formData.hasEstimatedDuration = true
+        #expect(formData.estimatedMinutesSelection == 15)
+        #expect(formData.estimatedMinutesText == "15")
+        #expect(formData.makeTask()?.estimatedMinutes == 15)
+    }
 
-        #expect(formData.hasEstimatedDuration == true)
-        #expect(formData.estimatedMinutesSelection == 30)
-        #expect(formData.estimatedMinutesText == "30")
+    @Test func subtractingEquivalentFromFifteenMinutesClearsEstimate() {
+        var formData = MyTaskFormData(title: "Read", estimatedMinutesText: "15")
 
         formData.hasEstimatedDuration = false
 
-        #expect(formData.hasEstimatedDuration == false)
         #expect(formData.estimatedMinutesText.isEmpty)
+        #expect(formData.estimatedMinutesDisplayText == "None")
+        #expect(formData.makeTask()?.estimatedMinutes == nil)
     }
 
     @Test func estimatedDurationSelectionSnapsToQuarterHourSteps() {
@@ -179,7 +189,15 @@ struct MyTaskFormDataTests {
 
         #expect(formData.hasEstimatedDuration == true)
         #expect(formData.estimatedMinutesSelection == 30)
-        #expect(formData.estimatedMinutesDisplayText == "30 min")
+        #expect(formData.estimatedMinutesDisplayText == "None")
+    }
+
+    @Test func persistedTaskEstimateRemainsNilWhenUntouched() {
+        let formData = MyTaskFormData(title: "Read")
+
+        let task = formData.makeTask(savedAt: Date(timeIntervalSince1970: 6_000))
+
+        #expect(task?.estimatedMinutes == nil)
     }
 
     @Test func validationRejectsDuplicateIDForAnotherTask() {

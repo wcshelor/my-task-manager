@@ -1,113 +1,99 @@
-# Health: Fitness Subdomain
+# Fitness Module
 
 ## Purpose
 
-Fitness tracking should help the user log workouts, maintain consistency, and understand how exercise interacts with energy, sleep, routines, food, and planning.
+Fitness is now a standalone Home-reachable module for structured exercise logging.
 
-This is a subdomain of Health. It should be a workout/session domain, not just a habit checkbox. Routines can remind the user to work out, but Health records what actually happened.
+It is separate from the older generic Health workout log. In v1 there is no migration, no shared writes, and no Apple Health integration.
 
-## Product Shape
+## V1 Product Shape
 
-The first version should support simple workout logging:
+The gym workflow is:
 
-- workout type
-- duration
-- intensity
-- notes
-- optional energy or mood effect
+- open Fitness from Home
+- pick a workout day or an exercise
+- review the last one to three sessions
+- log the current session with the date auto-stamped
 
-Later versions can support exercise templates, sets, reps, progression, and planned workout blocks.
+The main screen has two surfaces:
 
-## Possible Objects
+- `Workout Days`: user-facing containers built from saved exercise order
+- `Exercise Library`: the full exercise list with Recent, A-Z, and Tag sorting
 
-- `WorkoutLog`
-- `WorkoutType`
-- `Exercise`
-- `ExerciseSet`
+## Durable Objects
+
+- `FitnessExercise`
 - `WorkoutTemplate`
-- `WorkoutPlan`
+- `ExerciseSession`
+- `StrengthSet`
 
-Start with `WorkoutLog`. Add detailed exercise tracking only when needed.
+User-facing label: `Workout Day`
 
-## Possible Log Fields
+Internal durable type: `WorkoutTemplate`
 
-A `WorkoutLog` might include:
+## Exercise Rules
 
-- timestamp
-- workout type: strength, cardio, mobility, walk, sport, other
-- duration
-- intensity
-- energy before
-- energy after
-- notes
-- optional linked routine item
-- optional linked scheduled block
+- Every exercise requires exactly one tag: `legs`, `push`, `pull`, or `cardio`.
+- Every exercise requires one tracking style.
+- `strengthSets` exercises store ordered sets with reps and optional weight.
+- `metricSummary` exercises store a non-empty subset of:
+  - `durationMinutes`
+  - `difficultyLevel`
+  - `averageRPM`
+  - `distance`
 
-## Interaction With Today / Planner
+## Unit Rules
 
-Today can show:
+- Units are stored per exercise, not app-wide.
+- Strength exercises require `lb` or `kg`.
+- Metric-summary exercises require `miles` or `kilometers` only when distance is enabled.
 
-- planned workout
-- last workout
-- due routine item connected to fitness
-- quick log button
+## Workout Day Rules
 
-Planner should schedule workouts only through task or scheduled-block flows. Health / Fitness should not write directly to Apple Calendar.
+- A workout day must have a non-empty name and at least one exercise.
+- It stores an ordered, unique list of exercise IDs.
+- Duplicate exercise IDs are normalized away while preserving the first occurrence order.
+- The same exercise can appear in multiple workout days.
 
-If a workout is planned but not completed, the app should support recovery-friendly rescheduling rather than guilt mechanics.
+## Session Rules
 
-## Interaction With Health / Nutrition / Vices / Logs
+- Every session stores `exerciseID`, `performedAt`, `createdAt`, and `updatedAt`.
+- New sessions auto-stamp `performedAt`.
+- Editing preserves the original `performedAt`.
+- Logged-today state is derived from any same-day session for that exercise.
+- V1 has no workout-completion object, plan object, charts, archive flow, or Health sync.
 
-Fitness can eventually support Health pattern review with:
+## Persistence Shape
 
-- meal timing
-- sleep
-- PVT results
-- vice logs
-- mood or energy logs
-- routine completion
-
-This should come after basic workout logging is reliable.
-
-## Implementation Sketch
+Fitness owns its own repository and SwiftData records:
 
 ```text
 Models/
   FitnessModels.swift
-  WorkoutLogModels.swift
 
 Persistence/
-  SwiftDataModels/
-    WorkoutLogRecord.swift
   Repositories/
     FitnessRepository.swift
+  SwiftDataModels/
+    FitnessExerciseRecord.swift
+    WorkoutTemplateRecord.swift
+    ExerciseSessionRecord.swift
   SwiftDataRepositories/
     SwiftDataFitnessRepository.swift
 
-Features/Health/Fitness/
-  Quick workout log
-  Workout history
-  Optional workout detail view
+Features/Fitness/
+  FitnessViewModel.swift
+  FitnessView.swift
 ```
 
-Keep workout rules and summary logic testable outside SwiftUI.
+The repository is intentionally simple. View models do recent-session grouping and filtering in memory because the expected data volume is small.
 
-## Design Principles
+## Relationship To Health
 
-- Make logging easy after a workout.
-- Treat missed workouts as planning data, not failure.
-- Keep routines and workout logs conceptually separate.
-- Add detailed progression tracking only after simple logs prove useful.
-
-## Open Questions
-
-- Should Fitness appear as a subview within Health, or also have shortcuts from Today?
-- Should workout templates be included in the first implementation?
-- Should Apple Health integration be considered later, or avoided for now?
-- How much detail should strength workouts support?
+- Health still owns the older lightweight generic workout log.
+- Fitness now owns structured exercise progression, workout days, and per-exercise history.
+- A later migration can consolidate those systems, but that is explicitly deferred.
 
 ## Status
 
-Active work in progress inside Health. The app now has a first-pass lightweight workout log with SwiftData persistence, quick entry, history/delete UI, and neutral trend summaries.
-
-Detailed set tracking, training plans, wearable imports, planner adaptation, and richer review flows remain future work.
+Implemented work in progress. Fitness has its own Home module entry, SwiftData persistence, workout-day editing, exercise detail/history, and session logging, but still needs broader manual QA and product polish.

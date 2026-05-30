@@ -15,6 +15,8 @@ struct AppContainer {
     let shoppingRepository: any ShoppingRepository
     let healthRepository: any HealthRepository
     let musicPracticeRepository: any MusicPracticeRepository
+    let fitnessRepository: any FitnessRepository
+    let peopleMemoryRepository: any PeopleMemoryRepository
     let calendarPermissionProvider: any CalendarPermissionProviding
     let calendarListingService: any CalendarListing
     let calendarReader: any CalendarReading
@@ -42,6 +44,8 @@ struct AppContainer {
         let shoppingRepository = SwiftDataShoppingRepository(modelContainer: modelContainer)
         let healthRepository = SwiftDataHealthRepository(modelContainer: modelContainer)
         let musicPracticeRepository = SwiftDataMusicPracticeRepository(modelContainer: modelContainer)
+        let fitnessRepository = SwiftDataFitnessRepository(modelContainer: modelContainer)
+        let peopleMemoryRepository = SwiftDataPeopleMemoryRepository(modelContainer: modelContainer)
         let calendarEventStore = EventKitCalendarEventStore()
         let calendarPermissionProvider = EventKitCalendarPermissionService(
             eventStore: calendarEventStore
@@ -86,6 +90,8 @@ struct AppContainer {
             shoppingRepository: shoppingRepository,
             healthRepository: healthRepository,
             musicPracticeRepository: musicPracticeRepository,
+            fitnessRepository: fitnessRepository,
+            peopleMemoryRepository: peopleMemoryRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,
@@ -137,6 +143,8 @@ struct AppContainer {
         let shoppingRepository = SwiftDataShoppingRepository(modelContainer: modelContainer)
         let healthRepository = SwiftDataHealthRepository(modelContainer: modelContainer)
         let musicPracticeRepository = SwiftDataMusicPracticeRepository(modelContainer: modelContainer)
+        let fitnessRepository = SwiftDataFitnessRepository(modelContainer: modelContainer)
+        let peopleMemoryRepository = SwiftDataPeopleMemoryRepository(modelContainer: modelContainer)
         let calendarPermissionProvider = StubCalendarPermissionService()
         let calendarListingService = StubCalendarListingService()
         let calendarReader = StubCalendarReader()
@@ -176,6 +184,8 @@ struct AppContainer {
             shoppingRepository: shoppingRepository,
             healthRepository: healthRepository,
             musicPracticeRepository: musicPracticeRepository,
+            fitnessRepository: fitnessRepository,
+            peopleMemoryRepository: peopleMemoryRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,

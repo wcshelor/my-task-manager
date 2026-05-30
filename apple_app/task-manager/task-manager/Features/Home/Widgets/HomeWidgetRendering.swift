@@ -11,6 +11,8 @@ struct HomeWidgetRenderContext {
     let openShopping: () -> Void
     let openHealth: () -> Void
     let openMusicPractice: () -> Void
+    let openFitness: () -> Void
+    let openPeopleMemory: () -> Void
 }
 
 @MainActor
@@ -89,6 +91,9 @@ struct HomeWidgetRendererRegistry {
                 ) {
                     context.perform(.openCapture, widget)
                 }
+            },
+            AnyHomeWidgetRenderer(kind: .moduleCarousel) { _, context in
+                HomeModuleCarouselWidget(context: context)
             },
             AnyHomeWidgetRenderer(kind: .tasksModule) { widget, context in
                 HomeModuleRenderer.render(
@@ -178,6 +183,26 @@ struct HomeWidgetRendererRegistry {
                     detail: context.execution.musicPracticeSummary.detail,
                     action: "Open Practice",
                     perform: { context.perform(.openMusicPractice, widget) }
+                )
+            },
+            AnyHomeWidgetRenderer(kind: .fitnessModule) { widget, context in
+                HomeModuleRenderer.render(
+                    widget: widget,
+                    title: "Fitness",
+                    systemImage: "dumbbell.fill",
+                    detail: context.execution.fitnessSummary.detail,
+                    action: "Open Fitness",
+                    perform: { context.perform(.openFitness, widget) }
+                )
+            },
+            AnyHomeWidgetRenderer(kind: .peopleMemoryModule) { widget, context in
+                HomeModuleRenderer.render(
+                    widget: widget,
+                    title: "People",
+                    systemImage: "person.2.fill",
+                    detail: context.execution.peopleMemorySummary.detail,
+                    action: "Open People",
+                    perform: { context.perform(.openPeopleMemory, widget) }
                 )
             },
             AnyHomeWidgetRenderer(kind: .calendarOverview) { widget, context in
@@ -476,33 +501,33 @@ struct HomeModuleWidgetCard: View {
     let action: String
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.title2)
+        HomeWidgetCardSurface {
+            HStack(spacing: 14) {
+                Image(systemName: systemImage)
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+                    .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Text(action)
+                        .font(.caption.weight(.semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                }
                 .foregroundStyle(.blue)
-                .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                Text(action)
-                    .font(.caption.weight(.semibold))
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundStyle(.blue)
         }
-        .padding(14)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -515,32 +540,32 @@ struct HomeSmallButtonWidget: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 28)
+        HomeWidgetCardSurface {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: 28)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Text(value)
+                    .font(.title3.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
+
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
             }
-
-            Spacer()
-
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-
-            Button(actionTitle, action: action)
-                .buttonStyle(.bordered)
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -551,29 +576,29 @@ struct HomeSmallStaticWidget: View {
     let detail: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 28)
+        HomeWidgetCardSurface {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: 28)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text(value)
+                    .font(.title3.weight(.semibold).monospacedDigit())
                     .foregroundStyle(.primary)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.primary)
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -586,30 +611,30 @@ struct HomeActionWidget: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                    .foregroundStyle(.blue)
-                    .frame(width: 30)
+            HomeWidgetCardSurface {
+                HStack(spacing: 12) {
+                    Image(systemName: systemImage)
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+                        .frame(width: 30)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text(value)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text(value)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+
+                    Text(actionTitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.blue)
                 }
-
-                Spacer()
-
-                Text(actionTitle)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.blue)
             }
-            .padding(14)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -633,28 +658,50 @@ struct HomeUnavailableWidgetCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(message)
-                    .font(.caption)
+        HomeWidgetCardSurface(fillOpacity: 0.035, strokeOpacity: 0.12) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title3)
                     .foregroundStyle(.secondary)
-            }
+                    .frame(width: 30)
 
-            Spacer()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
         }
-        .padding(14)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-        )
+    }
+}
+
+struct HomeWidgetCardSurface<Content: View>: View {
+    let fillOpacity: Double
+    let strokeOpacity: Double
+    let content: Content
+
+    init(
+        fillOpacity: Double = 0.04,
+        strokeOpacity: Double = 0.08,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.fillOpacity = fillOpacity
+        self.strokeOpacity = strokeOpacity
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(14)
+            .background(Color.primary.opacity(fillOpacity), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.primary.opacity(strokeOpacity), lineWidth: 1)
+            )
     }
 }
 
@@ -787,5 +834,115 @@ struct HomePromiseHistoryWidget: View {
                 }
             }
         }
+    }
+}
+
+private struct HomeModuleCarouselWidget: View {
+    let context: HomeWidgetRenderContext
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Module Carousel", systemImage: "square.grid.3x1.below.line.grid.1x2")
+                .font(.headline)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    moduleCard(
+                        title: "Tasks",
+                        value: "\(context.execution.activeTaskCount)",
+                        detail: "active",
+                        systemImage: "checklist"
+                    ) {
+                        context.perform(.openTasks, HomeWidgetInstance(kind: .tasksModule, size: .small, sortOrder: 0))
+                    }
+                    moduleCard(
+                        title: "Projects",
+                        value: "\(context.execution.projects.count)",
+                        detail: "active",
+                        systemImage: "folder.fill"
+                    ) {
+                        context.perform(.openProjects, HomeWidgetInstance(kind: .projectsModule, size: .small, sortOrder: 0))
+                    }
+                    moduleCard(
+                        title: "Promises",
+                        value: "\(context.execution.activePromises.count)",
+                        detail: "\(context.execution.duePromises.count) due",
+                        systemImage: "hand.raised.fill"
+                    ) {
+                        context.perform(.newPromise, HomeWidgetInstance(kind: .promisesModule, size: .small, sortOrder: 0))
+                    }
+                    moduleCard(
+                        title: "Routines",
+                        value: context.execution.routineProgressSummary,
+                        detail: "\(context.execution.routineProgress.count) today",
+                        systemImage: "checklist.checked"
+                    ) {
+                        context.perform(.newRoutine, HomeWidgetInstance(kind: .routinesModule, size: .small, sortOrder: 0))
+                    }
+                    moduleCard(
+                        title: "Shopping",
+                        value: "\(context.execution.activeShoppingItemCount)",
+                        detail: "needed",
+                        systemImage: "cart.fill"
+                    ) {
+                        context.openShopping()
+                    }
+                    moduleCard(
+                        title: "Health",
+                        value: context.execution.healthSummary.value,
+                        detail: context.execution.healthSummary.detail,
+                        systemImage: "heart.text.square"
+                    ) {
+                        context.openHealth()
+                    }
+                    moduleCard(
+                        title: "Practice",
+                        value: context.execution.musicPracticeSummary.value,
+                        detail: context.execution.musicPracticeSummary.detail,
+                        systemImage: "music.note.list"
+                    ) {
+                        context.openMusicPractice()
+                    }
+                    moduleCard(
+                        title: "Fitness",
+                        value: context.execution.fitnessSummary.value,
+                        detail: context.execution.fitnessSummary.detail,
+                        systemImage: "dumbbell.fill"
+                    ) {
+                        context.openFitness()
+                    }
+                }
+            }
+        }
+    }
+
+    private func moduleCard(
+        title: String,
+        value: String,
+        detail: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HomeWidgetCardSurface {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(title, systemImage: systemImage)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(value)
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                .frame(width: 148, alignment: .leading)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

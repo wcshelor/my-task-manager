@@ -33,6 +33,31 @@ struct HomeExecutionViewModelTests {
         #expect(viewModel.routineProgress.first?.completedCount == 1)
     }
 
+    @Test func todayViewModelLoadsPeopleMemorySummaryCounts() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let duePerson = PersonMemory(
+            name: "Riley",
+            whereMet: "Workshop",
+            nextReviewAt: now.addingTimeInterval(-60)
+        )
+        let savedPerson = PersonMemory(name: "Morgan", whereMet: "Cafe")
+        let viewModel = HomeExecutionViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(),
+            peopleMemoryRepository: FakePeopleMemoryRepository(people: [savedPerson, duePerson]),
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.peopleMemorySummary.totalCount == 2)
+        #expect(viewModel.peopleMemorySummary.dueCount == 1)
+        #expect(viewModel.peopleMemorySummary.detail == "1 due")
+        #expect(HomePeopleMemorySummary(people: [savedPerson], now: now).detail == "1 saved")
+        #expect(HomePeopleMemorySummary(people: [], now: now).detail == "No people yet")
+    }
+
     @Test func todayViewModelResolvesPromiseAndUpdatesHistoryCounts() {
         let now = Date(timeIntervalSince1970: 1_000)
         let promiseRepository = FakePromiseRepository(promises: [
@@ -151,21 +176,23 @@ struct HomeExecutionViewModelTests {
             projectRepository: FakeProjectRepository(projects: [project]),
             captureRepository: captureRepository,
             projectItemRepository: projectItemRepository,
+            shoppingRepository: FakeShoppingRepository(),
             initialCaptures: [],
             initialProjects: [],
             nowProvider: { now }
         )
 
         viewModel.load()
-        viewModel.convertCurrentCaptureToTask(
+        let taskConversionSucceeded = viewModel.convertCurrentCaptureToTask(
             MyTaskFormData(title: "Fix onboarding", projectID: project.id)
         )
 
+        #expect(taskConversionSucceeded == true)
         #expect(taskRepository.tasks.count == 1)
         #expect(taskRepository.tasks.first?.projectID == project.id)
         #expect(captureRepository.captures.first?.processedAt == now)
 
-        viewModel.convertCurrentCaptureToProjectItem(
+        let projectItemConversionSucceeded = viewModel.convertCurrentCaptureToProjectItem(
             kind: .maybe,
             title: "Explore pricing",
             notes: nil,
@@ -175,9 +202,146 @@ struct HomeExecutionViewModelTests {
             reviewAfter: nil
         )
 
+        #expect(projectItemConversionSucceeded == true)
         #expect(projectItemRepository.items.count == 1)
         #expect(projectItemRepository.items.first?.kind == .maybe)
         #expect(projectItemRepository.items.first?.projectID == project.id)
+    }
+
+    @Test func inboxReviewViewModelConvertsCaptureToShoppingItem() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let captureRepository = FakeCaptureRepository(captures: [
+            CaptureItem(title: "Coffee filters", notes: "Size 4")
+        ])
+        let shoppingRepository = FakeShoppingRepository()
+        let viewModel = InboxReviewViewModel(
+            taskRepository: FakeTaskRepository(),
+            projectRepository: FakeProjectRepository(),
+            captureRepository: captureRepository,
+            projectItemRepository: FakeProjectItemRepository(),
+            shoppingRepository: shoppingRepository,
+            initialCaptures: [],
+            initialProjects: [],
+            nowProvider: { now }
+        )
+
+        viewModel.load()
+        let conversionSucceeded = viewModel.convertCurrentCaptureToShoppingItem(
+            ShoppingItemFormData(
+                title: "Coffee filters",
+                notes: "Size 4",
+                category: "Household",
+                storeType: "Grocery",
+                storeName: "Rewe",
+                urgency: .needSoon,
+                necessity: .necessary
+            )
+        )
+
+        #expect(conversionSucceeded == true)
+        #expect(shoppingRepository.items.count == 1)
+        #expect(shoppingRepository.items.first?.title == "Coffee filters")
+        #expect(shoppingRepository.items.first?.notes == "Size 4")
+        #expect(shoppingRepository.items.first?.category == "Household")
+        #expect(shoppingRepository.items.first?.storeType == "Grocery")
+        #expect(shoppingRepository.items.first?.storeName == "Rewe")
+        #expect(shoppingRepository.items.first?.urgency == .needSoon)
+        #expect(shoppingRepository.items.first?.necessity == .necessary)
+        #expect(shoppingRepository.items.first?.status == .needed)
+        #expect(shoppingRepository.items.first?.createdAt == now)
+        #expect(captureRepository.captures.first?.processedAt == now)
+        #expect(viewModel.captures.isEmpty)
+    }
+
+    @Test func inboxReviewShoppingConversionFailureKeepsCapturePending() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let capture = CaptureItem(title: "Milk")
+        let captureRepository = FakeCaptureRepository(captures: [capture])
+        let shoppingRepository = FakeShoppingRepository()
+        shoppingRepository.shouldThrow = true
+        let viewModel = InboxReviewViewModel(
+            taskRepository: FakeTaskRepository(),
+            projectRepository: FakeProjectRepository(),
+            captureRepository: captureRepository,
+            projectItemRepository: FakeProjectItemRepository(),
+            shoppingRepository: shoppingRepository,
+            initialCaptures: [],
+            initialProjects: [],
+            nowProvider: { now }
+        )
+
+        viewModel.load()
+        let conversionSucceeded = viewModel.convertCurrentCaptureToShoppingItem(
+            ShoppingItemFormData(title: "Milk")
+        )
+
+        #expect(conversionSucceeded == false)
+        #expect(shoppingRepository.items.isEmpty)
+        #expect(captureRepository.captures.first?.processedAt == nil)
+        #expect(viewModel.currentCapture == capture)
+        #expect(viewModel.errorMessage?.contains("Unable to create shopping item") == true)
+    }
+
+    @Test func inboxReviewMutationsRemovePendingCaptures() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let project = Project(name: "Posso")
+        let captureRepository = FakeCaptureRepository(captures: [
+            CaptureItem(title: "Fix onboarding", projectID: project.id),
+            CaptureItem(title: "Archive me")
+        ])
+        let viewModel = InboxReviewViewModel(
+            taskRepository: FakeTaskRepository(),
+            projectRepository: FakeProjectRepository(projects: [project]),
+            captureRepository: captureRepository,
+            projectItemRepository: FakeProjectItemRepository(),
+            shoppingRepository: FakeShoppingRepository(),
+            initialCaptures: [],
+            initialProjects: [],
+            nowProvider: { now }
+        )
+
+        viewModel.load()
+        #expect(viewModel.captures.count == 2)
+
+        #expect(
+            viewModel.convertCurrentCaptureToTask(
+                MyTaskFormData(title: "Fix onboarding", projectID: project.id)
+            ) == true
+        )
+        #expect(viewModel.captures.count == 1)
+        #expect(viewModel.currentCapture?.title == "Archive me")
+
+        #expect(viewModel.archiveCurrentCapture() == true)
+        #expect(viewModel.captures.isEmpty)
+    }
+
+    @Test func parentRefreshCallbackIsInvokedAfterReviewMutation() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let project = Project(name: "Posso")
+        let captureRepository = FakeCaptureRepository(captures: [
+            CaptureItem(title: "Fix onboarding", projectID: project.id)
+        ])
+        let viewModel = InboxReviewViewModel(
+            taskRepository: FakeTaskRepository(),
+            projectRepository: FakeProjectRepository(projects: [project]),
+            captureRepository: captureRepository,
+            projectItemRepository: FakeProjectItemRepository(),
+            shoppingRepository: FakeShoppingRepository(),
+            initialCaptures: [],
+            initialProjects: [],
+            nowProvider: { now }
+        )
+        var callbackCount = 0
+
+        viewModel.load()
+
+        if viewModel.convertCurrentCaptureToTask(
+            MyTaskFormData(title: "Fix onboarding", projectID: project.id)
+        ) {
+            callbackCount += 1
+        }
+
+        #expect(callbackCount == 1)
     }
 
     @Test func todayViewModelExposesCurrentRoutineItemAndAdvances() {
@@ -291,6 +455,41 @@ struct HomeExecutionViewModelTests {
         #expect(viewModel.healthSummary.todaysMealLogs == [meal])
         #expect(viewModel.healthSummary.recentWorkoutLogs == [workout])
         #expect(viewModel.healthSummary.detail == "Energy 4/5 · 1 meal")
+    }
+
+    @Test func todayViewModelLoadsFitnessSummary() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 5, day: 30, hour: 12))!
+        let exercise = FitnessExercise(
+            name: "Bench",
+            tag: .push,
+            trackingStyle: .strengthSets,
+            weightUnit: .pounds
+        )
+        let template = WorkoutTemplate(name: "Push Day", exerciseIDs: [exercise.id])
+        let session = ExerciseSession(
+            exerciseID: exercise.id,
+            performedAt: now,
+            strengthSets: [StrengthSet(reps: 5, weight: 185)]
+        )
+        let viewModel = HomeExecutionViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(),
+            fitnessRepository: FakeHomeFitnessRepository(
+                exercises: [exercise],
+                templates: [template],
+                sessions: [session]
+            ),
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.fitnessSummary.value == "Today")
+        #expect(viewModel.fitnessSummary.detail.contains("Last") == true)
     }
 }
 
@@ -434,6 +633,100 @@ private final class FakeProjectItemRepository: ProjectItemRepository {
     }
 
     func deleteProjectItem(withID id: UUID) throws {
+        items.removeAll { $0.id == id }
+    }
+}
+
+@MainActor
+private final class FakeShoppingRepository: ShoppingRepository {
+    enum FakeError: LocalizedError {
+        case failed
+
+        var errorDescription: String? {
+            "failed"
+        }
+    }
+
+    var items: [ShoppingItem]
+    var shouldThrow = false
+
+    init(items: [ShoppingItem] = []) {
+        self.items = items
+    }
+
+    func fetchShoppingItems(includeHistory: Bool) throws -> [ShoppingItem] {
+        if shouldThrow {
+            throw FakeError.failed
+        }
+
+        if includeHistory {
+            return items.sortedForShoppingTrips()
+        }
+
+        return items.filter(\.isActive).sortedForShoppingTrips()
+    }
+
+    func fetchActiveShoppingItems() throws -> [ShoppingItem] {
+        try fetchShoppingItems(includeHistory: false)
+    }
+
+    func fetchShoppingHistory() throws -> [ShoppingItem] {
+        if shouldThrow {
+            throw FakeError.failed
+        }
+
+        return items
+            .filter { $0.isActive == false }
+            .sorted { leftItem, rightItem in
+                (leftItem.completedAt ?? leftItem.updatedAt) > (rightItem.completedAt ?? rightItem.updatedAt)
+            }
+    }
+
+    func shoppingItem(withID id: UUID) throws -> ShoppingItem? {
+        if shouldThrow {
+            throw FakeError.failed
+        }
+
+        return items.first { $0.id == id }
+    }
+
+    func saveShoppingItem(_ item: ShoppingItem, replacingItemWithID originalID: UUID?) throws {
+        if shouldThrow {
+            throw FakeError.failed
+        }
+
+        let targetID = originalID ?? item.id
+        if let index = items.firstIndex(where: { $0.id == targetID || $0.id == item.id }) {
+            items[index] = item
+        } else {
+            items.append(item)
+        }
+    }
+
+    func updateShoppingItemStatus(
+        withID id: UUID,
+        status: ShoppingItemStatus,
+        at date: Date
+    ) throws {
+        if shouldThrow {
+            throw FakeError.failed
+        }
+
+        guard let item = items.first(where: { $0.id == id }) else {
+            return
+        }
+
+        try saveShoppingItem(
+            item.updatingStatus(status, at: date),
+            replacingItemWithID: id
+        )
+    }
+
+    func deleteShoppingItem(withID id: UUID) throws {
+        if shouldThrow {
+            throw FakeError.failed
+        }
+
         items.removeAll { $0.id == id }
     }
 }
@@ -635,6 +928,57 @@ private final class FakeHomeHealthRepository: HealthRepository {
     }
 
     func savePVTSession(_ session: PVTSession) throws {}
+}
+
+@MainActor
+private final class FakeHomeFitnessRepository: FitnessRepository {
+    var exercises: [FitnessExercise]
+    var templates: [WorkoutTemplate]
+    var sessions: [ExerciseSession]
+
+    init(
+        exercises: [FitnessExercise] = [],
+        templates: [WorkoutTemplate] = [],
+        sessions: [ExerciseSession] = []
+    ) {
+        self.exercises = exercises
+        self.templates = templates
+        self.sessions = sessions
+    }
+
+    func fetchExercises() throws -> [FitnessExercise] {
+        exercises
+    }
+
+    func exercise(withID id: UUID) throws -> FitnessExercise? {
+        exercises.first { $0.id == id }
+    }
+
+    func saveExercise(_ exercise: FitnessExercise, replacingExerciseWithID originalID: UUID?) throws {}
+
+    func fetchWorkoutTemplates() throws -> [WorkoutTemplate] {
+        templates
+    }
+
+    func workoutTemplate(withID id: UUID) throws -> WorkoutTemplate? {
+        templates.first { $0.id == id }
+    }
+
+    func saveWorkoutTemplate(_ template: WorkoutTemplate, replacingWorkoutTemplateWithID originalID: UUID?) throws {}
+
+    func deleteWorkoutTemplate(withID id: UUID) throws {}
+
+    func fetchExerciseSessions() throws -> [ExerciseSession] {
+        sessions.sortedForExerciseHistory()
+    }
+
+    func exerciseSession(withID id: UUID) throws -> ExerciseSession? {
+        sessions.first { $0.id == id }
+    }
+
+    func saveExerciseSession(_ session: ExerciseSession, replacingExerciseSessionWithID originalID: UUID?) throws {}
+
+    func deleteExerciseSession(withID id: UUID) throws {}
 }
 
 @MainActor
