@@ -12,6 +12,8 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
     case musicPractice
     case fitness
     case peopleMemory
+    case vices
+    case finance
     case future
 
     var displayName: String {
@@ -38,6 +40,10 @@ nonisolated enum HomeWidgetModule: String, Codable, CaseIterable, Sendable {
             return "Fitness"
         case .peopleMemory:
             return "People"
+        case .vices:
+            return "Vices"
+        case .finance:
+            return "Finance"
         case .future:
             return "Planned"
         }
@@ -79,6 +85,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
     static let musicPracticeModule = HomeWidgetKind(rawValue: "musicPracticeModule")
     static let fitnessModule = HomeWidgetKind(rawValue: "fitnessModule")
     static let peopleMemoryModule = HomeWidgetKind(rawValue: "peopleMemoryModule")
+    static let vicesModule = HomeWidgetKind(rawValue: "vicesModule")
     static let moduleCarousel = HomeWidgetKind(rawValue: "moduleCarousel")
     static let budgetModule = HomeWidgetKind(rawValue: "budgetModule")
 
@@ -107,6 +114,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
         .musicPracticeModule,
         .fitnessModule,
         .peopleMemoryModule,
+        .vicesModule,
         .moduleCarousel,
         .budgetModule,
     ]
@@ -182,7 +190,7 @@ nonisolated struct HomeWidgetInstance: Identifiable, Equatable, Sendable {
 }
 
 nonisolated struct HomeLayout: Equatable, Sendable {
-    static let currentVersion = 5
+    static let currentVersion = 6
 
     var version: Int
     var widgets: [HomeWidgetInstance]
@@ -212,6 +220,7 @@ nonisolated struct HomeLayout: Equatable, Sendable {
             HomeWidgetInstance(kind: .musicPracticeModule, size: .small, sortOrder: 9),
             HomeWidgetInstance(kind: .fitnessModule, size: .small, sortOrder: 10),
             HomeWidgetInstance(kind: .peopleMemoryModule, size: .small, sortOrder: 11),
+            HomeWidgetInstance(kind: .vicesModule, size: .small, sortOrder: 12),
         ]
     )
 
@@ -336,6 +345,8 @@ nonisolated enum HomeWidgetDefaultAction: Equatable, Sendable {
     case openMusicPractice
     case openFitness
     case openPeopleMemory
+    case openVices
+    case openFinance
 }
 
 nonisolated enum HomeLayoutMigrator {
@@ -389,6 +400,21 @@ nonisolated enum HomeLayoutMigrator {
                     HomeWidgetInstance(
                         kind: .debriefsPending,
                         size: .large,
+                        sortOrder: migratedWidgets.count
+                    )
+                )
+            }
+        }
+
+        if version < 6 {
+            let hasVices = migratedWidgets.contains { $0.kind == .vicesModule }
+            let removedVices = removedWidgets.contains { $0.kind == .vicesModule }
+
+            if hasVices == false, removedVices == false {
+                migratedWidgets.append(
+                    HomeWidgetInstance(
+                        kind: .vicesModule,
+                        size: .small,
                         sortOrder: migratedWidgets.count
                     )
                 )
@@ -711,13 +737,23 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
                 isModuleWidget: true
             ),
             HomeWidgetDescriptor(
-                kind: .budgetModule,
-                displayName: "Budget",
-                iconSystemName: "creditcard.fill",
-                module: .future,
+                kind: .vicesModule,
+                displayName: "Vices",
+                iconSystemName: "flame.fill",
+                module: .vices,
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
-                availability: .planned("Budget widgets will become available when the Budget module ships."),
+                defaultAction: .openVices,
+                isModuleWidget: true
+            ),
+            HomeWidgetDescriptor(
+                kind: .budgetModule,
+                displayName: "Finance",
+                iconSystemName: "creditcard.fill",
+                module: .finance,
+                supportedSizes: [.small, .large],
+                defaultSize: .small,
+                defaultAction: .openFinance,
                 isModuleWidget: true
             ),
         ]

@@ -478,7 +478,7 @@ final class EventKitCalendarReconciler: CalendarReconciling {
             return
         }
 
-        task.status = .active
+        task.status = .open
         task.updatedAt = syncDate
         try taskRepository.saveTask(task, replacingTaskWithID: task.id)
     }

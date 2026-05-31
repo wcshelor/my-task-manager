@@ -309,7 +309,7 @@ struct TaskListView: View {
             .padding(.vertical, 4)
         }
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            if task.status == .completed {
+            if task.status == .done {
                 Button("Reopen") {
                     viewModel.reopenTask(withID: task.id)
                 }
@@ -353,13 +353,11 @@ struct TaskListView: View {
 
     private func taskStatusIconName(for task: MyTask) -> String {
         switch task.status {
-        case .inbox:
-            return "tray.fill"
-        case .active:
+        case .open:
             return "circle"
         case .scheduled:
             return "calendar.badge.clock"
-        case .completed:
+        case .done:
             return "checkmark.circle.fill"
         case .archived:
             return "archivebox.fill"
@@ -368,13 +366,11 @@ struct TaskListView: View {
 
     private func taskStatusIconColor(for task: MyTask) -> Color {
         switch task.status {
-        case .inbox:
-            return .blue
-        case .active:
+        case .open:
             return .secondary
         case .scheduled:
             return .orange
-        case .completed:
+        case .done:
             return .green
         case .archived:
             return .secondary
@@ -385,13 +381,13 @@ struct TaskListView: View {
         var items: [String] = []
 
         switch task.status {
-        case .inbox:
-            items.append("Inbox")
+        case .open:
+            items.append("Open")
         case .scheduled:
             items.append("Scheduled")
         case .archived:
             items.append("Archived")
-        case .active, .completed:
+        case .done:
             break
         }
 

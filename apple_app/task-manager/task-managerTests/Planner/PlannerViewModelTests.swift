@@ -183,7 +183,7 @@ struct PlannerViewModelTests {
     @Test func morningBriefGuidesCalendarSetupWhenWriteCalendarIsMissing() async {
         let viewModel = PlannerViewModel(
             taskRepository: FakeTaskRepository(tasks: [
-                MyTask(title: "Write brief", status: .active, priority: .high)
+                MyTask(title: "Write brief", status: .open, priority: .high)
             ]),
             scheduledBlockRepository: FakeScheduledBlockRepository(),
             settingsRepository: FakeSettingsRepository(),
@@ -212,7 +212,7 @@ struct PlannerViewModelTests {
     @Test func morningBriefEncouragesCaptureWhenThereAreNoPlannableTasks() async {
         let viewModel = PlannerViewModel(
             taskRepository: FakeTaskRepository(tasks: [
-                MyTask(title: "Already done", status: .completed)
+                MyTask(title: "Already done", status: .done)
             ]),
             scheduledBlockRepository: FakeScheduledBlockRepository(),
             settingsRepository: configuredPlannerSettingsRepository(),
@@ -250,7 +250,7 @@ struct PlannerViewModelTests {
         )
         let viewModel = PlannerViewModel(
             taskRepository: FakeTaskRepository(tasks: [
-                MyTask(title: "Draft launch notes", status: .active, estimatedMinutes: 60)
+                MyTask(title: "Draft launch notes", status: .open, estimatedMinutes: 60)
             ]),
             scheduledBlockRepository: FakeScheduledBlockRepository(),
             settingsRepository: configuredPlannerSettingsRepository(),
@@ -272,7 +272,7 @@ struct PlannerViewModelTests {
     @Test func morningBriefSuggestsPlanningWhenThereIsFreeTimeAndActiveWork() async {
         let task = MyTask(
             title: "Write architecture notes",
-            status: .active,
+            status: .open,
             estimatedMinutes: 45,
             priority: .high
         )
@@ -298,7 +298,7 @@ struct PlannerViewModelTests {
     @Test func lowEnergyMorningBriefBiasesTowardGentlerPlanning() async {
         let task = MyTask(
             title: "Clear admin inbox",
-            status: .active,
+            status: .open,
             estimatedMinutes: 30,
             priority: .medium,
             energyLevel: .low
@@ -1114,7 +1114,7 @@ struct PlannerViewModelTests {
         #expect(savedBlock.status == .canceled)
         #expect(savedBlock.calendarLinkState == .notWritten)
         #expect(savedBlock.calendarEventIdentifier == nil)
-        #expect(savedTask.status == .active)
+        #expect(savedTask.status == .open)
     }
 
     @Test func deletingAcceptedBlockDeletesItsCalendarEventAndRemovesTheRecord() async throws {
@@ -1156,7 +1156,7 @@ struct PlannerViewModelTests {
 
         #expect(writer.deleteEventCallCount == 1)
         #expect(repository.blocks.isEmpty)
-        #expect(savedTask.status == .active)
+        #expect(savedTask.status == .open)
     }
 
     @Test func rejectingSlotGeneratedSuggestionAvoidsImmediateRegenerationOfTheSameSuggestion() async throws {

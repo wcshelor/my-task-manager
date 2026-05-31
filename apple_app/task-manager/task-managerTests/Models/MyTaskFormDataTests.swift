@@ -13,7 +13,7 @@ struct MyTaskFormDataTests {
             id: taskID,
             title: "Finish report",
             notes: "Send the draft",
-            status: .completed,
+            status: .done,
             estimatedMinutes: 30,
             dueDate: dueDate,
             priority: .urgent,
@@ -32,7 +32,7 @@ struct MyTaskFormDataTests {
         #expect(formData.idText == taskID.uuidString)
         #expect(formData.title == "Finish report")
         #expect(formData.notesText == "Send the draft")
-        #expect(formData.status == .completed)
+        #expect(formData.status == .done)
         #expect(formData.isCompleted == true)
         #expect(formData.estimatedMinutesText == "30")
         #expect(formData.hasDueDate == true)
@@ -130,7 +130,7 @@ struct MyTaskFormDataTests {
 
         let task = formData.makeTask(savedAt: savedAt)
 
-        #expect(task?.status == .inbox)
+        #expect(task?.status == .open)
         #expect(task?.notes == nil)
         #expect(task?.estimatedMinutes == nil)
         #expect(task?.dueDate == nil)

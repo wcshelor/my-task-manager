@@ -15,7 +15,7 @@ struct MyTaskTests {
         let task = MyTask(newTitle: "Read book")
 
         #expect(task?.title == "Read book")
-        #expect(task?.status == .inbox)
+        #expect(task?.status == .open)
         #expect(task?.tags == [])
         #expect(task?.completedAt == nil)
         #expect(task?.updatedAt == task?.createdAt)
@@ -90,14 +90,14 @@ struct MyTaskTests {
         let completedTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174001")!,
             title: "Done",
-            status: .completed,
+            status: .done,
             projectID: project.id,
             createdAt: Date(timeIntervalSince1970: 1_000)
         )
         let openTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174002")!,
             title: "Open",
-            status: .active,
+            status: .open,
             projectID: project.id,
             createdAt: Date(timeIntervalSince1970: 2_000)
         )
@@ -108,7 +108,7 @@ struct MyTaskTests {
         )
         let otherProjectTask = MyTask(
             title: "Other project",
-            status: .active,
+            status: .open,
             projectID: otherProjectID
         )
 
@@ -119,9 +119,9 @@ struct MyTaskTests {
             completedTask,
         ])
 
-        #expect(summary.activeTasks.map(\.title) == ["Done", "Open"])
-        #expect(summary.activeTaskCount == 2)
-        #expect(summary.completedActiveTaskCount == 1)
+        #expect(summary.openTasks.map(\.title) == ["Done", "Open"])
+        #expect(summary.openTaskCount == 2)
+        #expect(summary.doneActiveTaskCount == 1)
         #expect(summary.incompleteActiveTaskCount == 1)
         #expect(summary.progressFraction == 0.5)
         #expect(summary.progressSummary == "1/2 tasks complete")
@@ -133,7 +133,7 @@ struct MyTaskTests {
         let lowPriorityTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174001")!,
             title: "Soon low",
-            status: .active,
+            status: .open,
             dueDate: sharedDueDate,
             priority: .low,
             projectID: project.id,
@@ -142,7 +142,7 @@ struct MyTaskTests {
         let highPriorityTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174002")!,
             title: "Soon high",
-            status: .active,
+            status: .open,
             dueDate: sharedDueDate,
             priority: .high,
             projectID: project.id,
@@ -151,7 +151,7 @@ struct MyTaskTests {
         let noDueUrgentTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174003")!,
             title: "No due urgent",
-            status: .active,
+            status: .open,
             priority: .urgent,
             projectID: project.id,
             createdAt: Date(timeIntervalSince1970: 3_000)
@@ -171,7 +171,7 @@ struct MyTaskTests {
         let project = Project(name: "Launch")
         let completedTask = MyTask(
             title: "Already done",
-            status: .completed,
+            status: .done,
             dueDate: Date(timeIntervalSince1970: 1_000),
             priority: .urgent,
             projectID: project.id
@@ -185,7 +185,7 @@ struct MyTaskTests {
         )
         let openTask = MyTask(
             title: "Still open",
-            status: .active,
+            status: .open,
             dueDate: Date(timeIntervalSince1970: 3_000),
             priority: .low,
             projectID: project.id
@@ -193,8 +193,8 @@ struct MyTaskTests {
 
         let summary = project.taskSummary(from: [completedTask, archivedTask, openTask])
 
-        #expect(summary.activeTaskCount == 2)
-        #expect(summary.completedActiveTaskCount == 1)
+        #expect(summary.openTaskCount == 2)
+        #expect(summary.doneActiveTaskCount == 1)
         #expect(summary.nextAction == openTask)
         #expect(project.taskSummary(from: [completedTask, archivedTask]).nextAction == nil)
     }

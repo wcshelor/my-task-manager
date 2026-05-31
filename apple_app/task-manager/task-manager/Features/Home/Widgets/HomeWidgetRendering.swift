@@ -13,6 +13,8 @@ struct HomeWidgetRenderContext {
     let openMusicPractice: () -> Void
     let openFitness: () -> Void
     let openPeopleMemory: () -> Void
+    let openVices: () -> Void
+    let openFinance: () -> Void
 }
 
 @MainActor
@@ -203,6 +205,26 @@ struct HomeWidgetRendererRegistry {
                     detail: context.execution.peopleMemorySummary.detail,
                     action: "Open People",
                     perform: { context.perform(.openPeopleMemory, widget) }
+                )
+            },
+            AnyHomeWidgetRenderer(kind: .vicesModule) { widget, context in
+                HomeModuleRenderer.render(
+                    widget: widget,
+                    title: "Vices",
+                    systemImage: "flame.fill",
+                    detail: context.execution.vicesSummary.detail,
+                    action: "Open Vices",
+                    perform: { context.perform(.openVices, widget) }
+                )
+            },
+            AnyHomeWidgetRenderer(kind: .budgetModule) { widget, context in
+                HomeModuleRenderer.render(
+                    widget: widget,
+                    title: "Finance",
+                    systemImage: "creditcard.fill",
+                    detail: context.execution.financeSummary.detail,
+                    action: "Open Finance",
+                    perform: { context.perform(.openFinance, widget) }
                 )
             },
             AnyHomeWidgetRenderer(kind: .calendarOverview) { widget, context in
@@ -696,9 +718,18 @@ struct HomeDebriefsWidget: View {
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(pendingCandidates.prefix(3)), id: \.id) { candidate in
-                            Text(candidate.title)
-                                .font(.subheadline)
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(candidate.title)
+                                    .font(.subheadline)
+                                    .lineLimit(1)
+
+                                if candidate.linkedProjectName != nil || candidate.selectedTaskCount > 0 {
+                                    Text(candidateDetailText(for: candidate))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
                         }
                     }
                 }
@@ -724,6 +755,20 @@ struct HomeDebriefsWidget: View {
         return pendingCandidates.count == 1
             ? "1 waiting"
             : "\(pendingCandidates.count) waiting"
+    }
+
+    private func candidateDetailText(for candidate: CalendarDebriefCandidate) -> String {
+        var parts: [String] = []
+
+        if let linkedProjectName = candidate.linkedProjectName {
+            parts.append(linkedProjectName)
+        }
+
+        if candidate.selectedTaskCount > 0 {
+            parts.append("\(candidate.selectedTaskCount) focus task\(candidate.selectedTaskCount == 1 ? "" : "s")")
+        }
+
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -997,6 +1042,22 @@ private struct HomeModuleCarouselWidget: View {
                         systemImage: "dumbbell.fill"
                     ) {
                         context.openFitness()
+                    }
+                    moduleCard(
+                        title: "Vices",
+                        value: context.execution.vicesSummary.value,
+                        detail: context.execution.vicesSummary.detail,
+                        systemImage: "flame.fill"
+                    ) {
+                        context.openVices()
+                    }
+                    moduleCard(
+                        title: "Finance",
+                        value: FinanceFormatting.signedCurrencyString(from: context.execution.financeSummary.monthlyBalance),
+                        detail: "\(context.execution.financeSummary.transactionCount) this month",
+                        systemImage: "creditcard.fill"
+                    ) {
+                        context.openFinance()
                     }
                 }
             }

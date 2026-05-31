@@ -19,9 +19,10 @@ struct HomeWidgetModelTests {
             .musicPracticeModule,
             .fitnessModule,
             .peopleMemoryModule,
+            .vicesModule,
         ])
-        #expect(HomeLayout.defaultLayout.orderedWidgets.dropLast(5).allSatisfy { $0.size == .large })
-        #expect(HomeLayout.defaultLayout.orderedWidgets.suffix(5).allSatisfy { $0.size == .small })
+        #expect(HomeLayout.defaultLayout.orderedWidgets.dropLast(6).allSatisfy { $0.size == .large })
+        #expect(HomeLayout.defaultLayout.orderedWidgets.suffix(6).allSatisfy { $0.size == .small })
     }
 
     @Test func layoutNormalizesSortOrderDeterministically() {
@@ -174,6 +175,28 @@ struct HomeWidgetModelTests {
         #expect(registry.moduleWidget(for: .peopleMemory)?.kind == .peopleMemoryModule)
     }
 
+    @Test func financeModuleWidgetIsAvailable() {
+        let registry = HomeWidgetRegistry.standard
+        let descriptor = registry.descriptor(for: .budgetModule)
+
+        #expect(descriptor?.module == .finance)
+        #expect(descriptor?.displayName == "Finance")
+        #expect(descriptor?.defaultAction == .openFinance)
+        #expect(descriptor?.isAvailable == true)
+        #expect(registry.moduleWidget(for: .finance)?.kind == .budgetModule)
+    }
+
+    @Test func vicesModuleWidgetIsAvailable() {
+        let registry = HomeWidgetRegistry.standard
+        let descriptor = registry.descriptor(for: .vicesModule)
+
+        #expect(descriptor?.module == .vices)
+        #expect(descriptor?.displayName == "Vices")
+        #expect(descriptor?.defaultAction == .openVices)
+        #expect(descriptor?.isAvailable == true)
+        #expect(registry.moduleWidget(for: .vices)?.kind == .vicesModule)
+    }
+
     @Test func homeLayoutMigrationInjectsFitnessUnlessExplicitlyRemoved() {
         let legacyLayout = HomeLayout(
             version: 2,
@@ -235,6 +258,27 @@ struct HomeWidgetModelTests {
 
         #expect(legacyLayout.normalized().widgets.map(\.kind).contains(.debriefsPending))
         #expect(removedLegacyLayout.normalized().widgets.map(\.kind).contains(.debriefsPending) == false)
+    }
+
+    @Test func homeLayoutMigrationInjectsVicesUnlessExplicitlyRemoved() {
+        let legacyLayout = HomeLayout(
+            version: 5,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ]
+        )
+        let removedLegacyLayout = HomeLayout(
+            version: 5,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ],
+            removedWidgets: [
+                HomeWidgetInstance(kind: .vicesModule, size: .small, sortOrder: 0),
+            ]
+        )
+
+        #expect(legacyLayout.normalized().widgets.map(\.kind).contains(.vicesModule))
+        #expect(removedLegacyLayout.normalized().widgets.map(\.kind).contains(.vicesModule) == false)
     }
 
     @Test func shoppingQuickAddWidgetIsAvailableAndAllowsMultipleInstances() {

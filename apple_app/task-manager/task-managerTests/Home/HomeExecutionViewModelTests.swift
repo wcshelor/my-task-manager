@@ -58,6 +58,32 @@ struct HomeExecutionViewModelTests {
         #expect(HomePeopleMemorySummary(people: [], now: now).detail == "No people yet")
     }
 
+    @Test func todayViewModelLoadsVicesSummary() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let vice = Vice(name: "Dab Pen", unitLabel: "Hits")
+        let todaysLog = ViceLog(viceID: vice.id, timestamp: now.addingTimeInterval(-120))
+        let olderLog = ViceLog(
+            viceID: vice.id,
+            timestamp: now.addingTimeInterval(-90_000)
+        )
+        let viewModel = HomeExecutionViewModel(
+            taskRepository: FakeTaskRepository(),
+            promiseRepository: FakePromiseRepository(),
+            routineRepository: FakeRoutineRepository(),
+            viceRepository: FakeViceRepository(
+                vices: [vice],
+                logs: [todaysLog, olderLog]
+            ),
+            nowProvider: { now }
+        )
+
+        viewModel.loadIfNeeded()
+
+        #expect(viewModel.vicesSummary.activeViceCount == 1)
+        #expect(viewModel.vicesSummary.totalTodayCount == 1)
+        #expect(viewModel.vicesSummary.detail == "1 logged today")
+    }
+
     @Test func todayViewModelResolvesPromiseAndUpdatesHistoryCounts() {
         let now = Date(timeIntervalSince1970: 1_000)
         let promiseRepository = FakePromiseRepository(promises: [
@@ -980,6 +1006,76 @@ private final class FakeHomeFitnessRepository: FitnessRepository {
     func saveExerciseSession(_ session: ExerciseSession, replacingExerciseSessionWithID originalID: UUID?) throws {}
 
     func deleteExerciseSession(withID id: UUID) throws {}
+}
+
+@MainActor
+private final class FakeViceRepository: ViceRepository {
+    var vices: [Vice]
+    var logs: [ViceLog]
+
+    init(
+        vices: [Vice] = [],
+        logs: [ViceLog] = []
+    ) {
+        self.vices = vices
+        self.logs = logs
+    }
+
+    func fetchVices(includeArchived: Bool) throws -> [Vice] {
+        if includeArchived {
+            return vices
+        }
+
+        return vices.filter { $0.isArchived == false }
+    }
+
+    func vice(withID id: UUID) throws -> Vice? {
+        vices.first { $0.id == id }
+    }
+
+    func saveVice(_ vice: Vice, replacingViceWithID originalID: UUID?) throws {
+        let targetID = originalID ?? vice.id
+        if let index = vices.firstIndex(where: { $0.id == targetID || $0.id == vice.id }) {
+            vices[index] = vice
+        } else {
+            vices.append(vice)
+        }
+    }
+
+    func archiveVice(withID id: UUID, archivedAt: Date) throws {
+        guard let index = vices.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        vices[index].isArchived = true
+        vices[index].updatedAt = archivedAt
+    }
+
+    func fetchViceLogs() throws -> [ViceLog] {
+        logs.sortedForViceLogs()
+    }
+
+    func fetchViceLogs(
+        for viceID: UUID,
+        from startDate: Date,
+        to endDate: Date
+    ) throws -> [ViceLog] {
+        logs.filter { log in
+            log.viceID == viceID && log.timestamp >= startDate && log.timestamp <= endDate
+        }
+    }
+
+    func saveViceLog(_ log: ViceLog) throws {
+        if let index = logs.firstIndex(where: { $0.id == log.id }) {
+            logs[index] = log
+        } else {
+            logs.append(log)
+        }
+    }
+
+    func deleteViceLog(withID id: UUID) throws {
+        logs.removeAll { $0.id == id }
+    }
 }
 
 @MainActor

@@ -14,6 +14,7 @@ Home is the app's current home screen / secretary dashboard. Older docs may call
 - today's routines and current routine step widgets
 - Shopping module and Shopping Quick Add widgets
 - Health, Music Practice, Fitness, and People module widgets
+- lightweight pending Debrief summaries that can show linked project names and focus-task counts when available
 
 ## Possible Future Cards
 
@@ -28,7 +29,7 @@ Home is the app's current home screen / secretary dashboard. Older docs may call
 
 ## Interaction With Tasks / Planner
 
-Home should aggregate state from other domains instead of becoming the owner of their business logic. Task actions should delegate to task repositories/view models. Planning actions should delegate to the planner.
+Home should aggregate state from other domains instead of becoming the owner of their business logic. Task actions should delegate to task repositories/view models. Planning actions should delegate to the planner. Block Focus editing and task selection belong on project or event detail surfaces, not inside Home widgets.
 
 ## Status
 

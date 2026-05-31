@@ -1,3 +1,5 @@
+**AGENTS: Always read [AGENTS.md](AGENTS.md) whenever you read this README.**
+
 # Task Manager / Life Assistant
 
 This repo contains a SwiftUI Apple app evolving from a task manager into a broader Life Assistant / personal planning hub.
@@ -20,7 +22,29 @@ The Swift app is the only active product path.
   - `Projects`
   - `Settings`
 - `Home` is the widget-based execution hub and replaces the older Today framing in most current UI.
-- Planner / Calendar is reached from Home and now supports manual planning plus Debrief follow-through.
+- Finance is a Home-reachable manual tracking module for income and expenses, with monthly balance and category spend summaries.
+
+### Finance MVP
+
+- Entry point: add the Finance widget/module from `Home`, then open it from the Home dashboard.
+- Persistence: local SwiftData only.
+- Models:
+  - `FinanceTransaction`
+  - `FinanceCategory`
+  - `TransactionKind`
+- Workflow:
+  - manually log income and expenses
+  - assign a category on entry
+  - review the current month balance
+  - view expense spending by category in a donut chart
+  - open a monthly transaction list grouped by date or category
+- Current scope:
+  - manual entry only
+  - no bank sync
+  - no subscriptions
+  - no authentication
+  - editing deferred; create/delete/view are the current supported actions
+- Planner / Calendar is reached from Home and now supports manual planning, Block Focus, and Debrief follow-through.
 - SwiftData owns app-owned durable data.
 - EventKit owns Apple Calendar permission, reads, writes, and reconciliation.
 - Home widget layout is app-owned SwiftData state.
@@ -96,6 +120,12 @@ If changing Shopping:
 - Keep Shopping practical and capture-oriented.
 - Separate necessities/current list behavior from future wish-list or purchase-decision behavior.
 
+If changing Finance:
+
+- Keep Finance manual-entry and local-only for now.
+- Use `Decimal` for money and keep balance/category math out of SwiftUI views.
+- Treat Home widgets as lightweight entry points; full logging and history belong in the Finance screens.
+
 If changing People Memory:
 
 - Start with `PeopleMemoryModels`, `PeopleMemoryRepository`, and `PeopleMemoryViewModel`.
@@ -118,7 +148,8 @@ If changing Sync:
 | Tasks | task models, `TaskRepository`, task views/forms | Preserve quick-add vs full-edit distinction. |
 | Home widgets | `HomeWidgetRegistry`, `HomeLayoutViewModel`, Home views | Layout is persisted app-owned state. |
 | Planner | `Planner/` | Pure/domain planner logic should remain independent of SwiftUI/EventKit/SwiftData. |
-| Debriefs | debrief models/repository/views | Calendar-event reflection records with lightweight capture and close-the-loop status. |
+| Debriefs | debrief models/repository/views | Calendar-event reflection records with lightweight capture, task outcomes, and close-the-loop status. |
+| Block Focus | calendar block focus models/repository/views | App-owned intention records for calendar events; connect projects/tasks to manual calendar blocks. |
 | Calendar/EventKit | `Calendar/` | Permission, calendar reads/writes, and reconciliation. |
 | Settings | `AppSettingsRecord`, `SettingsRepository`, settings views | User-facing settings UI should use repository-backed state. |
 | Promises | promise models/repository/views | Avoid guilt/shame mechanics; keep recovery-oriented tone. |
@@ -127,6 +158,7 @@ If changing Sync:
 | Music Practice | music practice models/repository/views | Lightweight practice tracking, not a full practice planner yet. |
 | Fitness | fitness models/repository/views | Standalone Home-reachable structured exercise tracking. |
 | Shopping | shopping models/repository/views | Practical capture module. |
+| Finance | `Features/Finance/`, finance models/repository/views | Manual local-only income/expense tracking with monthly summaries. |
 | People Memory | people-memory models/repository/views | Work in progress private memory aid for names, contexts, reusable tags, and lightweight study review. |
 | Sync | `Sync/` | Scaffolding only unless explicitly asked. |
 | Tests | `task-managerTests/`, `scripts/` | Run Swift tests and smoke helpers after meaningful changes. |
@@ -141,7 +173,10 @@ If changing Sync:
 - Planner suggestions are ephemeral until accepted.
 - Accepted planner suggestions become `ScheduledBlock` records.
 - Only Planner / ScheduledBlock flows may write to Apple Calendar.
+- Block Focus records live in app-owned SwiftData storage.
+- Block Focus reads and annotates EventKit events but never writes to Apple Calendar.
 - Debriefs read EventKit events but never write EventKit events.
+- Debrief task outcomes live in app-owned SwiftData storage.
 - Cross-device sync is not active.
 - Do not implement CloudKit or folder sync unless the prompt explicitly asks for sync implementation.
 - Do not add a new visible domain unless it has useful content, persistence, and a clear user-facing workflow.
@@ -301,6 +336,7 @@ Implemented or active domain docs:
 - `docs/domains/shopping.md`: active shopping list, trip grouping, and future wish-list support.
 - `docs/domains/today_dashboard.md`: Today / Home as the execution hub.
 - `docs/domains/debriefs.md`: Debrief workflow for recent ended calendar events, capture, and close-the-loop processing.
+- `docs/domains/calendar_block_focus.md`: Block Focus records for linking calendar events to projects, tasks, and Debrief intent.
 - `docs/domains/future-modules/health.md`: active work-in-progress Health section for Sleep / PVT, Nutrition, lightweight workout logs, and daily context.
 - `docs/domains/future-modules/sleep_pvt.md`: active work-in-progress Health subdomain for sleep check-ins, PVT sessions, and trend tracking.
 - `docs/domains/future-modules/nutrition.md`: active work-in-progress Health subdomain for lightweight meal logging and trends.
@@ -338,7 +374,7 @@ Home is the widget-based execution hub. The default layout migrates the old Toda
 - inbox / quick capture
 - pinned projects
 - today’s calendar overview
-- pending Debriefs
+- pending Debriefs, with linked project names and focus-task counts when available
 - active promises
 - due promise check-ins
 - today’s active routines
@@ -385,6 +421,7 @@ Planner supports:
 - accepted-block edit, move, cancel, and delete flows
 - EventKit writeback for accepted blocks
 - reconciliation after external calendar moves or deletes
+- manual calendar event project recognition and Block Focus editing
 
 Planner suggestions are transient until accepted. Accepted suggestions become `ScheduledBlock` records and write linked events to the configured Apple Calendar.
 
@@ -400,12 +437,14 @@ Debriefs are lightweight reflections attached to recent ended calendar events. T
 - lets the user choose Work Block, Meeting, or Social templates
 - captures essential answers plus optional detail
 - includes a universal "Capture from this event" input that writes captures into the inbox
+- can surface project-linked Block Focus context and selected tasks for Work Blocks
+- can persist task outcomes for project-linked work blocks in SwiftData
 - marks events as Debriefed or No Debrief needed
 - persists Debrief records in SwiftData for future trend analysis
 
 ### Projects
 
-Projects are available as a top-level tab. The current app supports lightweight project records, pinned project surfacing on Home, project-linked tasks, project captures, and project items such as maybes and notes.
+Projects are available as a top-level tab. The current app supports lightweight project records, pinned project surfacing on Home, project-linked tasks, project captures, project items such as maybes and notes, and compact calendar activity surfacing for linked work blocks and recent Debriefs.
 
 Project support is still intentionally lightweight. It is not a full project-management system, and future task evolution work still covers subtasks, recurrence, prerequisites, sequences, and richer task/project structure.
 
@@ -441,9 +480,11 @@ Photos, Contacts integration, export, richer study modes, Home prompts, and task
 
 - Tasks live in app-owned SwiftData storage.
 - Projects, captures, and project items live in app-owned SwiftData storage.
+- Calendar Block Focus records live in app-owned SwiftData storage.
 - App settings live in app-owned SwiftData storage.
 - Scheduled blocks live in app-owned SwiftData storage.
 - Debrief records live in app-owned SwiftData storage.
+- Debrief task outcomes live in app-owned SwiftData storage.
 - Home widget layout lives in app-owned SwiftData storage.
 - Promises live in app-owned SwiftData storage.
 - Routine definitions, routine step links, and daily completion logs live in app-owned SwiftData storage.
@@ -531,6 +572,7 @@ Prefer injecting repositories/services through the app container instead of cons
 - `SettingsRepository`
 - `HomeLayoutRepository`
 - `DebriefRepository`
+- `CalendarBlockFocusRepository`
 - `PromiseRepository`
 - `RoutineRepository`
 - `HealthRepository`
@@ -539,7 +581,7 @@ Prefer injecting repositories/services through the app container instead of cons
 - `ShoppingRepository`
 - `PeopleMemoryRepository`
 
-SwiftData records include tasks, projects, captures, project items, scheduled blocks, debrief records, settings, home layout, promises, routines, routine completion logs, Shopping records, work-in-progress Health records, Music Practice records, Fitness records, and People Memory records.
+SwiftData records include tasks, projects, captures, project items, scheduled blocks, debrief records, calendar block focus records, settings, home layout, promises, routines, routine completion logs, Shopping records, work-in-progress Health records, Music Practice records, Fitness records, and People Memory records.
 
 ### Planned Folder Sync
 

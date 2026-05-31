@@ -8,7 +8,7 @@ struct TaskListViewModelTests {
         let task = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!,
             title: "Finish migration",
-            status: .active,
+            status: .open,
             createdAt: Date(timeIntervalSince1970: 1_000),
             updatedAt: Date(timeIntervalSince1970: 1_000)
         )
@@ -19,9 +19,9 @@ struct TaskListViewModelTests {
         await viewModel.markTaskCompleted(withID: task.id)
 
         let savedTask = try #require(try repository.task(withID: task.id))
-        #expect(savedTask.status == .completed)
+        #expect(savedTask.status == .done)
         #expect(savedTask.completedAt != nil)
-        #expect(viewModel.tasks.first?.status == .completed)
+        #expect(viewModel.tasks.first?.status == .done)
     }
 
     @Test func reopenTaskRestoresCompletedTaskToActive() throws {
@@ -29,7 +29,7 @@ struct TaskListViewModelTests {
         let task = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174001")!,
             title: "Review notes",
-            status: .completed,
+            status: .done,
             createdAt: Date(timeIntervalSince1970: 1_000),
             updatedAt: completedAt,
             completedAt: completedAt
@@ -41,16 +41,16 @@ struct TaskListViewModelTests {
         viewModel.reopenTask(withID: task.id)
 
         let savedTask = try #require(try repository.task(withID: task.id))
-        #expect(savedTask.status == .active)
+        #expect(savedTask.status == .open)
         #expect(savedTask.completedAt == nil)
-        #expect(viewModel.tasks.first?.status == .active)
+        #expect(viewModel.tasks.first?.status == .open)
     }
 
     @Test func archiveTaskPersistsArchivedState() throws {
         let task = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174002")!,
             title: "Old note",
-            status: .inbox,
+            status: .open,
             createdAt: Date(timeIntervalSince1970: 1_000),
             updatedAt: Date(timeIntervalSince1970: 1_000)
         )
@@ -70,14 +70,14 @@ struct TaskListViewModelTests {
         let originalTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174010")!,
             title: "Inbox task",
-            status: .active,
+            status: .open,
             createdAt: Date(timeIntervalSince1970: 1_000),
             updatedAt: Date(timeIntervalSince1970: 1_000)
         )
         let syncedTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174011")!,
             title: "Added on another device",
-            status: .inbox,
+            status: .open,
             createdAt: Date(timeIntervalSince1970: 2_000),
             updatedAt: Date(timeIntervalSince1970: 2_000)
         )
@@ -125,9 +125,9 @@ struct TaskListViewModelTests {
 
         let savedTask = try #require(try taskRepository.task(withID: task.id))
         let savedBlock = try #require(blockRepository.blocks.first)
-        #expect(savedTask.status == .completed)
+        #expect(savedTask.status == .done)
         #expect(calendarWriter.deletedEventIdentifiers == ["event-123"])
-        #expect(savedBlock.status == .completed)
+        #expect(savedBlock.status == .done)
         #expect(savedBlock.calendarLinkState == .notWritten)
         #expect(savedBlock.calendarEventIdentifier == nil)
     }
@@ -168,7 +168,7 @@ struct TaskListViewModelTests {
 
         let savedTask = try #require(try taskRepository.task(withID: task.id))
         let savedBlock = try #require(blockRepository.blocks.first)
-        #expect(savedTask.status == .active)
+        #expect(savedTask.status == .open)
         #expect(calendarWriter.deletedEventIdentifiers == ["event-456"])
         #expect(savedBlock.status == .canceled)
         #expect(savedBlock.calendarLinkState == .notWritten)

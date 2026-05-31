@@ -35,7 +35,12 @@ enum ModelContainerFactory {
             ExerciseSessionRecord.self,
             PersonMemoryRecord.self,
             PersonTagRecord.self,
+            CalendarBlockFocusRecord.self,
             CalendarDebriefRecordModel.self,
+            FinanceCategoryRecord.self,
+            FinanceTransactionRecord.self,
+            ViceRecord.self,
+            ViceLogRecord.self,
         ])
         let configuration = ModelConfiguration(
             isStoredInMemoryOnly: isStoredInMemoryOnly

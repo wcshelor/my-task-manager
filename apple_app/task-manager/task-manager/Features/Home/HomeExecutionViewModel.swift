@@ -206,6 +206,19 @@ nonisolated struct HomeDebriefSummary: Equatable, Sendable {
     }
 }
 
+nonisolated struct HomeFinanceSummary: Equatable, Sendable {
+    let monthlyBalance: Decimal
+    let transactionCount: Int
+
+    var detail: String {
+        if transactionCount == 0 {
+            return "No transactions this month"
+        }
+
+        return FinanceFormatting.signedCurrencyString(from: monthlyBalance)
+    }
+}
+
 @MainActor
 final class HomeExecutionViewModel: ObservableObject {
     @Published private(set) var activePromises: [Promise] = []
@@ -231,8 +244,15 @@ final class HomeExecutionViewModel: ObservableObject {
         people: [],
         now: Date()
     )
+    @Published private(set) var vicesSummary = HomeVicesSummary(
+        vices: [],
+        logs: [],
+        now: Date(),
+        calendar: .current
+    )
     @Published private(set) var pendingDebriefCandidates: [CalendarDebriefCandidate] = []
     @Published private(set) var debriefCompletedTodayCount = 0
+    @Published private(set) var financeSummary = HomeFinanceSummary(monthlyBalance: 0, transactionCount: 0)
     @Published private(set) var tasks: [MyTask] = []
     @Published private(set) var captures: [CaptureItem] = []
     @Published private(set) var projects: [Project] = []
@@ -252,7 +272,10 @@ final class HomeExecutionViewModel: ObservableObject {
     private let musicPracticeRepository: (any MusicPracticeRepository)?
     private let fitnessRepository: (any FitnessRepository)?
     private let peopleMemoryRepository: (any PeopleMemoryRepository)?
+    private let viceRepository: (any ViceRepository)?
+    private let calendarBlockFocusRepository: (any CalendarBlockFocusRepository)?
     private let debriefRepository: (any DebriefRepository)?
+    private let financeRepository: (any FinanceRepository)?
     private let calendarPermissionProvider: (any CalendarPermissionProviding)?
     private let calendarReader: (any CalendarReading)?
     private let calendar: Calendar
@@ -271,7 +294,10 @@ final class HomeExecutionViewModel: ObservableObject {
         musicPracticeRepository: (any MusicPracticeRepository)? = nil,
         fitnessRepository: (any FitnessRepository)? = nil,
         peopleMemoryRepository: (any PeopleMemoryRepository)? = nil,
+        viceRepository: (any ViceRepository)? = nil,
+        calendarBlockFocusRepository: (any CalendarBlockFocusRepository)? = nil,
         debriefRepository: (any DebriefRepository)? = nil,
+        financeRepository: (any FinanceRepository)? = nil,
         calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
         calendarReader: (any CalendarReading)? = nil,
         calendar: Calendar = .current,
@@ -288,7 +314,10 @@ final class HomeExecutionViewModel: ObservableObject {
         self.musicPracticeRepository = musicPracticeRepository
         self.fitnessRepository = fitnessRepository
         self.peopleMemoryRepository = peopleMemoryRepository
+        self.viceRepository = viceRepository
+        self.calendarBlockFocusRepository = calendarBlockFocusRepository
         self.debriefRepository = debriefRepository
+        self.financeRepository = financeRepository
         self.calendarPermissionProvider = calendarPermissionProvider
         self.calendarReader = calendarReader
         self.calendar = calendar
@@ -311,7 +340,7 @@ final class HomeExecutionViewModel: ObservableObject {
 
     var activeTaskCount: Int {
         tasks.filter { task in
-            task.status != .completed && task.status != .archived
+            task.status != .done && task.status != .archived
         }.count
     }
 
@@ -435,6 +464,18 @@ final class HomeExecutionViewModel: ObservableObject {
                 people: try peopleMemoryRepository?.fetchPeople() ?? [],
                 now: now
             )
+            vicesSummary = HomeVicesSummary(
+                vices: try viceRepository?.fetchVices(includeArchived: false) ?? [],
+                logs: try viceRepository?.fetchViceLogs() ?? [],
+                now: now,
+                calendar: calendar
+            )
+            let monthInterval = FinanceSummaryService.monthInterval(containing: now, calendar: calendar)
+            let monthTransactions = try financeRepository?.fetchTransactions(in: monthInterval) ?? []
+            financeSummary = HomeFinanceSummary(
+                monthlyBalance: FinanceSummaryService.monthlyBalance(for: monthTransactions),
+                transactionCount: monthTransactions.count
+            )
             tasks = try taskRepository.fetchTasks()
             captures = try captureRepository?.fetchCaptures(
                 includeProcessed: false,
@@ -540,15 +581,96 @@ final class HomeExecutionViewModel: ObservableObject {
                 in: DateInterval(start: queueStart, end: now)
             )
             let debriefs = try debriefRepository.fetchDebriefs()
-            pendingDebriefCandidates = DebriefQueueService(settings: settings).pendingCandidates(
+            let candidates = DebriefQueueService(settings: settings).pendingCandidates(
                 from: events,
                 existingDebriefs: debriefs,
                 now: now
+            )
+            let focuses: [CalendarBlockFocus]
+            if let calendarBlockFocusRepository {
+                focuses = try calendarBlockFocusRepository.fetchFocuses(
+                    in: DateInterval(start: queueStart, end: now)
+                )
+            } else {
+                focuses = []
+            }
+            pendingDebriefCandidates = enrichDebriefCandidates(
+                candidates,
+                projects: projects,
+                focuses: focuses
             )
         } catch {
             pendingDebriefCandidates = []
             errorMessage = "Unable to load Today: \(error.localizedDescription)"
         }
+    }
+
+    private func enrichDebriefCandidates(
+        _ candidates: [CalendarDebriefCandidate],
+        projects: [Project],
+        focuses: [CalendarBlockFocus]
+    ) -> [CalendarDebriefCandidate] {
+        let projectLookup = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+        let focusLookup = Dictionary(
+            uniqueKeysWithValues: focuses.map { focus in
+                (
+                    Self.focusLookupKey(
+                        eventIdentifier: focus.eventIdentifier,
+                        calendarIdentifier: focus.calendarIdentifier
+                    ),
+                    focus
+                )
+            }
+        )
+        let matcher = CalendarProjectMatcher()
+
+        return candidates.map { candidate in
+            var enrichedCandidate = candidate
+            let focus = candidateFocus(for: candidate, focusLookup: focusLookup)
+
+            if let focus, let projectID = focus.linkedProjectID {
+                enrichedCandidate.linkedProjectID = projectID
+                enrichedCandidate.linkedProjectName = projectLookup[projectID]?.name
+                enrichedCandidate.selectedTaskCount = focus.selectedTaskCount
+                return enrichedCandidate
+            }
+
+            let matchResult = matcher.match(eventTitle: candidate.title, projects: projects)
+            guard let matchedProjectID = matchResult.matchedProjectID else {
+                return enrichedCandidate
+            }
+
+            enrichedCandidate.linkedProjectID = matchedProjectID
+            enrichedCandidate.linkedProjectName = projectLookup[matchedProjectID]?.name
+            enrichedCandidate.selectedTaskCount = focus?.selectedTaskCount ?? 0
+            return enrichedCandidate
+        }
+    }
+
+    private func candidateFocus(
+        for candidate: CalendarDebriefCandidate,
+        focusLookup: [String: CalendarBlockFocus]
+    ) -> CalendarBlockFocus? {
+        guard
+            let eventIdentifier = candidate.eventIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            eventIdentifier.isEmpty == false,
+            let calendarIdentifier = candidate.calendarIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            calendarIdentifier.isEmpty == false
+        else {
+            return nil
+        }
+
+        return focusLookup[Self.focusLookupKey(
+            eventIdentifier: eventIdentifier,
+            calendarIdentifier: calendarIdentifier
+        )]
+    }
+
+    private static func focusLookupKey(
+        eventIdentifier: String,
+        calendarIdentifier: String
+    ) -> String {
+        "\(eventIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))|\(calendarIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 
     func savePromise(_ promise: Promise, replacingPromiseWithID originalID: UUID? = nil) {
@@ -647,7 +769,7 @@ final class HomeExecutionViewModel: ObservableObject {
             return
         }
 
-        setRoutineItem(routineID: routineID, itemID: item.id, state: .completed)
+        setRoutineItem(routineID: routineID, itemID: item.id, state: .done)
     }
 
     func reportError(_ message: String) {

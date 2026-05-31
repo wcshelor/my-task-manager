@@ -6,7 +6,9 @@ import Testing
 struct SwiftDataDebriefRepositoryTests {
     @Test @MainActor func debriefRepositoryRoundTripsSavedDebrief() throws {
         let repository = try makeRepository()
+        let debriefID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174010")!
         let debrief = CalendarDebriefRecord(
+            id: debriefID,
             eventKey: "event-key-1",
             eventIdentifier: "event-1",
             calendarIdentifier: "work-cal",
@@ -20,7 +22,18 @@ struct SwiftDataDebriefRepositoryTests {
             createdCaptureIDs: [UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!],
             meetingOutcomes: "Milestones assigned",
             meetingFollowUps: "Send notes",
-            meetingUsefulnessRating: 4
+            meetingUsefulnessRating: 4,
+            taskOutcomes: [
+                DebriefTaskOutcome(
+                    debriefID: debriefID,
+                    taskID: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174001")!,
+                    taskTitleSnapshot: "Finish outline",
+                    outcome: .completed,
+                    note: "Wrapped up the draft",
+                    didUpdateTaskStatus: true,
+                    createdAt: Date(timeIntervalSince1970: 3_000)
+                )
+            ]
         )
 
         try repository.saveDebrief(debrief, replacingDebriefWithID: nil)

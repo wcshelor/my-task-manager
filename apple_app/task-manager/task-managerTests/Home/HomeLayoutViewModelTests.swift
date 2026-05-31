@@ -32,6 +32,28 @@ struct HomeLayoutViewModelTests {
         #expect(repository.layout.widgets.map(\.kind) == [.tasksModule])
     }
 
+    @Test func viewModelAddsFinanceModuleWidget() throws {
+        let repository = InMemoryHomeLayoutRepository(layout: HomeLayout(widgets: []))
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        let descriptor = viewModel.registry.moduleWidget(for: .finance)!
+        viewModel.load()
+
+        viewModel.addWidget(from: descriptor)
+
+        #expect(viewModel.widgets.map(\.kind) == [.budgetModule])
+    }
+
+    @Test func viewModelAddsVicesModuleWidget() throws {
+        let repository = InMemoryHomeLayoutRepository(layout: HomeLayout(widgets: []))
+        let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)
+        let descriptor = viewModel.registry.moduleWidget(for: .vices)!
+        viewModel.load()
+
+        viewModel.addWidget(from: descriptor)
+
+        #expect(viewModel.widgets.map(\.kind) == [.vicesModule])
+    }
+
     @Test func viewModelAddsFeatureWidget() throws {
         let repository = InMemoryHomeLayoutRepository(layout: HomeLayout(widgets: []))
         let viewModel = HomeLayoutViewModel(homeLayoutRepository: repository)

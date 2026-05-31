@@ -6,7 +6,7 @@ final class TaskRecord {
     var id: UUID = UUID()
     var title: String = ""
     var notes: String?
-    var statusRawValue: String = TaskStatus.active.rawValue
+    var statusRawValue: String = TaskStatus.open.rawValue
     var estimatedMinutes: Int?
     var dueDate: Date?
     var priorityRawValue: String?
@@ -42,7 +42,7 @@ final class TaskRecord {
             id: id,
             title: title,
             notes: notes,
-            status: TaskStatus(rawValue: statusRawValue) ?? .active,
+            status: Self.decodeStatus(from: statusRawValue),
             estimatedMinutes: estimatedMinutes,
             dueDate: dueDate,
             priority: priorityRawValue.flatMap(PriorityLevel.init(rawValue:)),
@@ -77,6 +77,21 @@ final class TaskRecord {
 
     private static func encodeTags(_ tags: [String]) -> String {
         tags.joined(separator: ",")
+    }
+
+    private static func decodeStatus(from rawValue: String) -> TaskStatus {
+        if let status = TaskStatus(rawValue: rawValue) {
+            return status
+        }
+
+        switch rawValue {
+        case "inbox", "active":
+            return .open
+        case "completed":
+            return .done
+        default:
+            return .open
+        }
     }
 }
 

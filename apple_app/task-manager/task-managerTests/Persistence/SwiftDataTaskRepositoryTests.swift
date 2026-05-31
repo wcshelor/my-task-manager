@@ -104,7 +104,7 @@ struct SwiftDataTaskRepositoryTests {
         let updatedTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174099")!,
             title: "Updated",
-            status: .completed,
+            status: .done,
             createdAt: originalTask.createdAt,
             updatedAt: Date(timeIntervalSince1970: 9_999)
         )

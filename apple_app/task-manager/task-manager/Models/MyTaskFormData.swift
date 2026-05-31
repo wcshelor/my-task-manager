@@ -23,7 +23,7 @@ struct MyTaskFormData {
         idText: String = UUID().uuidString,
         title: String = "",
         notesText: String = "",
-        status: TaskStatus = .inbox,
+        status: TaskStatus = .open,
         estimatedMinutesText: String = "",
         hasDueDate: Bool = false,
         dueDate: Date = .now,
@@ -53,7 +53,7 @@ struct MyTaskFormData {
         self.createdAt = createdAt
         self.completedAt = completedAt
         self.preferredIncompleteStatus = preferredIncompleteStatus ?? (
-            status == .completed ? .active : status
+            status == .done ? .open : status
         )
     }
 
@@ -74,7 +74,7 @@ struct MyTaskFormData {
             tagsText: task.tags.joined(separator: ", "),
             createdAt: task.createdAt,
             completedAt: task.completedAt,
-            preferredIncompleteStatus: task.status == .completed ? .active : task.status
+            preferredIncompleteStatus: task.status == .done ? .open : task.status
         )
     }
 
@@ -116,10 +116,10 @@ struct MyTaskFormData {
 
     var isCompleted: Bool {
         get {
-            status == .completed
+            status == .done
         }
         set {
-            status = newValue ? .completed : preferredIncompleteStatus
+            status = newValue ? .done : preferredIncompleteStatus
 
             if !newValue {
                 completedAt = nil
@@ -184,7 +184,7 @@ struct MyTaskFormData {
             tags: MyTask.cleanedTags(from: tagsText),
             createdAt: finalCreatedAt,
             updatedAt: savedAt,
-            completedAt: status == .completed ? (completedAt ?? savedAt) : nil
+            completedAt: status == .done ? (completedAt ?? savedAt) : nil
         )
     }
 

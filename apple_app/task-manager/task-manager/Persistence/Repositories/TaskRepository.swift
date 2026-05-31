@@ -34,3 +34,28 @@ protocol ProjectItemRepository {
     func archiveProjectItem(withID id: UUID, archivedAt: Date) throws
     func deleteProjectItem(withID id: UUID) throws
 }
+
+@MainActor
+protocol CalendarBlockFocusRepository {
+    func fetchFocus(forEventIdentifier eventIdentifier: String, calendarIdentifier: String) throws -> CalendarBlockFocus?
+    func fetchFocuses(in dateRange: DateInterval) throws -> [CalendarBlockFocus]
+    func fetchFocuses(linkedTo projectID: UUID) throws -> [CalendarBlockFocus]
+    func saveFocus(_ focus: CalendarBlockFocus, replacingFocusWithID originalID: UUID?) throws
+    func setLinkedProject(
+        _ projectID: UUID?,
+        for event: CalendarEventSnapshot,
+        isUserConfirmed: Bool
+    ) throws
+    func setSelectedTaskIDs(
+        _ taskIDs: [UUID],
+        for event: CalendarEventSnapshot
+    ) throws
+    func updateIntentionNote(
+        _ note: String?,
+        for event: CalendarEventSnapshot
+    ) throws
+    func markNoFocusNeeded(
+        for event: CalendarEventSnapshot,
+        isNoFocusNeeded: Bool
+    ) throws
+}

@@ -17,7 +17,10 @@ struct AppContainer {
     let musicPracticeRepository: any MusicPracticeRepository
     let fitnessRepository: any FitnessRepository
     let peopleMemoryRepository: any PeopleMemoryRepository
+    let viceRepository: any ViceRepository
+    let calendarBlockFocusRepository: any CalendarBlockFocusRepository
     let debriefRepository: any DebriefRepository
+    let financeRepository: any FinanceRepository
     let calendarPermissionProvider: any CalendarPermissionProviding
     let calendarListingService: any CalendarListing
     let calendarReader: any CalendarReading
@@ -47,7 +50,12 @@ struct AppContainer {
         let musicPracticeRepository = SwiftDataMusicPracticeRepository(modelContainer: modelContainer)
         let fitnessRepository = SwiftDataFitnessRepository(modelContainer: modelContainer)
         let peopleMemoryRepository = SwiftDataPeopleMemoryRepository(modelContainer: modelContainer)
+        let viceRepository = SwiftDataViceRepository(modelContainer: modelContainer)
+        let calendarBlockFocusRepository = SwiftDataCalendarBlockFocusRepository(
+            modelContainer: modelContainer
+        )
         let debriefRepository = SwiftDataDebriefRepository(modelContainer: modelContainer)
+        let financeRepository = SwiftDataFinanceRepository(modelContainer: modelContainer)
         let calendarEventStore = EventKitCalendarEventStore()
         let calendarPermissionProvider = EventKitCalendarPermissionService(
             eventStore: calendarEventStore
@@ -73,6 +81,7 @@ struct AppContainer {
 
         _ = try settingsRepository.loadSettings()
         _ = try homeLayoutRepository.loadLayout()
+        try financeRepository.seedDefaultCategoriesIfNeeded()
 
         #if DEBUG
         try seedDevelopmentTasksIfNeeded(taskRepository: taskRepository)
@@ -94,7 +103,10 @@ struct AppContainer {
             musicPracticeRepository: musicPracticeRepository,
             fitnessRepository: fitnessRepository,
             peopleMemoryRepository: peopleMemoryRepository,
+            viceRepository: viceRepository,
+            calendarBlockFocusRepository: calendarBlockFocusRepository,
             debriefRepository: debriefRepository,
+            financeRepository: financeRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,
@@ -148,7 +160,12 @@ struct AppContainer {
         let musicPracticeRepository = SwiftDataMusicPracticeRepository(modelContainer: modelContainer)
         let fitnessRepository = SwiftDataFitnessRepository(modelContainer: modelContainer)
         let peopleMemoryRepository = SwiftDataPeopleMemoryRepository(modelContainer: modelContainer)
+        let viceRepository = SwiftDataViceRepository(modelContainer: modelContainer)
+        let calendarBlockFocusRepository = SwiftDataCalendarBlockFocusRepository(
+            modelContainer: modelContainer
+        )
         let debriefRepository = SwiftDataDebriefRepository(modelContainer: modelContainer)
+        let financeRepository = SwiftDataFinanceRepository(modelContainer: modelContainer)
         let calendarPermissionProvider = StubCalendarPermissionService()
         let calendarListingService = StubCalendarListingService()
         let calendarReader = StubCalendarReader()
@@ -158,6 +175,7 @@ struct AppContainer {
 
         _ = try? settingsRepository.loadSettings()
         _ = try? homeLayoutRepository.loadLayout()
+        try? financeRepository.seedDefaultCategoriesIfNeeded()
 
         for task in seedTasks {
             try? taskRepository.saveTask(task, replacingTaskWithID: nil)
@@ -190,7 +208,10 @@ struct AppContainer {
             musicPracticeRepository: musicPracticeRepository,
             fitnessRepository: fitnessRepository,
             peopleMemoryRepository: peopleMemoryRepository,
+            viceRepository: viceRepository,
+            calendarBlockFocusRepository: calendarBlockFocusRepository,
             debriefRepository: debriefRepository,
+            financeRepository: financeRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,

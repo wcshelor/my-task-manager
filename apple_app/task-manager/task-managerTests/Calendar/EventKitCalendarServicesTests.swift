@@ -460,7 +460,7 @@ struct EventKitCalendarServicesTests {
         #expect(report.deletedBlockCount == 1)
         #expect(savedBlock.status == .deletedExternally)
         #expect(savedBlock.calendarLinkState == .deletedExternally)
-        #expect(savedTask.status == .active)
+        #expect(savedTask.status == .open)
     }
 }
 

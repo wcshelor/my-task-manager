@@ -8,7 +8,7 @@ struct TaskFormView: View {
         var title: String {
             switch self {
             case .create:
-                return "New Task"
+                return ""
             case .edit:
                 return "Task Details"
             }
@@ -44,6 +44,7 @@ struct TaskFormView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @FocusState private var isTitleFieldFocused: Bool
     @State private var formData: MyTaskFormData
     @State private var isShowingDeleteConfirmation = false
 
@@ -89,7 +90,8 @@ struct TaskFormView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
-                        TextField("Task title", text: $formData.title)
+                        TextField("New Task", text: $formData.title)
+                            .focused($isTitleFieldFocused)
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -224,6 +226,11 @@ struct TaskFormView: View {
         .padding(isCompactWidth ? 16 : 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle(mode.title)
+        .onAppear {
+            if case .create = mode {
+                isTitleFieldFocused = true
+            }
+        }
         .alert("Delete Task?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 deleteTask()

@@ -96,9 +96,9 @@ struct TaskListPresentationTests {
 
     @Test func groupingByStatusCreatesExpectedSections() {
         let tasks = [
-            makeTask(id: 1, title: "Inbox item", status: .inbox),
-            makeTask(id: 2, title: "Done item", status: .completed),
-            makeTask(id: 3, title: "Active item", status: .active),
+            makeTask(id: 1, title: "Inbox item", status: .open),
+            makeTask(id: 2, title: "Done item", status: .done),
+            makeTask(id: 3, title: "Active item", status: .open),
         ]
 
         let sections = TaskListOrganizer.groupedSections(
@@ -109,7 +109,7 @@ struct TaskListPresentationTests {
             calendar: calendar
         )
 
-        #expect(sections.map(\.title) == ["Inbox", "Active", "Completed"])
+        #expect(sections.map(\.title) == ["Open", "Done"])
     }
 
     @Test func groupingByPriorityCreatesExpectedSections() {
@@ -153,9 +153,9 @@ struct TaskListPresentationTests {
 
     @Test func groupedSectionsStillSortTasksWithinEachSection() {
         let tasks = [
-            makeTask(id: 1, title: "Second active", status: .active, dueDate: date(daysFromReference: 4)),
-            makeTask(id: 2, title: "First active", status: .active, dueDate: date(daysFromReference: 1)),
-            makeTask(id: 3, title: "No date active", status: .active, dueDate: nil),
+            makeTask(id: 1, title: "Second active", status: .open, dueDate: date(daysFromReference: 4)),
+            makeTask(id: 2, title: "First active", status: .open, dueDate: date(daysFromReference: 1)),
+            makeTask(id: 3, title: "No date active", status: .open, dueDate: nil),
             makeTask(id: 4, title: "Scheduled first", status: .scheduled, dueDate: date(daysFromReference: 2)),
             makeTask(id: 5, title: "Scheduled later", status: .scheduled, dueDate: date(daysFromReference: 6)),
         ]
@@ -168,7 +168,7 @@ struct TaskListPresentationTests {
             calendar: calendar
         )
 
-        #expect(sections.map(\.title) == ["Active", "Scheduled"])
+        #expect(sections.map(\.title) == ["Open", "Scheduled"])
         #expect(sections[0].tasks.map(\.title) == ["First active", "Second active", "No date active"])
         #expect(sections[1].tasks.map(\.title) == ["Scheduled first", "Scheduled later"])
     }
@@ -195,7 +195,7 @@ struct TaskListPresentationTests {
         id: Int,
         title: String,
         notes: String? = nil,
-        status: TaskStatus = .active,
+        status: TaskStatus = .open,
         estimatedMinutes: Int? = nil,
         dueDate: Date? = nil,
         priority: PriorityLevel? = nil,

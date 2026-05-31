@@ -33,7 +33,7 @@ struct MyTaskCollectionTests {
         let updatedTask = MyTask(
             id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174099")!,
             title: "Updated task",
-            status: .completed,
+            status: .done,
             createdAt: Date(timeIntervalSince1970: 9_999),
             updatedAt: Date(timeIntervalSince1970: 10_000)
         )
@@ -90,7 +90,7 @@ struct MyTaskCollectionTests {
         #expect(tasks.last?.energyLevel == .medium)
         #expect(tasks.last?.workMode == .deepWork)
         #expect(tasks.last?.tags == ["work", "planning"])
-        #expect(tasks.last?.status == .inbox)
+        #expect(tasks.last?.status == .open)
         #expect(tasks.last?.createdAt == savedAt)
         #expect(tasks.last?.updatedAt == savedAt)
     }

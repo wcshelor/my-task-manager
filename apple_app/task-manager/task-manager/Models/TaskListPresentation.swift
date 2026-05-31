@@ -394,10 +394,9 @@ enum TaskListOrganizer {
 
 private extension TaskStatus {
     static let sectionOrder: [TaskStatus] = [
-        .inbox,
-        .active,
+        .open,
         .scheduled,
-        .completed,
+        .done,
         .archived,
     ]
 

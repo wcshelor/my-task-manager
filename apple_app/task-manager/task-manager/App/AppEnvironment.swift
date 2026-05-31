@@ -59,8 +59,20 @@ final class AppEnvironment {
         container.peopleMemoryRepository
     }
 
+    var viceRepository: any ViceRepository {
+        container.viceRepository
+    }
+
+    var calendarBlockFocusRepository: any CalendarBlockFocusRepository {
+        container.calendarBlockFocusRepository
+    }
+
     var debriefRepository: any DebriefRepository {
         container.debriefRepository
+    }
+
+    var financeRepository: any FinanceRepository {
+        container.financeRepository
     }
 
     var calendarPermissionProvider: any CalendarPermissionProviding {

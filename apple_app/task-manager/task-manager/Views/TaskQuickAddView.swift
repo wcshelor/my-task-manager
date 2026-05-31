@@ -50,7 +50,7 @@ struct TaskQuickAddView: View {
                         .font(.headline)
 
                     labeledField("Title") {
-                        TextField("What needs to happen?", text: $formData.title)
+                        TextField("New Task", text: $formData.title)
                             .textFieldStyle(.roundedBorder)
                             .font(.title3.weight(.semibold))
                             .focused($focusedField, equals: .title)

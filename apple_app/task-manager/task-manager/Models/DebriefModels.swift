@@ -202,6 +202,7 @@ nonisolated struct CalendarDebriefRecord: Identifiable, Equatable, Sendable {
     var socialPromised: String?
     var socialDifferentNextTime: String?
     var socialNourishment: SocialDebriefNourishment?
+    var taskOutcomes: [DebriefTaskOutcome]
 
     init(
         id: UUID = UUID(),
@@ -245,7 +246,8 @@ nonisolated struct CalendarDebriefRecord: Identifiable, Equatable, Sendable {
         socialLearnedAboutSomeone: String? = nil,
         socialPromised: String? = nil,
         socialDifferentNextTime: String? = nil,
-        socialNourishment: SocialDebriefNourishment? = nil
+        socialNourishment: SocialDebriefNourishment? = nil,
+        taskOutcomes: [DebriefTaskOutcome] = []
     ) {
         self.id = id
         self.eventKey = eventKey
@@ -292,6 +294,19 @@ nonisolated struct CalendarDebriefRecord: Identifiable, Equatable, Sendable {
         self.socialPromised = MyTask.cleanedOptionalText(from: socialPromised)
         self.socialDifferentNextTime = MyTask.cleanedOptionalText(from: socialDifferentNextTime)
         self.socialNourishment = socialNourishment
+        self.taskOutcomes = taskOutcomes.map { outcome in
+            DebriefTaskOutcome(
+                id: outcome.id,
+                debriefID: outcome.debriefID,
+                taskID: outcome.taskID,
+                taskTitleSnapshot: outcome.taskTitleSnapshot,
+                outcome: outcome.outcome,
+                note: outcome.note,
+                didUpdateTaskStatus: outcome.didUpdateTaskStatus,
+                createdAt: outcome.createdAt,
+                updatedAt: outcome.updatedAt
+            )
+        }
     }
 
     var completed: Bool {
@@ -373,6 +388,9 @@ nonisolated struct CalendarDebriefCandidate: Identifiable, Equatable, Hashable, 
     let end: Date
     let suggestedTemplate: DebriefTemplateKind
     let existingRecordID: UUID?
+    var linkedProjectID: UUID? = nil
+    var linkedProjectName: String? = nil
+    var selectedTaskCount: Int = 0
 
     var id: String {
         eventKey
@@ -490,18 +508,18 @@ nonisolated struct DebriefQueueService {
                     calendarTitle: event.calendarTitle
                 )
 
-                return CalendarDebriefCandidate(
-                    eventKey: eventKey,
-                    eventIdentifier: event.identifier,
-                    calendarIdentifier: event.calendarIdentifier,
-                    calendarTitle: event.calendarTitle,
-                    title: event.title,
-                    start: event.start,
-                    end: event.end,
-                    suggestedTemplate: CalendarDebriefRecord.suggestedTemplate(for: event.title),
-                    existingRecordID: pendingRecordByEventKey[eventKey]
-                )
-            }
+            return CalendarDebriefCandidate(
+                eventKey: eventKey,
+                eventIdentifier: event.identifier,
+                calendarIdentifier: event.calendarIdentifier,
+                calendarTitle: event.calendarTitle,
+                title: event.title,
+                start: event.start,
+                end: event.end,
+                suggestedTemplate: CalendarDebriefRecord.suggestedTemplate(for: event.title),
+                existingRecordID: pendingRecordByEventKey[eventKey]
+            )
+        }
             .filter { candidate in
                 resolvedEventKeys.contains(candidate.eventKey) == false
             }

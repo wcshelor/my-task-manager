@@ -49,7 +49,9 @@ private struct TaskManagerTabShell: View {
                 musicPracticeRepository: appEnvironment.musicPracticeRepository,
                 fitnessRepository: appEnvironment.fitnessRepository,
                 peopleMemoryRepository: appEnvironment.peopleMemoryRepository,
-                debriefRepository: appEnvironment.debriefRepository
+                viceRepository: appEnvironment.viceRepository,
+                debriefRepository: appEnvironment.debriefRepository,
+                financeRepository: appEnvironment.financeRepository
             )
                 .tabItem {
                     Label("Home", systemImage: "square.grid.2x2.fill")
@@ -70,7 +72,11 @@ private struct TaskManagerTabShell: View {
                 taskRepository: appEnvironment.taskRepository,
                 projectRepository: appEnvironment.projectRepository,
                 captureRepository: appEnvironment.captureRepository,
-                projectItemRepository: appEnvironment.projectItemRepository
+                projectItemRepository: appEnvironment.projectItemRepository,
+                calendarPermissionProvider: appEnvironment.calendarPermissionProvider,
+                calendarReader: appEnvironment.calendarReader,
+                calendarBlockFocusRepository: appEnvironment.calendarBlockFocusRepository,
+                debriefRepository: appEnvironment.debriefRepository
             )
                 .tabItem {
                     Label("Projects", systemImage: "folder.fill")

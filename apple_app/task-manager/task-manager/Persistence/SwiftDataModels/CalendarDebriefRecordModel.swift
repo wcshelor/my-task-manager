@@ -48,6 +48,7 @@ final class CalendarDebriefRecordModel {
     var socialPromised: String?
     var socialDifferentNextTime: String?
     var socialNourishmentRawValue: String?
+    var taskOutcomesData: Data = Data()
 
     init(debrief: CalendarDebriefRecord) {
         update(from: debrief)
@@ -96,7 +97,8 @@ final class CalendarDebriefRecordModel {
             socialLearnedAboutSomeone: socialLearnedAboutSomeone,
             socialPromised: socialPromised,
             socialDifferentNextTime: socialDifferentNextTime,
-            socialNourishment: socialNourishmentRawValue.flatMap(SocialDebriefNourishment.init(rawValue:))
+            socialNourishment: socialNourishmentRawValue.flatMap(SocialDebriefNourishment.init(rawValue:)),
+            taskOutcomes: decodedTaskOutcomes
         )
     }
 
@@ -146,6 +148,7 @@ final class CalendarDebriefRecordModel {
         socialPromised = debrief.socialPromised
         socialDifferentNextTime = debrief.socialDifferentNextTime
         socialNourishmentRawValue = debrief.socialNourishment?.rawValue
+        taskOutcomesData = (try? JSONEncoder().encode(debrief.taskOutcomes)) ?? Data()
     }
 
     private var decodedCaptureIDs: [UUID] {
@@ -156,5 +159,9 @@ final class CalendarDebriefRecordModel {
         workBlockersRawValueText
             .split(separator: "\n")
             .compactMap { WorkBlockBlocker(rawValue: String($0)) }
+    }
+
+    private var decodedTaskOutcomes: [DebriefTaskOutcome] {
+        (try? JSONDecoder().decode([DebriefTaskOutcome].self, from: taskOutcomesData)) ?? []
     }
 }

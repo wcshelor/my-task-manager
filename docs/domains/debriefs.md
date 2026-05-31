@@ -13,6 +13,8 @@ Debriefs exist to help the user:
 
 User-facing language is **Debrief**.
 
+Block Focus is the separate intention layer that may exist before a Debrief. A Block Focus can link a calendar event to a project, suggest tasks, and store the user's intended focus for the block. Debriefs stay distinct from Block Focus: Debrief captures what actually happened after the event.
+
 ## Calendar Relationship
 
 Debriefs are primarily driven by external EventKit calendar events.
@@ -20,12 +22,15 @@ Debriefs are primarily driven by external EventKit calendar events.
 - EventKit is used to read ended events that may need a Debrief.
 - Debriefs do not write events back to Apple Calendar.
 - Debriefs are app-owned SwiftData records.
+- If a matching Block Focus exists, Debriefs can read its linked project, selected tasks, and intention note for prefilling or task-outcome capture.
 
 This keeps calendar integration read-oriented while preserving app-owned reflection data.
 
 ## Core Loop
 
 Calendar event -> lived experience -> Debrief -> captures/notes/follow-ups -> trend-ready data.
+
+For project-linked Work Blocks the loop now also includes selected tasks and task outcomes, so a single Debrief can record what moved, what got blocked, and what should be marked complete.
 
 ## Home Relationship
 
@@ -51,6 +56,8 @@ Capture behavior:
 
 Debrief records store created capture IDs so follow-through can be traced later.
 
+When a Work Block has a Block Focus with selected tasks, Debrief can show small task outcome cards for each selected task. Outcomes are stored in SwiftData so future project history can show completion, partial progress, blockers, and untouched tasks.
+
 ## Templates In MVP
 
 ### Work Block
@@ -62,6 +69,13 @@ Essential questions:
 - What happened?
 
 Optional detail includes blockers, block length fit, energy/focus ratings, and next step.
+
+Work Block Debriefs can also include:
+
+- linked project context from Block Focus
+- selected tasks from the block
+- per-task outcomes such as completed, partly done, still open, blocked, or not touched
+- an optional "mark task complete" action when the task was completed during the block
 
 ### Meeting
 
@@ -102,6 +116,7 @@ The model captures structured fields so future trends are possible without rebui
 Examples:
 
 - Work Block follow-through and blocker patterns
+- task completion, partial progress, and blocker patterns by project
 - Meeting usefulness and follow-up quality
 - Social mood/follow-up patterns
 

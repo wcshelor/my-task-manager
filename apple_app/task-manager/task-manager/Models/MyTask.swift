@@ -1,22 +1,19 @@
 import Foundation
 
 nonisolated enum TaskStatus: String, CaseIterable, Codable, Sendable {
-    case inbox
-    case active
+    case open
     case scheduled
-    case completed
+    case done
     case archived
 
     var displayName: String {
         switch self {
-        case .inbox:
-            return "Inbox"
-        case .active:
-            return "Active"
+        case .open:
+            return "Open"
         case .scheduled:
             return "Scheduled"
-        case .completed:
-            return "Completed"
+        case .done:
+            return "Done"
         case .archived:
             return "Archived"
         }
@@ -139,11 +136,11 @@ nonisolated struct ProjectTaskSummary: Equatable, Sendable {
     }
 
     var completedActiveTaskCount: Int {
-        activeTasks.filter { $0.status == .completed }.count
+        activeTasks.filter { $0.status == .done }.count
     }
 
     var incompleteActiveTaskCount: Int {
-        activeTasks.filter { $0.status != .completed }.count
+        activeTasks.filter { $0.status != .done }.count
     }
 
     var progressFraction: Double {
@@ -179,7 +176,7 @@ nonisolated struct ProjectTaskSummary: Equatable, Sendable {
     static func sortedNextActions(from tasks: [MyTask]) -> [MyTask] {
         tasks
             .filter { task in
-                task.status != .completed && task.status != .archived
+                task.status != .done && task.status != .archived
             }
             .sorted(by: isHigherRankedNextAction)
     }
@@ -439,14 +436,14 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
     var completedAt: Date?
 
     var isDone: Bool {
-        status == .completed
+        status == .done
     }
 
     init(
         id: UUID = UUID(),
         title: String,
         notes: String? = nil,
-        status: TaskStatus = .inbox,
+        status: TaskStatus = .open,
         estimatedMinutes: Int? = nil,
         dueDate: Date? = nil,
         priority: PriorityLevel? = nil,
@@ -475,7 +472,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         self.tags = Self.cleanedTags(from: tags)
         self.createdAt = createdAt
         self.updatedAt = cleanedUpdatedAt
-        self.completedAt = status == .completed ? (completedAt ?? cleanedUpdatedAt) : nil
+        self.completedAt = status == .done ? (completedAt ?? cleanedUpdatedAt) : nil
     }
 
     init?(newTitle: String) {
@@ -490,7 +487,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         MyTask(
             title: "Draft client launch brief",
             notes: "Clarify milestones, owners, and Friday review questions.",
-            status: .active,
+            status: .open,
             estimatedMinutes: 90,
             dueDate: .now.addingTimeInterval(2 * 86_400),
             priority: .high,
@@ -502,7 +499,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         MyTask(
             title: "Clear finance inbox",
             notes: "File receipts and reply to the accountant.",
-            status: .inbox,
+            status: .open,
             estimatedMinutes: 30,
             priority: .medium,
             energyLevel: .low,
@@ -513,7 +510,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         MyTask(
             title: "Buy groceries for the week",
             notes: "Produce, coffee, lunch staples, and dishwasher tabs.",
-            status: .active,
+            status: .open,
             estimatedMinutes: 45,
             priority: .medium,
             energyLevel: .low,
@@ -524,7 +521,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         MyTask(
             title: "Reply to partner follow-ups",
             notes: "Send short answers and move anything complex to the brief.",
-            status: .completed,
+            status: .done,
             estimatedMinutes: 30,
             priority: .low,
             energyLevel: .medium,
@@ -534,7 +531,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         ),
         MyTask(
             title: "Practice presentation run-through",
-            status: .active,
+            status: .open,
             estimatedMinutes: 60,
             dueDate: .now.addingTimeInterval(5 * 60 * 60),
             priority: .urgent,
@@ -546,7 +543,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         MyTask(
             title: "Sketch onboarding flow ideas",
             notes: "Capture three variants before turning them into tickets.",
-            status: .inbox,
+            status: .open,
             estimatedMinutes: 75,
             priority: .medium,
             energyLevel: .high,
@@ -556,7 +553,7 @@ nonisolated struct MyTask: Identifiable, Equatable, Sendable {
         ),
         MyTask(
             title: "Schedule dentist appointment",
-            status: .inbox,
+            status: .open,
             estimatedMinutes: 15,
             priority: .low,
             energyLevel: .low,

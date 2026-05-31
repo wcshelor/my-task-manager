@@ -969,7 +969,7 @@ final class PlannerViewModel: ObservableObject {
             return
         }
 
-        task.status = .active
+        task.status = .open
         task.updatedAt = date
         try taskRepository.saveTask(task, replacingTaskWithID: task.id)
     }
@@ -1211,9 +1211,9 @@ final class PlannerViewModel: ObservableObject {
     private func morningPlannableTasks() -> [MyTask] {
         tasks.filter { task in
             switch task.status {
-            case .inbox, .active:
+            case .open:
                 return true
-            case .scheduled, .completed, .archived:
+            case .scheduled, .done, .archived:
                 return false
             }
         }

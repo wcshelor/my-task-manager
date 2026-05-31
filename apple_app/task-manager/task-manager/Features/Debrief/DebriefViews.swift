@@ -8,16 +8,25 @@ final class DebriefQueueViewModel: ObservableObject {
 
     private let debriefRepository: any DebriefRepository
     private let captureRepository: any CaptureRepository
+    private let taskRepository: any TaskRepository
+    private let projectRepository: any ProjectRepository
+    private let calendarBlockFocusRepository: any CalendarBlockFocusRepository
     private let calendarPermissionProvider: any CalendarPermissionProviding
     private let calendarReader: any CalendarReading
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
     private let queueSettings: DebriefQueueSettings
     private var cachedDebriefsByEventKey: [String: CalendarDebriefRecord] = [:]
+    private var cachedTasksByID: [UUID: MyTask] = [:]
+    private var cachedProjectsByID: [UUID: Project] = [:]
+    private var cachedFocusesByEventLookupKey: [String: CalendarBlockFocus] = [:]
 
     init(
         debriefRepository: any DebriefRepository,
         captureRepository: any CaptureRepository,
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        calendarBlockFocusRepository: any CalendarBlockFocusRepository,
         calendarPermissionProvider: any CalendarPermissionProviding,
         calendarReader: any CalendarReading,
         calendar: Calendar = .current,
@@ -26,6 +35,9 @@ final class DebriefQueueViewModel: ObservableObject {
     ) {
         self.debriefRepository = debriefRepository
         self.captureRepository = captureRepository
+        self.taskRepository = taskRepository
+        self.projectRepository = projectRepository
+        self.calendarBlockFocusRepository = calendarBlockFocusRepository
         self.calendarPermissionProvider = calendarPermissionProvider
         self.calendarReader = calendarReader
         self.calendar = calendar
@@ -53,8 +65,26 @@ final class DebriefQueueViewModel: ObservableObject {
                 in: DateInterval(start: queueStart, end: now)
             )
             let debriefs = try debriefRepository.fetchDebriefs()
+            let tasks = try taskRepository.fetchTasks()
+            let projects = try projectRepository.fetchProjects(includeArchived: false)
+            let focuses = try calendarBlockFocusRepository.fetchFocuses(
+                in: DateInterval(start: queueStart, end: now)
+            )
             cachedDebriefsByEventKey = Dictionary(
                 uniqueKeysWithValues: debriefs.map { ($0.eventKey, $0) }
+            )
+            cachedTasksByID = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+            cachedProjectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+            cachedFocusesByEventLookupKey = Dictionary(
+                uniqueKeysWithValues: focuses.map { focus in
+                    (
+                        Self.focusLookupKey(
+                            eventIdentifier: focus.eventIdentifier,
+                            calendarIdentifier: focus.calendarIdentifier
+                        ),
+                        focus
+                    )
+                }
             )
             completedTodayCount = debriefs.filter { debrief in
                 guard let completedAt = debrief.completedAt else {
@@ -63,10 +93,12 @@ final class DebriefQueueViewModel: ObservableObject {
 
                 return calendar.isDate(completedAt, inSameDayAs: now)
             }.count
-            pendingCandidates = DebriefQueueService(settings: queueSettings).pendingCandidates(
+            pendingCandidates = enrichCandidates(
+                DebriefQueueService(settings: queueSettings).pendingCandidates(
                 from: events,
                 existingDebriefs: debriefs,
                 now: now
+                )
             )
             errorMessage = nil
         } catch {
@@ -80,7 +112,14 @@ final class DebriefQueueViewModel: ObservableObject {
     }
 
     func draft(for candidate: CalendarDebriefCandidate) -> DebriefDraft {
-        DebriefDraft(candidate: candidate, existingDebrief: cachedDebriefsByEventKey[candidate.eventKey])
+        let focus = focus(for: candidate)
+        let selectedTasks = focus?.selectedTaskIDs.compactMap { cachedTasksByID[$0] } ?? []
+        return DebriefDraft(
+            candidate: candidate,
+            existingDebrief: cachedDebriefsByEventKey[candidate.eventKey],
+            blockFocus: focus,
+            selectedTasks: selectedTasks
+        )
     }
 
     func completeDebrief(
@@ -106,12 +145,27 @@ final class DebriefQueueViewModel: ObservableObject {
         }
 
         let existingDebrief = cachedDebriefsByEventKey[candidate.eventKey]
+        let debriefID = existingDebrief?.id ?? UUID()
+        let taskOutcomes = draft.taskOutcomeDrafts.map { taskOutcomeDraft in
+            DebriefTaskOutcome(
+                debriefID: debriefID,
+                taskID: taskOutcomeDraft.taskID,
+                taskTitleSnapshot: taskOutcomeDraft.taskTitleSnapshot,
+                outcome: taskOutcomeDraft.outcome,
+                note: taskOutcomeDraft.note,
+                didUpdateTaskStatus: taskOutcomeDraft.didUpdateTaskStatus,
+                createdAt: now,
+                updatedAt: now
+            )
+        }
+        applyTaskOutcomeUpdates(taskOutcomes, at: now)
         let completedDebrief = draft.makeDebriefRecord(
             candidate: candidate,
             status: .completed,
             completedAt: now,
             noDebriefNeeded: false,
             captureIDs: captureIDs,
+            taskOutcomes: taskOutcomes,
             preserving: existingDebrief
         )
 
@@ -141,7 +195,8 @@ final class DebriefQueueViewModel: ObservableObject {
             status: .skipped,
             noDebriefNeeded: true,
             essentialNote: existingDebrief?.essentialNote,
-            createdCaptureIDs: existingDebrief?.createdCaptureIDs ?? []
+            createdCaptureIDs: existingDebrief?.createdCaptureIDs ?? [],
+            taskOutcomes: existingDebrief?.taskOutcomes ?? []
         )
 
         try debriefRepository.saveDebrief(
@@ -149,6 +204,70 @@ final class DebriefQueueViewModel: ObservableObject {
             replacingDebriefWithID: existingDebrief?.id
         )
         cachedDebriefsByEventKey[candidate.eventKey] = skippedDebrief
+    }
+
+    private func enrichCandidates(_ candidates: [CalendarDebriefCandidate]) -> [CalendarDebriefCandidate] {
+        let matcher = CalendarProjectMatcher()
+
+        return candidates.map { candidate in
+            var enrichedCandidate = candidate
+            if let focus = focus(for: candidate) {
+                enrichedCandidate.linkedProjectID = focus.linkedProjectID
+                enrichedCandidate.selectedTaskCount = focus.selectedTaskCount
+                if let projectID = focus.linkedProjectID {
+                    enrichedCandidate.linkedProjectName = cachedProjectsByID[projectID]?.name
+                }
+                return enrichedCandidate
+            }
+
+            let matchResult = matcher.match(eventTitle: candidate.title, projects: Array(cachedProjectsByID.values))
+            guard let projectID = matchResult.matchedProjectID else {
+                return enrichedCandidate
+            }
+
+            enrichedCandidate.linkedProjectID = projectID
+            enrichedCandidate.linkedProjectName = cachedProjectsByID[projectID]?.name
+            return enrichedCandidate
+        }
+    }
+
+    private func focus(for candidate: CalendarDebriefCandidate) -> CalendarBlockFocus? {
+        guard
+            let eventIdentifier = candidate.eventIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            eventIdentifier.isEmpty == false,
+            let calendarIdentifier = candidate.calendarIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            calendarIdentifier.isEmpty == false
+        else {
+            return nil
+        }
+
+        return cachedFocusesByEventLookupKey[Self.focusLookupKey(
+            eventIdentifier: eventIdentifier,
+            calendarIdentifier: calendarIdentifier
+        )]
+    }
+
+    private func applyTaskOutcomeUpdates(
+        _ taskOutcomes: [DebriefTaskOutcome],
+        at date: Date
+    ) {
+        for outcome in taskOutcomes where outcome.outcome == .completed && outcome.didUpdateTaskStatus {
+            guard var task = try taskRepository.task(withID: outcome.taskID) else {
+                continue
+            }
+
+            task.status = .done
+            task.completedAt = date
+            task.updatedAt = date
+            try? taskRepository.saveTask(task, replacingTaskWithID: task.id)
+        }
+    }
+
+    private static func focusLookupKey(
+        eventIdentifier: String,
+        calendarIdentifier: String
+    ) -> String {
+        "\(eventIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))|\(calendarIdentifier.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 }
 
@@ -162,6 +281,9 @@ struct DebriefListView: View {
     init(
         debriefRepository: any DebriefRepository,
         captureRepository: any CaptureRepository,
+        taskRepository: any TaskRepository,
+        projectRepository: any ProjectRepository,
+        calendarBlockFocusRepository: any CalendarBlockFocusRepository,
         calendarPermissionProvider: any CalendarPermissionProviding,
         calendarReader: any CalendarReading,
         onChanged: @escaping () -> Void = {}
@@ -170,6 +292,9 @@ struct DebriefListView: View {
             wrappedValue: DebriefQueueViewModel(
                 debriefRepository: debriefRepository,
                 captureRepository: captureRepository,
+                taskRepository: taskRepository,
+                projectRepository: projectRepository,
+                calendarBlockFocusRepository: calendarBlockFocusRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
                 calendarReader: calendarReader
             )
@@ -271,7 +396,7 @@ private struct DebriefCandidateRow: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Text("\(candidate.suggestedTemplate.displayName) · \(candidate.calendarTitle)")
+            Text(subtitleText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -280,6 +405,20 @@ private struct DebriefCandidateRow: View {
 
     private var timeText: String {
         "\(candidate.start.formatted(date: .abbreviated, time: .shortened)) - \(candidate.end.formatted(date: .omitted, time: .shortened))"
+    }
+
+    private var subtitleText: String {
+        var parts: [String] = [candidate.suggestedTemplate.displayName, candidate.calendarTitle]
+
+        if let linkedProjectName = candidate.linkedProjectName {
+            parts.insert(linkedProjectName, at: 0)
+        }
+
+        if candidate.selectedTaskCount > 0 {
+            parts.append("\(candidate.selectedTaskCount) focus task\(candidate.selectedTaskCount == 1 ? "" : "s")")
+        }
+
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -333,6 +472,18 @@ private struct DebriefFormView: View {
             Section {
                 DisclosureGroup("More detail") {
                     optionalSectionBody
+                }
+            }
+
+            if draft.taskOutcomeDrafts.isEmpty == false {
+                Section("Tasks from this block") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach($draft.taskOutcomeDrafts) { $taskOutcomeDraft in
+                            DebriefTaskOutcomeCard(
+                                taskOutcomeDraft: $taskOutcomeDraft
+                            )
+                        }
+                    }
                 }
             }
 
@@ -595,6 +746,54 @@ private struct DebriefRatingPicker: View {
     }
 }
 
+private struct DebriefTaskOutcomeCard: View {
+    @Binding var taskOutcomeDraft: DebriefTaskOutcomeDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(taskOutcomeDraft.taskTitleSnapshot)
+                        .font(.subheadline.weight(.semibold))
+
+                    if taskOutcomeDraft.isMissingTask {
+                        Text("Task no longer exists")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Toggle("Mark task complete", isOn: $taskOutcomeDraft.didUpdateTaskStatus)
+                    .disabled(taskOutcomeDraft.outcome != .completed)
+                    .opacity(taskOutcomeDraft.outcome == .completed ? 1 : 0.45)
+            }
+
+            Picker("Outcome", selection: $taskOutcomeDraft.outcome) {
+                ForEach(DebriefTaskOutcomeStatus.allCases) { outcome in
+                    Text(outcome.displayName).tag(outcome)
+                }
+            }
+            .onChange(of: taskOutcomeDraft.outcome) { _, newOutcome in
+                if newOutcome == .completed {
+                    taskOutcomeDraft.didUpdateTaskStatus = true
+                } else if taskOutcomeDraft.didUpdateTaskStatus && newOutcome != .completed {
+                    taskOutcomeDraft.didUpdateTaskStatus = false
+                }
+            }
+
+            TextField(
+                taskOutcomeDraft.notePlaceholder,
+                text: $taskOutcomeDraft.note,
+                axis: .vertical
+            )
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 struct DebriefDraft {
     var templateKind: DebriefTemplateKind
 
@@ -627,9 +826,15 @@ struct DebriefDraft {
     var socialDifferentNextTime: String
     var socialNourishment: SocialDebriefNourishment?
 
+    var taskOutcomeDrafts: [DebriefTaskOutcomeDraft]
     var captureLines: [String]
 
-    init(candidate: CalendarDebriefCandidate, existingDebrief: CalendarDebriefRecord?) {
+    init(
+        candidate: CalendarDebriefCandidate,
+        existingDebrief: CalendarDebriefRecord?,
+        blockFocus: CalendarBlockFocus? = nil,
+        selectedTasks: [MyTask] = []
+    ) {
         templateKind = existingDebrief?.templateKind ?? candidate.suggestedTemplate
 
         workPlannedOutcome = existingDebrief?.workPlannedOutcome
@@ -661,6 +866,11 @@ struct DebriefDraft {
         socialDifferentNextTime = existingDebrief?.socialDifferentNextTime ?? ""
         socialNourishment = existingDebrief?.socialNourishment
 
+        taskOutcomeDrafts = Self.taskOutcomeDrafts(
+            from: blockFocus,
+            selectedTasks: selectedTasks,
+            existingDebrief: existingDebrief
+        )
         captureLines = []
     }
 
@@ -670,6 +880,7 @@ struct DebriefDraft {
         completedAt: Date?,
         noDebriefNeeded: Bool,
         captureIDs: [UUID],
+        taskOutcomes: [DebriefTaskOutcome],
         preserving existingDebrief: CalendarDebriefRecord?
     ) -> CalendarDebriefRecord {
         CalendarDebriefRecord(
@@ -714,7 +925,8 @@ struct DebriefDraft {
             socialLearnedAboutSomeone: socialLearnedAboutSomeone,
             socialPromised: socialPromised,
             socialDifferentNextTime: socialDifferentNextTime,
-            socialNourishment: socialNourishment
+            socialNourishment: socialNourishment,
+            taskOutcomes: taskOutcomes
         )
     }
 
@@ -726,6 +938,82 @@ struct DebriefDraft {
             return meetingOutcomes
         case .social:
             return socialWorthRemembering
+        }
+    }
+
+    private static func taskOutcomeDrafts(
+        from blockFocus: CalendarBlockFocus?,
+        selectedTasks: [MyTask],
+        existingDebrief: CalendarDebriefRecord?
+    ) -> [DebriefTaskOutcomeDraft] {
+        guard let blockFocus, blockFocus.selectedTaskIDs.isEmpty == false else {
+            return existingDebrief?.taskOutcomes.map { taskOutcome in
+                DebriefTaskOutcomeDraft(
+                    taskID: taskOutcome.taskID,
+                    taskTitleSnapshot: taskOutcome.taskTitleSnapshot,
+                    outcome: taskOutcome.outcome,
+                    note: taskOutcome.note ?? "",
+                    didUpdateTaskStatus: taskOutcome.didUpdateTaskStatus,
+                    isMissingTask: false
+                )
+            } ?? []
+        }
+
+        let selectedTaskLookup = Dictionary(uniqueKeysWithValues: selectedTasks.map { ($0.id, $0) })
+        let existingOutcomeLookup = Dictionary(uniqueKeysWithValues: existingDebrief?.taskOutcomes.map {
+            ($0.taskID, $0)
+        } ?? [])
+
+        return blockFocus.selectedTaskIDs.map { taskID in
+            if let task = selectedTaskLookup[taskID] {
+                let existingOutcome = existingOutcomeLookup[taskID]
+                return DebriefTaskOutcomeDraft(
+                    taskID: task.id,
+                    taskTitleSnapshot: task.title,
+                    outcome: existingOutcome?.outcome ?? .notTouched,
+                    note: existingOutcome?.note ?? "",
+                    didUpdateTaskStatus: existingOutcome?.didUpdateTaskStatus ?? false,
+                    isMissingTask: false
+                )
+            }
+
+            let existingOutcome = existingOutcomeLookup[taskID]
+            return DebriefTaskOutcomeDraft(
+                taskID: taskID,
+                taskTitleSnapshot: existingOutcome?.taskTitleSnapshot ?? "Deleted task",
+                outcome: existingOutcome?.outcome ?? .notTouched,
+                note: existingOutcome?.note ?? "",
+                didUpdateTaskStatus: existingOutcome?.didUpdateTaskStatus ?? false,
+                isMissingTask: true
+            )
+        }
+    }
+}
+
+private struct DebriefTaskOutcomeDraft: Identifiable, Equatable, Sendable {
+    let taskID: UUID
+    var taskTitleSnapshot: String
+    var outcome: DebriefTaskOutcomeStatus
+    var note: String
+    var didUpdateTaskStatus: Bool
+    var isMissingTask: Bool
+
+    var id: UUID {
+        taskID
+    }
+
+    var notePlaceholder: String {
+        switch outcome {
+        case .completed:
+            return "What got finished?"
+        case .partlyDone:
+            return "What changed?"
+        case .stillOpen:
+            return "What remains?"
+        case .blocked:
+            return "Why blocked?"
+        case .notTouched:
+            return "What happened instead?"
         }
     }
 }

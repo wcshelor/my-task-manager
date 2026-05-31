@@ -20,7 +20,9 @@ struct HomeView: View {
         case musicPractice
         case fitness
         case peopleMemory
+        case vices
         case debriefs
+        case finance
 
         var id: String {
             switch self {
@@ -50,8 +52,12 @@ struct HomeView: View {
                 return "fitness"
             case .peopleMemory:
                 return "peopleMemory"
+            case .vices:
+                return "vices"
             case .debriefs:
                 return "debriefs"
+            case .finance:
+                return "finance"
             }
         }
     }
@@ -97,7 +103,10 @@ struct HomeView: View {
     private let musicPracticeRepository: any MusicPracticeRepository
     private let fitnessRepository: any FitnessRepository
     private let peopleMemoryRepository: any PeopleMemoryRepository
+    private let viceRepository: any ViceRepository
+    private let calendarBlockFocusRepository: any CalendarBlockFocusRepository
     private let debriefRepository: any DebriefRepository
+    private let financeRepository: any FinanceRepository
 
     init(
         taskRepository: any TaskRepository,
@@ -120,7 +129,10 @@ struct HomeView: View {
         musicPracticeRepository: any MusicPracticeRepository,
         fitnessRepository: any FitnessRepository,
         peopleMemoryRepository: any PeopleMemoryRepository,
-        debriefRepository: any DebriefRepository
+        viceRepository: any ViceRepository,
+        calendarBlockFocusRepository: any CalendarBlockFocusRepository,
+        debriefRepository: any DebriefRepository,
+        financeRepository: any FinanceRepository
     ) {
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
@@ -141,7 +153,10 @@ struct HomeView: View {
         self.musicPracticeRepository = musicPracticeRepository
         self.fitnessRepository = fitnessRepository
         self.peopleMemoryRepository = peopleMemoryRepository
+        self.viceRepository = viceRepository
+        self.calendarBlockFocusRepository = calendarBlockFocusRepository
         self.debriefRepository = debriefRepository
+        self.financeRepository = financeRepository
         _viewModel = StateObject(
             wrappedValue: HomeExecutionViewModel(
                 taskRepository: taskRepository,
@@ -155,7 +170,10 @@ struct HomeView: View {
                 musicPracticeRepository: musicPracticeRepository,
                 fitnessRepository: fitnessRepository,
                 peopleMemoryRepository: peopleMemoryRepository,
+                viceRepository: viceRepository,
+                calendarBlockFocusRepository: calendarBlockFocusRepository,
                 debriefRepository: debriefRepository,
+                financeRepository: financeRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
                 calendarReader: calendarReader
             )
@@ -318,6 +336,8 @@ struct HomeView: View {
                             musicPracticeRepository: musicPracticeRepository,
                             fitnessRepository: fitnessRepository,
                             peopleMemoryRepository: peopleMemoryRepository,
+                            viceRepository: viceRepository,
+                            financeRepository: financeRepository,
                             routineID: routineID
                         )
                     case .shoppingList:
@@ -348,13 +368,24 @@ struct HomeView: View {
                         PeopleMemoryView(peopleMemoryRepository: peopleMemoryRepository) {
                             viewModel.load()
                         }
+                    case .vices:
+                        VicesView(viceRepository: viceRepository) {
+                            viewModel.load()
+                        }
                     case .debriefs:
                         DebriefListView(
                             debriefRepository: debriefRepository,
                             captureRepository: captureRepository,
+                            taskRepository: taskRepository,
+                            projectRepository: projectRepository,
+                            calendarBlockFocusRepository: calendarBlockFocusRepository,
                             calendarPermissionProvider: calendarPermissionProvider,
                             calendarReader: calendarReader
                         ) {
+                            viewModel.load()
+                        }
+                    case .finance:
+                        FinanceDashboardView(financeRepository: financeRepository) {
                             viewModel.load()
                         }
                     }
@@ -377,7 +408,11 @@ struct HomeView: View {
                         taskRepository: taskRepository,
                         projectRepository: projectRepository,
                         captureRepository: captureRepository,
-                        projectItemRepository: projectItemRepository
+                        projectItemRepository: projectItemRepository,
+                        calendarPermissionProvider: calendarPermissionProvider,
+                        calendarReader: calendarReader,
+                        calendarBlockFocusRepository: calendarBlockFocusRepository,
+                        debriefRepository: debriefRepository
                     )
                 case .project(let projectID):
                     ProjectDetailView(
@@ -385,7 +420,11 @@ struct HomeView: View {
                         taskRepository: taskRepository,
                         projectRepository: projectRepository,
                         captureRepository: captureRepository,
-                        projectItemRepository: projectItemRepository
+                        projectItemRepository: projectItemRepository,
+                        calendarPermissionProvider: calendarPermissionProvider,
+                        calendarReader: calendarReader,
+                        calendarBlockFocusRepository: calendarBlockFocusRepository,
+                        debriefRepository: debriefRepository
                     )
                 }
             }
@@ -661,6 +700,12 @@ struct HomeView: View {
             },
             openPeopleMemory: {
                 presentedSheet = .peopleMemory
+            },
+            openVices: {
+                presentedSheet = .vices
+            },
+            openFinance: {
+                presentedSheet = .finance
             }
         )
     }
@@ -714,8 +759,12 @@ struct HomeView: View {
             presentedSheet = .fitness
         case .openPeopleMemory:
             presentedSheet = .peopleMemory
+        case .openVices:
+            presentedSheet = .vices
         case .openDebriefs:
             presentedSheet = .debriefs
+        case .openFinance:
+            presentedSheet = .finance
         }
     }
 
@@ -1466,6 +1515,8 @@ private struct RoutineSessionView: View {
     let musicPracticeRepository: any MusicPracticeRepository
     let fitnessRepository: any FitnessRepository
     let peopleMemoryRepository: any PeopleMemoryRepository
+    let viceRepository: any ViceRepository
+    let financeRepository: any FinanceRepository
     let routineID: UUID
 
     var body: some View {
@@ -1484,7 +1535,7 @@ private struct RoutineSessionView: View {
                             .foregroundStyle(.secondary)
 
                         ProgressView(
-                            value: Double(progress.completedCount + progress.skippedCount),
+                            value: Double(progress.doneCount + progress.skippedCount),
                             total: Double(max(progress.totalCount, 1))
                         )
                     }
@@ -1500,7 +1551,7 @@ private struct RoutineSessionView: View {
                             Text("Routine Complete")
                                 .font(.title2.weight(.semibold))
 
-                            Text("Completed \(progress.completedCount) · Skipped \(progress.skippedCount)")
+                            Text("Completed \(progress.doneCount) · Skipped \(progress.skippedCount)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -1517,7 +1568,7 @@ private struct RoutineSessionView: View {
                             if state != .untouched {
                                 Text(stateLabel(for: state))
                                     .font(.caption.weight(.medium))
-                                    .foregroundStyle(state == .completed ? .green : .orange)
+                                    .foregroundStyle(state == .done ? .green : .orange)
                             }
                         }
                         .padding(18)
@@ -1538,7 +1589,7 @@ private struct RoutineSessionView: View {
                             .buttonStyle(.bordered)
 
                             Button(isLastStep(totalCount: steps.count) ? "Done" : "Next") {
-                                advance(stepID: item.id, state: .completed, totalCount: steps.count)
+                                advance(stepID: item.id, state: .done, totalCount: steps.count)
                             }
                             .buttonStyle(.borderedProminent)
                         }
@@ -1625,7 +1676,11 @@ private struct RoutineSessionView: View {
                                 taskRepository: taskRepository,
                                 projectRepository: projectRepository,
                                 captureRepository: captureRepository,
-                                projectItemRepository: projectItemRepository
+                                projectItemRepository: projectItemRepository,
+                                calendarPermissionProvider: calendarPermissionProvider,
+                                calendarReader: calendarReader,
+                                calendarBlockFocusRepository: calendarBlockFocusRepository,
+                                debriefRepository: debriefRepository
                             )
                         case .shoppingList:
                             ShoppingListView(shoppingRepository: shoppingRepository) {
@@ -1648,6 +1703,14 @@ private struct RoutineSessionView: View {
                             }
                         case .peopleMemory:
                             PeopleMemoryView(peopleMemoryRepository: peopleMemoryRepository) {
+                                viewModel.load()
+                            }
+                        case .vices:
+                            VicesView(viceRepository: viceRepository) {
+                                viewModel.load()
+                            }
+                        case .finance:
+                            FinanceDashboardView(financeRepository: financeRepository) {
                                 viewModel.load()
                             }
                         case .pvtTest:
@@ -1759,7 +1822,7 @@ private struct RoutineSessionView: View {
         switch state {
         case .untouched:
             return ""
-        case .completed:
+        case .done:
             return "Completed"
         case .skipped:
             return "Skipped"
@@ -1902,6 +1965,10 @@ private struct RoutineSessionView: View {
             presentedLinkSheet = .fitness
         case .openPeopleMemory:
             presentedLinkSheet = .peopleMemory
+        case .openVices:
+            presentedLinkSheet = .vices
+        case .openFinance:
+            presentedLinkSheet = .finance
         case .openDebriefs:
             presentedLinkSheet = .unavailable(
                 title: "Module Link Not Supported",
@@ -1934,6 +2001,8 @@ private enum RoutineStepLinkSheet: Identifiable {
     case musicPractice
     case fitness
     case peopleMemory
+    case vices
+    case finance
     case unavailable(title: String, message: String)
 
     var id: String {
@@ -1962,6 +2031,10 @@ private enum RoutineStepLinkSheet: Identifiable {
             return "fitness"
         case .peopleMemory:
             return "people-memory"
+        case .vices:
+            return "vices"
+        case .finance:
+            return "finance"
         case .unavailable(let title, _):
             return "unavailable-\(title)"
         }
@@ -2988,17 +3061,29 @@ struct ProjectsView: View {
     private let projectRepository: any ProjectRepository
     private let captureRepository: any CaptureRepository
     private let projectItemRepository: any ProjectItemRepository
+    private let calendarPermissionProvider: any CalendarPermissionProviding
+    private let calendarReader: any CalendarReading
+    private let calendarBlockFocusRepository: any CalendarBlockFocusRepository
+    private let debriefRepository: any DebriefRepository
 
     init(
         taskRepository: any TaskRepository,
         projectRepository: any ProjectRepository,
         captureRepository: any CaptureRepository,
-        projectItemRepository: any ProjectItemRepository
+        projectItemRepository: any ProjectItemRepository,
+        calendarPermissionProvider: any CalendarPermissionProviding,
+        calendarReader: any CalendarReading,
+        calendarBlockFocusRepository: any CalendarBlockFocusRepository,
+        debriefRepository: any DebriefRepository
     ) {
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
         self.captureRepository = captureRepository
         self.projectItemRepository = projectItemRepository
+        self.calendarPermissionProvider = calendarPermissionProvider
+        self.calendarReader = calendarReader
+        self.calendarBlockFocusRepository = calendarBlockFocusRepository
+        self.debriefRepository = debriefRepository
         _viewModel = StateObject(
             wrappedValue: ProjectsViewModel(
                 taskRepository: taskRepository,
@@ -3031,7 +3116,11 @@ struct ProjectsView: View {
                                 taskRepository: taskRepository,
                                 projectRepository: projectRepository,
                                 captureRepository: captureRepository,
-                                projectItemRepository: projectItemRepository
+                                projectItemRepository: projectItemRepository,
+                                calendarPermissionProvider: calendarPermissionProvider,
+                                calendarReader: calendarReader,
+                                calendarBlockFocusRepository: calendarBlockFocusRepository,
+                                debriefRepository: debriefRepository
                             )
                         } label: {
                             ProjectListRow(
@@ -3114,6 +3203,7 @@ struct ProjectDetailView: View {
         case maybe
         case note
         case editProject(Project)
+        case focus(CalendarEventSnapshot)
 
         var id: String {
             switch self {
@@ -3127,6 +3217,13 @@ struct ProjectDetailView: View {
                 return "note"
             case .editProject(let project):
                 return "edit-\(project.id.uuidString)"
+            case .focus(let event):
+                let identifier = event.identifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let identifier, identifier.isEmpty == false {
+                    return "focus-\(identifier)-\(event.start.timeIntervalSince1970)"
+                }
+
+                return "focus-\(event.title)-\(event.start.timeIntervalSince1970)"
             }
         }
     }
@@ -3136,11 +3233,19 @@ struct ProjectDetailView: View {
     private let projectRepository: any ProjectRepository
     private let captureRepository: any CaptureRepository
     private let projectItemRepository: any ProjectItemRepository
+    private let calendarPermissionProvider: any CalendarPermissionProviding
+    private let calendarReader: any CalendarReading
+    private let calendarBlockFocusRepository: any CalendarBlockFocusRepository
+    private let debriefRepository: any DebriefRepository
 
     @State private var project: Project?
     @State private var tasks: [MyTask] = []
     @State private var captures: [CaptureItem] = []
     @State private var projectItems: [ProjectItem] = []
+    @State private var allProjects: [Project] = []
+    @State private var upcomingEvents: [CalendarEventSnapshot] = []
+    @State private var debriefs: [CalendarDebriefRecord] = []
+    @State private var focuses: [CalendarBlockFocus] = []
     @State private var errorMessage: String?
     @State private var sheetDestination: SheetDestination?
 
@@ -3149,17 +3254,25 @@ struct ProjectDetailView: View {
         taskRepository: any TaskRepository,
         projectRepository: any ProjectRepository,
         captureRepository: any CaptureRepository,
-        projectItemRepository: any ProjectItemRepository
+        projectItemRepository: any ProjectItemRepository,
+        calendarPermissionProvider: any CalendarPermissionProviding,
+        calendarReader: any CalendarReading,
+        calendarBlockFocusRepository: any CalendarBlockFocusRepository,
+        debriefRepository: any DebriefRepository
     ) {
         self.projectID = projectID
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
         self.captureRepository = captureRepository
         self.projectItemRepository = projectItemRepository
+        self.calendarPermissionProvider = calendarPermissionProvider
+        self.calendarReader = calendarReader
+        self.calendarBlockFocusRepository = calendarBlockFocusRepository
+        self.debriefRepository = debriefRepository
     }
 
     private var projectTasks: [MyTask] {
-        projectTaskSummary?.activeTasks ?? []
+        projectTaskSummary?.activeTasks.filter { $0.status != .done } ?? []
     }
 
     private var nextTasks: [MyTask] {
@@ -3184,6 +3297,7 @@ struct ProjectDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         overview(project)
+                        calendarActivitySection(project)
                         taskSection(title: "Next Tasks", tasks: nextTasks)
                         taskSection(title: "All Tasks", tasks: projectTasks)
                         itemSection(title: "Maybes", items: maybes, emptyText: "No maybe items yet.")
@@ -3254,14 +3368,27 @@ struct ProjectDetailView: View {
                         saveProject(updatedProject, replacingProjectWithID: project.id)
                         sheetDestination = nil
                     }
+                case .focus(let event):
+                    CalendarBlockFocusSheet(
+                        event: event,
+                        existingFocus: focus(for: event),
+                        projects: allProjects,
+                        tasks: tasks,
+                        onSave: { focus in
+                            saveFocus(focus)
+                            sheetDestination = nil
+                        }
+                    )
                 }
             }
         }
         .task {
-            load()
+            await load()
         }
         .onAppear {
-            load()
+            Task {
+                await load()
+            }
         }
     }
 
@@ -3309,6 +3436,251 @@ struct ProjectDetailView: View {
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
     }
 
+    private func calendarActivitySection(_ project: Project) -> some View {
+        let upcomingBlocks = upcomingProjectBlocks(for: project)
+        let recentProjectDebriefs = recentProjectDebriefs(for: project)
+        let recentTaskOutcomes = recentTaskOutcomes(for: project)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Calendar Activity")
+                .font(.headline)
+
+            activitySubsection(
+                title: "Upcoming",
+                emptyText: "No upcoming linked blocks yet.",
+                rows: upcomingBlocks.map { event in
+                    let focus = focus(for: event)
+                    return AnyView(
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(event.title)
+                                        .font(.subheadline.weight(.medium))
+                                    Text(event.formattedTimeRange)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Button(focus != nil ? "Edit Focus" : "Pick Focus") {
+                                    sheetDestination = .focus(event)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            if let focus, let projectName = focus.linkedProjectID.flatMap({ cachedProjectName(for: $0) }) {
+                                Text(projectName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let focus, focus.selectedTaskCount > 0 {
+                                Text("\(focus.selectedTaskCount) focus task\(focus.selectedTaskCount == 1 ? "" : "s") selected")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(10)
+                        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 10))
+                    )
+                }
+            )
+
+            activitySubsection(
+                title: "Recent Debriefs",
+                emptyText: "No linked Debriefs yet.",
+                rows: recentProjectDebriefs.map { debrief in
+                    AnyView(
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(debrief.titleSnapshot)
+                                .font(.subheadline.weight(.medium))
+                            Text(recentDebriefDetailText(for: debrief))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 10))
+                    )
+                }
+            )
+
+            activitySubsection(
+                title: "Recent Task Outcomes",
+                emptyText: "No task outcomes recorded yet.",
+                rows: recentTaskOutcomes.map { outcome in
+                    AnyView(
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(outcome.taskTitleSnapshot)
+                                .font(.subheadline.weight(.medium))
+                            Text(outcome.outcome.displayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 10))
+                    )
+                }
+            )
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func activitySubsection(
+        title: String,
+        emptyText: String,
+        rows: [AnyView]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+
+            if rows.isEmpty {
+                Text(emptyText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(rows.enumerated()), id: \.offset) { entry in
+                    entry.element
+                }
+            }
+        }
+    }
+
+    private func upcomingProjectBlocks(for project: Project) -> [CalendarEventSnapshot] {
+        let matcher = CalendarProjectMatcher()
+
+        return upcomingEvents.filter { event in
+            if let focus = focus(for: event), focus.linkedProjectID == project.id {
+                return true
+            }
+
+            return matcher.match(eventTitle: event.title, project: project)
+        }
+        .sorted { lhs, rhs in
+            if lhs.start != rhs.start {
+                return lhs.start < rhs.start
+            }
+
+            return lhs.end < rhs.end
+        }
+    }
+
+    private func recentProjectDebriefs(for project: Project) -> [CalendarDebriefRecord] {
+        let cutoff = Date().addingTimeInterval(-86_400 * 7)
+        let matcher = CalendarProjectMatcher()
+
+        return debriefs
+            .filter { $0.status == .completed && $0.endDateSnapshot >= cutoff }
+            .filter { debrief in
+                if let focus = focus(for: debrief), focus.linkedProjectID == project.id {
+                    return true
+                }
+
+                return matcher.match(eventTitle: debrief.titleSnapshot, project: project)
+            }
+            .sorted { lhs, rhs in
+                if lhs.completedAt != rhs.completedAt {
+                    return (lhs.completedAt ?? lhs.updatedAt) > (rhs.completedAt ?? rhs.updatedAt)
+                }
+
+                return lhs.endDateSnapshot > rhs.endDateSnapshot
+            }
+    }
+
+    private func recentTaskOutcomes(for project: Project) -> [DebriefTaskOutcome] {
+        recentProjectDebriefs(for: project)
+            .flatMap(\.taskOutcomes)
+            .sorted { lhs, rhs in
+                if lhs.updatedAt != rhs.updatedAt {
+                    return lhs.updatedAt > rhs.updatedAt
+                }
+
+                return lhs.taskTitleSnapshot.localizedCaseInsensitiveCompare(rhs.taskTitleSnapshot) == .orderedAscending
+            }
+    }
+
+    private func recentDebriefDetailText(for debrief: CalendarDebriefRecord) -> String {
+        var parts: [String] = []
+
+        if let rating = debrief.workProductivityRating {
+            parts.append("Productivity \(rating)/5")
+        }
+
+        if debrief.taskOutcomes.isEmpty == false {
+            parts.append("\(debrief.taskOutcomes.count) task outcome\(debrief.taskOutcomes.count == 1 ? "" : "s")")
+        }
+
+        parts.append(debrief.completedAt?.formatted(date: .abbreviated, time: .omitted) ?? debrief.endDateSnapshot.formatted(date: .abbreviated, time: .omitted))
+        return parts.joined(separator: " · ")
+    }
+
+    private func focus(for event: CalendarEventSnapshot) -> CalendarBlockFocus? {
+        guard
+            let eventIdentifier = event.identifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            eventIdentifier.isEmpty == false,
+            let calendarIdentifier = event.calendarIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            calendarIdentifier.isEmpty == false
+        else {
+            return nil
+        }
+
+        return focuses.first { focus in
+            focus.eventIdentifier == eventIdentifier
+                && focus.calendarIdentifier == calendarIdentifier
+        }
+    }
+
+    private func focus(for debrief: CalendarDebriefRecord) -> CalendarBlockFocus? {
+        guard
+            let eventIdentifier = debrief.eventIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            eventIdentifier.isEmpty == false,
+            let calendarIdentifier = debrief.calendarIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+            calendarIdentifier.isEmpty == false
+        else {
+            return nil
+        }
+
+        return focuses.first { focus in
+            focus.eventIdentifier == eventIdentifier
+                && focus.calendarIdentifier == calendarIdentifier
+        }
+    }
+
+    private func cachedProjectName(for projectID: UUID) -> String? {
+        allProjects.first(where: { $0.id == projectID })?.name
+    }
+
+    private func upcomingCalendarEvents(relativeTo now: Date) async -> [CalendarEventSnapshot] {
+        guard calendarPermissionProvider.currentStatus() == .fullAccessGranted else {
+            return []
+        }
+
+        do {
+            let window = DateInterval(
+                start: now,
+                end: now.addingTimeInterval(86_400 * 7)
+            )
+
+            return try await calendarReader.fetchEvents(in: window)
+                .filter { $0.end > now }
+                .sorted { lhs, rhs in
+                    if lhs.start != rhs.start {
+                        return lhs.start < rhs.start
+                    }
+
+                    if lhs.end != rhs.end {
+                        return lhs.end < rhs.end
+                    }
+
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+        } catch {
+            return []
+        }
+    }
+
     private func taskSection(title: String, tasks: [MyTask]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
@@ -3320,8 +3692,8 @@ struct ProjectDetailView: View {
             } else {
                 ForEach(tasks) { task in
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: task.status == .completed ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(task.status == .completed ? .green : .secondary)
+                        Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(task.status == .done ? .green : .secondary)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(task.title)
                                 .font(.subheadline.weight(.medium))
@@ -3372,12 +3744,23 @@ struct ProjectDetailView: View {
         }
     }
 
-    private func load() {
+    @MainActor
+    private func load() async {
         do {
+            let now = Date()
             project = try projectRepository.project(withID: projectID)
             tasks = try taskRepository.fetchTasks()
             captures = try captureRepository.fetchCaptures(includeProcessed: false, includeArchived: false)
             projectItems = try projectItemRepository.fetchProjectItems(for: projectID, includeArchived: false)
+            allProjects = try projectRepository.fetchProjects(includeArchived: false)
+            debriefs = try debriefRepository.fetchDebriefs()
+            focuses = try calendarBlockFocusRepository.fetchFocuses(
+                in: DateInterval(
+                    start: now.addingTimeInterval(-86_400 * 7),
+                    end: now.addingTimeInterval(86_400 * 7)
+                )
+            )
+            upcomingEvents = await upcomingCalendarEvents(relativeTo: now)
             errorMessage = nil
         } catch {
             errorMessage = "Unable to load project: \(error.localizedDescription)"
@@ -3387,7 +3770,9 @@ struct ProjectDetailView: View {
     private func saveProject(_ project: Project, replacingProjectWithID originalID: UUID?) {
         do {
             try projectRepository.saveProject(project, replacingProjectWithID: originalID)
-            load()
+            Task {
+                await load()
+            }
         } catch {
             errorMessage = "Unable to save project: \(error.localizedDescription)"
         }
@@ -3396,7 +3781,9 @@ struct ProjectDetailView: View {
     private func saveTask(_ task: MyTask) {
         do {
             try taskRepository.saveTask(task, replacingTaskWithID: nil)
-            load()
+            Task {
+                await load()
+            }
         } catch {
             errorMessage = "Unable to save task: \(error.localizedDescription)"
         }
@@ -3405,7 +3792,9 @@ struct ProjectDetailView: View {
     private func saveCapture(_ capture: CaptureItem) {
         do {
             try captureRepository.saveCapture(capture, replacingCaptureWithID: nil)
-            load()
+            Task {
+                await load()
+            }
         } catch {
             errorMessage = "Unable to save capture: \(error.localizedDescription)"
         }
@@ -3414,9 +3803,22 @@ struct ProjectDetailView: View {
     private func saveProjectItem(_ item: ProjectItem) {
         do {
             try projectItemRepository.saveProjectItem(item, replacingProjectItemWithID: nil)
-            load()
+            Task {
+                await load()
+            }
         } catch {
             errorMessage = "Unable to save project item: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveFocus(_ focus: CalendarBlockFocus) {
+        do {
+            try calendarBlockFocusRepository.saveFocus(focus, replacingFocusWithID: focus.id)
+            Task {
+                await load()
+            }
+        } catch {
+            errorMessage = "Unable to save focus: \(error.localizedDescription)"
         }
     }
 }
@@ -3434,6 +3836,254 @@ private struct ProjectMetricView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct CalendarBlockFocusSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let event: CalendarEventSnapshot
+    let existingFocus: CalendarBlockFocus?
+    let projects: [Project]
+    let tasks: [MyTask]
+    let onSave: (CalendarBlockFocus) -> Void
+
+    @State private var draft: CalendarBlockFocus
+
+    init(
+        event: CalendarEventSnapshot,
+        existingFocus: CalendarBlockFocus?,
+        projects: [Project],
+        tasks: [MyTask],
+        onSave: @escaping (CalendarBlockFocus) -> Void
+    ) {
+        self.event = event
+        self.existingFocus = existingFocus
+        self.projects = projects
+        self.tasks = tasks
+        self.onSave = onSave
+
+        var initialDraft = existingFocus
+            ?? CalendarBlockFocus(
+                event: event
+            )
+            ?? CalendarBlockFocus(
+                id: UUID(),
+                eventKey: DebriefEventKey.from(
+                    eventIdentifier: event.identifier,
+                    title: event.title,
+                    start: event.start,
+                    end: event.end,
+                    calendarIdentifier: event.calendarIdentifier,
+                    calendarTitle: event.calendarTitle
+                ),
+                eventIdentifier: event.identifier ?? "",
+                calendarIdentifier: event.calendarIdentifier ?? "",
+                titleSnapshot: event.title,
+                startDateSnapshot: event.start,
+                endDateSnapshot: event.end
+            )
+
+        if initialDraft.preferredDebriefTemplateKind == nil {
+            initialDraft.preferredDebriefTemplateKind = CalendarDebriefRecord.suggestedTemplate(for: event.title)
+        }
+
+        _draft = State(initialValue: initialDraft)
+    }
+
+    private var selectedProject: Project? {
+        guard let projectID = draft.linkedProjectID else {
+            return nil
+        }
+
+        return projects.first(where: { $0.id == projectID })
+    }
+
+    private var suggestedTasks: [MyTask] {
+        guard let selectedProject else {
+            return []
+        }
+
+        return CalendarBlockFocusTaskSuggestionService().suggestedTasks(
+            for: selectedProject,
+            tasks: tasks,
+            blockDurationMinutes: draft.durationMinutes
+        )
+    }
+
+    private var saveDisabled: Bool {
+        draft.eventIdentifier.isEmpty || draft.calendarIdentifier.isEmpty
+    }
+
+    var body: some View {
+        Form {
+            Section("Block") {
+                Text(event.title)
+                    .font(.headline)
+                Text(event.formattedTimeRange)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(event.calendarTitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Project") {
+                Picker("Linked project", selection: $draft.linkedProjectID) {
+                    Text("None").tag(nil as UUID?)
+                    ForEach(projects) { project in
+                        Text(project.name).tag(project.id as UUID?)
+                    }
+                }
+                .onChange(of: draft.linkedProjectID) { _, newProjectID in
+                    draft.selectedTaskIDs = []
+                    draft.isProjectLinkUserConfirmed = newProjectID != nil
+                    if newProjectID == nil {
+                        draft.isNoFocusNeeded = false
+                    }
+                }
+
+                Toggle("No focus needed", isOn: $draft.isNoFocusNeeded)
+                    .onChange(of: draft.isNoFocusNeeded) { _, newValue in
+                        if newValue {
+                            draft.linkedProjectID = nil
+                            draft.selectedTaskIDs = []
+                            draft.isProjectLinkUserConfirmed = false
+                        }
+                    }
+
+                if draft.isNoFocusNeeded == false {
+                    TextField(
+                        "Intention note",
+                        text: Binding(
+                            get: { draft.intentionNote ?? "" },
+                            set: { draft.intentionNote = $0 }
+                        ),
+                        axis: .vertical
+                    )
+                }
+            }
+
+            if draft.isNoFocusNeeded == false {
+                Section("Suggested tasks") {
+                    if let selectedProject {
+                        if suggestedTasks.isEmpty {
+                            Text("No open tasks for this project.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(suggestedTasks) { task in
+                                    Button {
+                                        toggleTaskSelection(task.id)
+                                    } label: {
+                                        HStack(alignment: .top, spacing: 10) {
+                                            Image(systemName: draft.selectedTaskIDs.contains(task.id) ? "checkmark.square.fill" : "square")
+                                                .foregroundStyle(draft.selectedTaskIDs.contains(task.id) ? .accentColor : .secondary)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(task.title)
+                                                    .font(.subheadline.weight(.medium))
+                                                if let dueDate = task.dueDate {
+                                                    Text("Due \(dueDate.formatted(date: .abbreviated, time: .shortened))")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                } else if let estimatedMinutes = task.estimatedMinutes {
+                                                    Text("\(estimatedMinutes)m estimated")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                            Spacer()
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Pick a project to see suggested tasks.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Debrief template") {
+                    Picker("Preferred template", selection: Binding(
+                        get: { draft.preferredDebriefTemplateKind ?? .workBlock },
+                        set: { draft.preferredDebriefTemplateKind = $0 }
+                    )) {
+                        ForEach(DebriefTemplateKind.allCases) { kind in
+                            Text(kind.displayName).tag(kind)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+        }
+        .navigationTitle("Focus")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    save()
+                }
+                .disabled(saveDisabled)
+            }
+        }
+        .onAppear {
+            if draft.linkedProjectID == nil, let matchedProject = CalendarProjectMatcher().match(
+                eventTitle: event.title,
+                projects: projects
+            ).matchedProjectID {
+                draft.linkedProjectID = matchedProject
+                draft.isProjectLinkUserConfirmed = existingFocus?.isProjectLinkUserConfirmed ?? false
+            }
+        }
+    }
+
+    private func toggleTaskSelection(_ taskID: UUID) {
+        if let index = draft.selectedTaskIDs.firstIndex(of: taskID) {
+            draft.selectedTaskIDs.remove(at: index)
+        } else {
+            draft.selectedTaskIDs.append(taskID)
+        }
+    }
+
+    private func save() {
+        var updatedDraft = draft
+        updatedDraft.updatedAt = .now
+        updatedDraft.titleSnapshot = event.title
+        updatedDraft.startDateSnapshot = event.start
+        updatedDraft.endDateSnapshot = event.end
+        updatedDraft.isProjectLinkUserConfirmed = updatedDraft.linkedProjectID != nil && updatedDraft.isNoFocusNeeded == false
+        updatedDraft.eventIdentifier = event.identifier ?? updatedDraft.eventIdentifier
+        updatedDraft.calendarIdentifier = event.calendarIdentifier ?? updatedDraft.calendarIdentifier
+        updatedDraft.eventKey = DebriefEventKey.from(
+            eventIdentifier: event.identifier,
+            title: event.title,
+            start: event.start,
+            end: event.end,
+            calendarIdentifier: event.calendarIdentifier,
+            calendarTitle: event.calendarTitle
+        )
+        onSave(updatedDraft)
+        dismiss()
+    }
+}
+
+private extension CalendarEventSnapshot {
+    var formattedTimeRange: String {
+        if isAllDay {
+            return "All day"
+        }
+
+        return "\(start.formatted(date: .abbreviated, time: .shortened)) - \(end.formatted(date: .omitted, time: .shortened))"
     }
 }
 
@@ -3573,6 +4223,8 @@ private struct ProjectItemFormView: View {
         musicPracticeRepository: container.musicPracticeRepository,
         fitnessRepository: container.fitnessRepository,
         peopleMemoryRepository: container.peopleMemoryRepository,
-        debriefRepository: container.debriefRepository
+        viceRepository: container.viceRepository,
+        debriefRepository: container.debriefRepository,
+        financeRepository: container.financeRepository
     )
 }

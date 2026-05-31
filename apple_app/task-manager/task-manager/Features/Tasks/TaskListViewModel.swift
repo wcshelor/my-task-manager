@@ -121,7 +121,7 @@ final class TaskListViewModel: ObservableObject {
             }
 
             let originalBlocks = try activeScheduledBlocks(for: id)
-            task.status = .completed
+            task.status = .done
             task.completedAt = completedAt
             task.updatedAt = completedAt
             try taskRepository.saveTask(task, replacingTaskWithID: id)
@@ -148,7 +148,7 @@ final class TaskListViewModel: ObservableObject {
 
     func reopenTask(withID id: UUID) {
         updateTask(withID: id) { task in
-            task.status = .active
+            task.status = .open
             task.completedAt = nil
         }
     }
@@ -195,7 +195,7 @@ final class TaskListViewModel: ObservableObject {
                     block.isActivelyScheduled
                         && block.end <= now
                         && promptedOverdueBlockIDs.contains(block.id) == false
-                        && taskLookup[block.taskID]?.status != .completed
+                        && taskLookup[block.taskID]?.status != .done
                 }
                 .compactMap { block -> ScheduledTaskCompletionPrompt? in
                     guard let task = taskLookup[block.taskID] else {
@@ -243,7 +243,7 @@ final class TaskListViewModel: ObservableObject {
             }
 
             if task.status == .scheduled {
-                task.status = .active
+                task.status = .open
                 task.completedAt = nil
                 task.updatedAt = movedAt
                 try taskRepository.saveTask(task, replacingTaskWithID: task.id)
