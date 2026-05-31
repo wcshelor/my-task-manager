@@ -17,6 +17,7 @@ struct AppContainer {
     let musicPracticeRepository: any MusicPracticeRepository
     let fitnessRepository: any FitnessRepository
     let peopleMemoryRepository: any PeopleMemoryRepository
+    let debriefRepository: any DebriefRepository
     let calendarPermissionProvider: any CalendarPermissionProviding
     let calendarListingService: any CalendarListing
     let calendarReader: any CalendarReading
@@ -46,6 +47,7 @@ struct AppContainer {
         let musicPracticeRepository = SwiftDataMusicPracticeRepository(modelContainer: modelContainer)
         let fitnessRepository = SwiftDataFitnessRepository(modelContainer: modelContainer)
         let peopleMemoryRepository = SwiftDataPeopleMemoryRepository(modelContainer: modelContainer)
+        let debriefRepository = SwiftDataDebriefRepository(modelContainer: modelContainer)
         let calendarEventStore = EventKitCalendarEventStore()
         let calendarPermissionProvider = EventKitCalendarPermissionService(
             eventStore: calendarEventStore
@@ -92,6 +94,7 @@ struct AppContainer {
             musicPracticeRepository: musicPracticeRepository,
             fitnessRepository: fitnessRepository,
             peopleMemoryRepository: peopleMemoryRepository,
+            debriefRepository: debriefRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,
@@ -145,6 +148,7 @@ struct AppContainer {
         let musicPracticeRepository = SwiftDataMusicPracticeRepository(modelContainer: modelContainer)
         let fitnessRepository = SwiftDataFitnessRepository(modelContainer: modelContainer)
         let peopleMemoryRepository = SwiftDataPeopleMemoryRepository(modelContainer: modelContainer)
+        let debriefRepository = SwiftDataDebriefRepository(modelContainer: modelContainer)
         let calendarPermissionProvider = StubCalendarPermissionService()
         let calendarListingService = StubCalendarListingService()
         let calendarReader = StubCalendarReader()
@@ -186,6 +190,7 @@ struct AppContainer {
             musicPracticeRepository: musicPracticeRepository,
             fitnessRepository: fitnessRepository,
             peopleMemoryRepository: peopleMemoryRepository,
+            debriefRepository: debriefRepository,
             calendarPermissionProvider: calendarPermissionProvider,
             calendarListingService: calendarListingService,
             calendarReader: calendarReader,

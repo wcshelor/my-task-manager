@@ -2,17 +2,18 @@
 
 The SwiftUI Apple app in `apple_app/task-manager/` is the only active implementation surface.
 
-Use `README.md`, `concrete_plan.md`, `docs/life_assistant_vision.md`, and `docs/product_direction.md` as expected-behavior references for each session.
+Use `README.md`, `docs/life_assistant_vision.md`, and `docs/product_direction.md` as expected-behavior references for each session.
 
 ## 1. Baseline Automated Checks
 
 From the repo root, run:
 
 ```bash
-xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing
 ```
+
+These are the default checks for coding sessions because they do not require booting a simulator runtime.
 
 Current automated confidence covers:
 
@@ -20,14 +21,18 @@ Current automated confidence covers:
 - planner engine ranking, gap handling, and selected-slot behavior
 - planner view-model acceptance, rejection, lifecycle, and reconciliation behavior
 - EventKit adapter behavior with mocked stores
-- promise models, repositories, and Today aggregation behavior
+- Home layout/execution view-model behavior, including capture conversion and module summaries
+- promise models, repositories, and Home aggregation behavior
 - routine models, repositories, and daily completion behavior
+- Shopping models, SwiftData repository round trips, view-model behavior, and inbox conversion
 - work-in-progress Health model calculations, SwiftData repository round trips, and Health view-model summaries
 - Fitness model validation, SwiftData repository round trips, Fitness view-model state, and Home Fitness summaries
+- Music Practice model validation, SwiftData repository round trips, view-model behavior, and Home summaries
+- People Memory model validation, SwiftData repository round trips, view-model behavior, and Home summaries
 
-## 2. Focused Swift Runs
+## 2. Optional Simulator Swift Runs
 
-Use `-only-testing` when narrowing scope, for example:
+Use these only when simulator behavior is required for the change and CoreSimulator is available. Use `-only-testing` when narrowing scope, for example:
 
 ```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test -only-testing:task-managerTests/PlannerViewModelTests
@@ -53,10 +58,15 @@ bash scripts/manual_test_session.sh
 
 That helper:
 
-- runs Swift tests on an available iOS simulator
 - runs an iPhone simulator build
 - creates a timestamped note in `docs/test_sessions/`
-- prints the next recommended Swift, EventKit, simulator, Today, Promises, and Routines validation steps
+- prints the next recommended Swift, EventKit, simulator, Home, Promises, and Routines validation steps
+
+Run simulator tests in the helper only when intentionally enabled:
+
+```bash
+RUN_IOS_SIMULATOR_TESTS=1 bash scripts/manual_test_session.sh
+```
 
 You still need to launch the Swift app from Xcode for real EventKit or hands-on simulator testing.
 
@@ -64,14 +74,14 @@ You still need to launch the Swift app from Xcode for real EventKit or hands-on 
 
 Split manual testing by area depending on scope.
 
-### Today / Promises
+### Home / Promises
 
 Validate:
 
-- Today is the first visible tab
+- Home is the first visible tab
 - new promise creation
-- active promise visibility on Today
-- active-promise banner on Tasks and Calendar
+- active promise visibility on Home
+- active-promise banner on Tasks and Planner
 - kept check-in flow
 - missed check-in flow with reflection
 - reset promise creation
@@ -85,7 +95,7 @@ Validate:
 - daily routine creation
 - selected-weekday routine creation
 - item ordering
-- Today visibility for routines active today
+- Home visibility for routines active today
 - item completion and uncompletion
 - per-day completion persistence after relaunch
 - no direct Apple Calendar writes from routines
@@ -124,6 +134,17 @@ Validate:
 - Health history and delete flows
 - neutral 7/30-day trend summaries
 
+### Shopping
+
+Validate:
+
+- open Shopping from Home
+- add a shopping item from the module screen
+- add a shopping item from the Home quick-add widget
+- group active items by store type
+- mark items bought, skipped, archived, reopened, and deleted
+- search active and history lists
+
 ### Fitness
 
 Validate:
@@ -138,12 +159,31 @@ Validate:
 - confirm Recent, A-Z, and Tag sorting
 - confirm the older Health workout log still works unchanged
 
+### Music Practice
+
+Validate:
+
+- open Music Practice from Home
+- add a practice piece
+- log a practice session with and without a piece
+- confirm recent sessions, 7/30-day totals, focus-area breakdown, and stale-piece visibility refresh
+
+### People Memory
+
+Validate:
+
+- open People Memory from Home
+- add a person with meeting context and tags
+- search by name, details, and tag text
+- start a study review and apply easy/almost/missed ratings
+- confirm due-review counts and saved-person counts refresh on Home
+
 ### iPhone Runtime Pass
 
 Validate when a simulator runtime exists:
 
 - app launch
-- Today layout
+- Home layout
 - promise creation and check-in sheets
 - routine builder and checklist sheets
 - task quick add

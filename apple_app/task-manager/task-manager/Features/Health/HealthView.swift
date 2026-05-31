@@ -3,6 +3,7 @@ import SwiftUI
 struct HealthView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: HealthViewModel
+    @StateObject private var fitnessViewModel: FitnessViewModel
     @State private var mode: HealthViewMode = .today
     @State private var presentedSheet: HealthSheet?
 
@@ -10,11 +11,15 @@ struct HealthView: View {
 
     init(
         healthRepository: any HealthRepository,
+        fitnessRepository: any FitnessRepository,
         onChange: @escaping () -> Void = {}
     ) {
         self.onChange = onChange
         _viewModel = StateObject(
             wrappedValue: HealthViewModel(healthRepository: healthRepository)
+        )
+        _fitnessViewModel = StateObject(
+            wrappedValue: FitnessViewModel(fitnessRepository: fitnessRepository)
         )
     }
 
@@ -41,6 +46,7 @@ struct HealthView: View {
         .navigationTitle("Health")
         .task {
             viewModel.loadIfNeeded()
+            fitnessViewModel.loadIfNeeded()
         }
         .sheet(item: $presentedSheet) { sheet in
             NavigationStack {
@@ -57,12 +63,6 @@ struct HealthView: View {
                 case .mealLog(let log):
                     MealLogFormView(initialLog: log) { savedLog in
                         viewModel.saveMealLog(savedLog, replacingLogWithID: log?.id)
-                        onChange()
-                        presentedSheet = nil
-                    }
-                case .workoutLog(let log):
-                    WorkoutLogFormView(initialLog: log) { savedLog in
-                        viewModel.saveWorkoutLog(savedLog, replacingLogWithID: log?.id)
                         onChange()
                         presentedSheet = nil
                     }
@@ -119,11 +119,11 @@ struct HealthView: View {
                     }
 
                     HealthQuickActionCard(
-                        title: "Workout",
-                        systemImage: "figure.strengthtraining.traditional",
-                        value: viewModel.workoutsTodaySummary
+                        title: "Fitness",
+                        systemImage: "dumbbell.fill",
+                        value: fitnessViewModel.sessionsTodaySummary
                     ) {
-                        presentedSheet = .workoutLog(nil)
+                        mode = .workouts
                     }
                 }
 
@@ -144,10 +144,13 @@ struct HealthView: View {
                     }
                 }
 
-                if viewModel.todaysWorkoutLogs.isEmpty == false {
-                    healthSection("Workouts Today") {
-                        ForEach(viewModel.todaysWorkoutLogs) { log in
-                            WorkoutLogRow(log: log)
+                if fitnessViewModel.todaysSessions.isEmpty == false {
+                    healthSection("Fitness Today") {
+                        ForEach(fitnessViewModel.todaysSessions) { session in
+                            FitnessSessionRow(
+                                exercise: fitnessViewModel.exercise(withID: session.exerciseID),
+                                session: session
+                            )
                         }
                     }
                 }
@@ -202,43 +205,12 @@ struct HealthView: View {
     }
 
     private var workoutContent: some View {
-        Group {
-            if viewModel.recentWorkoutLogs.isEmpty {
-                ContentUnavailableView(
-                    "No Workout Logs",
-                    systemImage: "figure.strengthtraining.traditional",
-                    description: Text("Log what happened after a workout, without turning routines into records.")
-                )
-            } else {
-                List {
-                    ForEach(viewModel.recentWorkoutLogs) { log in
-                        WorkoutLogRow(log: log)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                presentedSheet = .workoutLog(log)
-                            }
-                            .swipeActions {
-                                Button(role: .destructive) {
-                                    viewModel.deleteWorkoutLog(withID: log.id)
-                                    onChange()
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                    }
-                }
-                .listStyle(.plain)
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            addButton("Log Workout", systemImage: "plus.circle.fill") {
-                presentedSheet = .workoutLog(nil)
-            }
-        }
+        FitnessTrackerView(viewModel: fitnessViewModel, onChange: onChange)
     }
 
     private var trendsContent: some View {
         let trends = viewModel.trendSummary
+        let fitnessTrends = fitnessViewModel.trendSummary
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -307,33 +279,28 @@ struct HealthView: View {
                 )
 
                 TrendSummaryCard(
-                    title: "Workouts",
-                    systemImage: "figure.strengthtraining.traditional",
+                    title: "Fitness",
+                    systemImage: "dumbbell.fill",
                     rows: [
                         TrendMetricRowData(
-                            label: "Workouts logged",
-                            value: "\(trends.workouts.current7Days.workoutCount)",
-                            detail: "30-day: \(trends.workouts.current30Days.workoutCount)"
+                            label: "Sessions logged",
+                            value: "\(fitnessTrends.current7Days.sessionCount)",
+                            detail: "30-day: \(fitnessTrends.current30Days.sessionCount)"
                         ),
                         TrendMetricRowData(
-                            label: "Duration",
-                            value: formattedMinutesTotal(trends.workouts.current7Days.totalDurationMinutes),
-                            detail: "7-day total"
+                            label: "Training days",
+                            value: "\(fitnessTrends.current7Days.activeDayCount)",
+                            detail: "30-day: \(fitnessTrends.current30Days.activeDayCount)"
                         ),
                         TrendMetricRowData(
-                            label: "Workout mix",
-                            value: topCountText(trends.workouts.current7Days.workoutTypeCounts),
-                            detail: "7-day counts"
+                            label: "Exercise library",
+                            value: "\(fitnessViewModel.exercises.count)",
+                            detail: "\(fitnessViewModel.workoutTemplates.count) workout day\(fitnessViewModel.workoutTemplates.count == 1 ? "" : "s")"
                         ),
                         TrendMetricRowData(
-                            label: "Intensity",
-                            value: formattedRatingAverage(trends.workouts.current7Days.averageIntensityRating),
-                            detail: "7-day average"
-                        ),
-                        TrendMetricRowData(
-                            label: "Energy change",
-                            value: formattedSignedAverage(trends.workouts.current7Days.averageEnergyDelta),
-                            detail: "After minus before"
+                            label: "Recent",
+                            value: fitnessViewModel.homeSummary.value,
+                            detail: fitnessViewModel.homeSummary.detail
                         ),
                     ]
                 )
@@ -496,7 +463,6 @@ private enum HealthViewMode: String, CaseIterable, Identifiable {
 private enum HealthSheet: Identifiable {
     case sleepCheckIn
     case mealLog(MealLog?)
-    case workoutLog(WorkoutLog?)
     case pvtTest
 
     var id: String {
@@ -505,8 +471,6 @@ private enum HealthSheet: Identifiable {
             return "sleepCheckIn"
         case .mealLog(let log):
             return "mealLog-\(log?.id.uuidString ?? "new")"
-        case .workoutLog(let log):
-            return "workoutLog-\(log?.id.uuidString ?? "new")"
         case .pvtTest:
             return "pvtTest"
         }
@@ -678,6 +642,34 @@ private struct WorkoutLogRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct FitnessSessionRow: View {
+    let exercise: FitnessExercise?
+    let session: ExerciseSession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(exercise?.name ?? "Exercise Session")
+                    .font(.body.weight(.semibold))
+                Spacer()
+                Text(session.performedAt.formatted(date: .omitted, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                if let exercise {
+                    Label(exercise.tag.displayName, systemImage: "dumbbell")
+                }
+                Text(session.summaryText)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
     }
@@ -1311,9 +1303,13 @@ private struct RatingPicker: View {
 
 #Preview {
     NavigationStack {
+        let container = AppContainer.makePreview()
         HealthView(
             healthRepository: SwiftDataHealthRepository(
-                modelContainer: AppContainer.makePreview().modelContainer
+                modelContainer: container.modelContainer
+            ),
+            fitnessRepository: SwiftDataFitnessRepository(
+                modelContainer: container.modelContainer
             )
         )
     }

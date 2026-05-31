@@ -17,13 +17,16 @@ Domain docs for implemented or active areas live in `docs/domains/`. `docs/domai
 The implemented Swift app currently centers on:
 
 - Tasks
+- Projects and quick capture
 - Planner / Calendar
-- Today
+- Home widget hub
 - Promises
 - Routines
+- Shopping, as an active work in progress
 - Health, as an active work in progress
 - Music Practice, as an active work in progress
 - Fitness, as an active work in progress
+- People Memory, as an active work in progress
 
 Current foundations to preserve:
 
@@ -43,15 +46,18 @@ Likely future life domains include:
   - more useful review surfaces
 - Music practice polish
 - Fitness polish
-- Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
-- Shopping list and wish list
+- Shopping wish list and purchase-decision polish
+- People Memory polish:
+  - richer study modes
+  - export decisions
+  - optional task/planner links
+- Task evolution: richer project/task-group behavior, subtasks, recurrence, prerequisites, and sequences
 - Budgeting / purchase decision support
 - Vices Tracking
-- People Memory
 - Journaling & Reflection
 - General life logs
 
-Today, Promises, Routines, and Health now have first-pass Swift implementations. Health should still be treated as work in progress, especially the real-time PVT flow and cross-module surfacing. The remaining future modules are not implemented yet unless the README or feature-specific docs say otherwise.
+Home, Tasks, Projects, Planner, Promises, Routines, Shopping, Health, Music Practice, Fitness, and People Memory now have first-pass Swift implementations or active work-in-progress foundations. Health should still be treated as work in progress, especially the real-time PVT flow and cross-module surfacing. The remaining future modules are not implemented yet unless the README or feature-specific docs say otherwise.
 
 ## Product Spine
 
@@ -72,7 +78,7 @@ Future modules should be added as separate life domains. A domain can start as a
 Conceptual domain names:
 
 - `TaskDomain`
-- `TodayDomain`
+- `HomeDomain`
 - `PromiseDomain`
 - `RoutineDomain`
 - `HealthDomain`

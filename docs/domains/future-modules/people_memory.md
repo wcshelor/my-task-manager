@@ -8,7 +8,7 @@ This should feel like a private memory aid, not a professional CRM. The core job
 
 ## Product Shape
 
-The first version should support:
+The first version supports:
 
 - quick person capture
 - searchable people list
@@ -16,16 +16,19 @@ The first version should support:
 - memorable detail notes
 - where / when met
 - lightweight study mode
-- future export for Anki or CSV
+- future export for Anki or CSV remains planned
 
 The system should help the user distinguish people without requiring an awkward amount of data entry.
 
-## Possible Objects
+## Current Objects
 
 - `PersonMemory`
 - `PersonTag`
-- `PersonMeetingContext`
 - `PeopleStudyCard`
+
+Possible future objects:
+
+- `PersonMeetingContext`
 - `PeopleStudySession`
 
 Start with `PersonMemory` and reusable `PersonTag`.
@@ -87,9 +90,9 @@ Possible quiz modes:
 
 Anki export can come later. A simple CSV export with name, context, details, and tags may be enough for a first export path.
 
-## Interaction With Today / Tasks / Planner
+## Interaction With Home / Tasks / Planner
 
-Today can eventually surface light review prompts if the user wants them, such as "review 5 names."
+Home can eventually surface light review prompts if the user wants them, such as "review 5 names."
 
 People Memory may create tasks, for example:
 
@@ -123,7 +126,6 @@ Features/PeopleMemory/
   Add / edit person
   Tag picker
   Study mode
-  Export
 ```
 
 Keep tag ranking and study-card selection outside SwiftUI so they can be tested.
@@ -145,4 +147,12 @@ Keep tag ranking and study-card selection outside SwiftUI so they can be tested.
 
 ## Status
 
-Planning only. No People Memory model, persistence, or UI exists yet.
+First-pass People Memory is implemented in Swift with:
+
+- `PersonMemory`, `PersonTag`, `PeopleStudyCard`, and `PeopleStudyQueue` domain models
+- SwiftData persistence through `PersonMemoryRecord`, `PersonTagRecord`, and `SwiftDataPeopleMemoryRepository`
+- `PeopleMemoryViewModel`
+- Home module access, person capture, reusable tags, search, due-review counts, and lightweight easy/almost/missed study cards
+- targeted model, repository, and view-model tests
+
+Still planned: photos, Apple Contacts integration, CSV/Anki export, richer study modes, structured meeting-context objects, Home review prompts beyond the module summary, task links, Planner integration, and Journaling links.

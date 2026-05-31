@@ -2,6 +2,7 @@ import Foundation
 
 nonisolated struct CalendarEventSnapshot: Sendable, Equatable {
     let identifier: String?
+    let calendarIdentifier: String?
     let title: String
     let start: Date
     let end: Date

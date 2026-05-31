@@ -407,6 +407,7 @@ struct HomeExecutionViewModelTests {
         let startOfDay = calendar.startOfDay(for: now)
         let event = CalendarEventSnapshot(
             identifier: "workout",
+            calendarIdentifier: nil,
             title: "Workout",
             start: calendar.date(byAdding: .hour, value: 9, to: startOfDay)!,
             end: calendar.date(byAdding: .hour, value: 10, to: startOfDay)!,

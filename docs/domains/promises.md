@@ -22,9 +22,9 @@ Current fields include:
 - reflection
 - optional parent promise for reset promises
 
-## Interaction With Today / Planner
+## Interaction With Home / Planner
 
-Today surfaces active promises, due check-ins, and simple kept/missed history. Tasks and Calendar show compact active-promise presence.
+Home surfaces active promises, due check-ins, and simple kept/missed history. Tasks and Planner show compact active-promise presence.
 
 Promises should not write directly to Apple Calendar. Future scheduled promise support should flow through Planner / ScheduledBlock if it is ever needed.
 

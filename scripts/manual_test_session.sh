@@ -8,6 +8,8 @@ project_path="apple_app/task-manager/task-manager.xcodeproj"
 scheme="task-manager"
 simulator_test_exit=0
 iphone_build_exit=0
+simulator_test_status="skipped"
+run_simulator_tests="${RUN_IOS_SIMULATOR_TESTS:-0}"
 
 mkdir -p "$repo_root/docs/test_sessions"
 
@@ -17,11 +19,25 @@ echo "Repo: $repo_root"
 echo "Note: $note_path"
 echo
 
-echo "Running iOS simulator Swift tests..."
-if (cd "$repo_root" && xcodebuild -project "$project_path" -scheme "$scheme" -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test); then
-  simulator_test_exit=0
+if [[ "$run_simulator_tests" == "1" ]]; then
+  echo "Checking iOS simulator availability..."
+  if xcrun simctl list devices available >/dev/null 2>&1; then
+    echo "Running iOS simulator Swift tests..."
+    if (cd "$repo_root" && xcodebuild -project "$project_path" -scheme "$scheme" -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test); then
+      simulator_test_exit=0
+      simulator_test_status="passed"
+    else
+      simulator_test_exit=$?
+      simulator_test_status="failed"
+    fi
+  else
+    simulator_test_exit=1
+    simulator_test_status="skipped (CoreSimulator unavailable)"
+    echo "Skipping simulator tests: CoreSimulator is unavailable on this machine."
+  fi
 else
-  simulator_test_exit=$?
+  simulator_test_status="skipped (set RUN_IOS_SIMULATOR_TESTS=1 to enable)"
+  echo "Skipping iOS simulator Swift tests by default."
 fi
 
 echo
@@ -38,19 +54,20 @@ cat > "$note_path" <<NOTE
 ## Automated Checks
 
 - iOS simulator Swift tests: exit code $simulator_test_exit
+- iOS simulator Swift tests status: $simulator_test_status
 - iPhone simulator build: exit code $iphone_build_exit
 
 ## Current Product Path
 
 - [ ] Opened \`apple_app/task-manager/task-manager.xcodeproj\`
 - [ ] Ran the \`task-manager\` scheme
-- [ ] Confirmed the app opens to Today
+- [ ] Confirmed the app opens to Home
 
-## Today / Promises
+## Home / Promises
 
 - [ ] Created a new promise
-- [ ] Confirmed the promise appears on Today
-- [ ] Confirmed the active-promise banner appears on Tasks and Calendar
+- [ ] Confirmed the promise appears on Home
+- [ ] Confirmed the active-promise banner appears on Tasks and Planner
 - [ ] Checked in as kept
 - [ ] Created another promise and checked in as missed
 - [ ] Added a short recovery reflection
@@ -61,7 +78,7 @@ cat > "$note_path" <<NOTE
 
 - [ ] Created a daily routine with multiple items
 - [ ] Created a selected-weekday routine
-- [ ] Confirmed today's active routines appear on Today
+- [ ] Confirmed today's active routines appear on Home
 - [ ] Completed and uncompleted routine items
 - [ ] Relaunched the app and confirmed completion state persists for today
 
@@ -81,6 +98,14 @@ cat > "$note_path" <<NOTE
 - [ ] Accepted a suggestion and confirmed calendar writeback
 - [ ] Canceled/deleted an accepted block
 - [ ] Confirmed promises and routines do not write directly to Apple Calendar
+
+## Health / Fitness / Practice / Shopping / People
+
+- [ ] Opened Health from Home and saved a quick check-in or log
+- [ ] Opened Shopping from Home and added an item
+- [ ] Opened Fitness from Home and checked workout-day or exercise history
+- [ ] Opened Music Practice from Home and checked recent summaries
+- [ ] Opened People from Home and checked search or study review
 
 ## Notes
 

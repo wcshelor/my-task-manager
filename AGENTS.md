@@ -14,7 +14,9 @@
 ## Verification
 
 - Prefer targeted tests/checks over full-suite runs.
-- Do not prioritize iPhone simulator testing unless it is necessary for the change.
+- Do not run iPhone simulator tests by default.
+- Prefer deterministic, non-simulator checks first (targeted test scopes and build checks).
+- Use iPhone simulator testing sparingly, only when required for the change or for a larger milestone QA pass.
 - Do not claim UI behavior was verified unless actually tested.
 - Clearly state what still needs manual QA.
 

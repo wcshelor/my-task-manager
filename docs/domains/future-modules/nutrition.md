@@ -43,9 +43,9 @@ Examples:
 - repeated missing staples can become shopping reminders
 - takeout-heavy weeks can feed budget review
 
-## Interaction With Health / Fitness / Routines / Today
+## Interaction With Health / Fitness / Routines / Home
 
-Today can show simple nutrition prompts only when useful:
+Home can show simple nutrition prompts only when useful:
 
 - "Log lunch"
 - "Plan dinner"

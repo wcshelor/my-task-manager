@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import task_manager
 
@@ -21,6 +22,13 @@ struct SwiftDataRoutineRepositoryTests {
                     routineStepID: secondItem.id,
                     kind: .pvtTest,
                     displayOrder: 0
+                ),
+                RoutineStepLink(
+                    routineStepID: secondItem.id,
+                    kind: .moduleWidget,
+                    moduleWidgetKind: .shoppingModule,
+                    displayTitle: "Shopping",
+                    displayOrder: 1
                 )
             ],
             createdAt: Date(timeIntervalSince1970: 1_000)
@@ -29,6 +37,39 @@ struct SwiftDataRoutineRepositoryTests {
         try repository.saveRoutine(routine, replacingRoutineWithID: nil)
 
         #expect(try repository.routine(withID: routine.id) == routine)
+    }
+
+    @Test @MainActor func routineRepositoryLoadsLegacyStepLinkPayloadWithoutModuleWidgetKind() throws {
+        let container = try ModelContainerFactory.makeInMemoryContainer()
+        let repository = SwiftDataRoutineRepository(modelContainer: container)
+        let item = RoutineItem(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174050")!,
+            title: "Plan",
+            position: 0
+        )
+        let routine = Routine(
+            id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174051")!,
+            name: "Morning",
+            items: [item]
+        )
+        let record = RoutineRecord(routine: routine)
+        record.stepLinksData = try JSONEncoder().encode([
+            LegacyRoutineStepLink(
+                id: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174052")!,
+                routineStepID: item.id,
+                kind: .pvtTest,
+                displayTitle: "PVT Test",
+                displayOrder: 0
+            ),
+        ])
+        container.mainContext.insert(record)
+        try container.mainContext.save()
+
+        let reloaded = try #require(repository.routine(withID: routine.id))
+        let link = try #require(reloaded.stepLinks.first)
+
+        #expect(link.kind == .pvtTest)
+        #expect(link.moduleWidgetKind == nil)
     }
 
     @Test @MainActor func routineRepositoryPersistsDailyCompletionLog() throws {
@@ -91,4 +132,12 @@ struct SwiftDataRoutineRepositoryTests {
         let container = try ModelContainerFactory.makeInMemoryContainer()
         return SwiftDataRoutineRepository(modelContainer: container)
     }
+}
+
+private struct LegacyRoutineStepLink: Codable {
+    let id: UUID
+    let routineStepID: UUID
+    let kind: RoutineStepLinkKind
+    let displayTitle: String
+    let displayOrder: Int
 }

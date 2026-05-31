@@ -2,7 +2,7 @@
 
 This repo contains a SwiftUI Apple app evolving from a task manager into a broader Life Assistant / personal planning hub.
 
-Status: active work in progress. Implemented areas are usable development surfaces, while newer modules, especially Health, Music Practice, and Fitness, should still be treated as incomplete until manual QA and product polish catch up.
+Status: active work in progress. Implemented areas are usable development surfaces, while newer modules, especially Health, Music Practice, Fitness, Shopping, and People Memory, should still be treated as incomplete until manual QA and product polish catch up.
 
 The product framing is:
 
@@ -18,8 +18,9 @@ The Swift app is the only active product path.
   - `Home`
   - `Tasks`
   - `Projects`
-- `Home` is the widget-based execution hub.
-- Planner / Calendar is reached from Home and remains the planner-first surface.
+  - `Settings`
+- `Home` is the widget-based execution hub and replaces the older Today framing in most current UI.
+- Planner / Calendar is reached from Home and now supports manual planning plus Debrief follow-through.
 - SwiftData owns app-owned durable data.
 - EventKit owns Apple Calendar permission, reads, writes, and reconciliation.
 - Home widget layout is app-owned SwiftData state.
@@ -95,6 +96,12 @@ If changing Shopping:
 - Keep Shopping practical and capture-oriented.
 - Separate necessities/current list behavior from future wish-list or purchase-decision behavior.
 
+If changing People Memory:
+
+- Start with `PeopleMemoryModels`, `PeopleMemoryRepository`, and `PeopleMemoryViewModel`.
+- Keep tag ranking and study queue logic outside SwiftUI.
+- Treat photos, contacts, export, and task/planner links as future work unless explicitly requested.
+
 If changing Sync:
 
 - Do not implement sync unless explicitly asked.
@@ -111,6 +118,7 @@ If changing Sync:
 | Tasks | task models, `TaskRepository`, task views/forms | Preserve quick-add vs full-edit distinction. |
 | Home widgets | `HomeWidgetRegistry`, `HomeLayoutViewModel`, Home views | Layout is persisted app-owned state. |
 | Planner | `Planner/` | Pure/domain planner logic should remain independent of SwiftUI/EventKit/SwiftData. |
+| Debriefs | debrief models/repository/views | Calendar-event reflection records with lightweight capture and close-the-loop status. |
 | Calendar/EventKit | `Calendar/` | Permission, calendar reads/writes, and reconciliation. |
 | Settings | `AppSettingsRecord`, `SettingsRepository`, settings views | User-facing settings UI should use repository-backed state. |
 | Promises | promise models/repository/views | Avoid guilt/shame mechanics; keep recovery-oriented tone. |
@@ -119,6 +127,7 @@ If changing Sync:
 | Music Practice | music practice models/repository/views | Lightweight practice tracking, not a full practice planner yet. |
 | Fitness | fitness models/repository/views | Standalone Home-reachable structured exercise tracking. |
 | Shopping | shopping models/repository/views | Practical capture module. |
+| People Memory | people-memory models/repository/views | Work in progress private memory aid for names, contexts, reusable tags, and lightweight study review. |
 | Sync | `Sync/` | Scaffolding only unless explicitly asked. |
 | Tests | `task-managerTests/`, `scripts/` | Run Swift tests and smoke helpers after meaningful changes. |
 
@@ -132,6 +141,7 @@ If changing Sync:
 - Planner suggestions are ephemeral until accepted.
 - Accepted planner suggestions become `ScheduledBlock` records.
 - Only Planner / ScheduledBlock flows may write to Apple Calendar.
+- Debriefs read EventKit events but never write EventKit events.
 - Cross-device sync is not active.
 - Do not implement CloudKit or folder sync unless the prompt explicitly asks for sync implementation.
 - Do not add a new visible domain unless it has useful content, persistence, and a clear user-facing workflow.
@@ -140,7 +150,7 @@ If changing Sync:
 
 ### Before You Code
 
-1. Identify the feature area: Home, Tasks, Planner, Settings, Routines, Projects, Promises, Health, Music Practice, Shopping, or Sync.
+1. Identify the feature area: Home, Tasks, Planner, Debriefs, Settings, Routines, Projects, Promises, Health, Music Practice, Fitness, Shopping, People Memory, or Sync.
 2. Read this README section plus the relevant domain doc under `docs/domains/` or `docs/domains/future-modules/`.
 3. Find the existing model/repository/view model before editing SwiftUI views.
 4. Prefer extending existing patterns over introducing new architectural styles.
@@ -255,6 +265,7 @@ Every feature should support at least one of these jobs:
 
 - Tasks
 - Calendar / Planner
+- Debriefs from recent ended calendar events
 - Home widget hub
 - Projects
 - Promises
@@ -263,14 +274,14 @@ Every feature should support at least one of these jobs:
 - Health work in progress: sleep check-ins, one-minute PVT sessions, lightweight meal/workout logs, and neutral rolling trend summaries
 - Fitness work in progress: workout days, exercise library, exercise-owned history, and structured session logging
 - Music Practice foundation: lightweight piece records, session logging, recent summaries, and Home access
-- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine step links, routine completion logs, work-in-progress Health records, Music Practice records, and Fitness records
+- People Memory work in progress: person records, reusable tags, search, lightweight study cards, and Home access
+- SwiftData persistence for tasks, projects, captures, project items, scheduled blocks, debrief records, settings, home layout, promises, routines, routine step links, routine completion logs, Shopping records, work-in-progress Health records, Music Practice records, Fitness records, and People Memory records
 - EventKit integration for calendar permission, reads, writes, and scheduled-block reconciliation
 
 Future or incomplete areas remain product ideas, scaffolding, or active work in progress until the app and docs say otherwise:
 
-- Task evolution: projects, subtasks, recurrence, prerequisites, and sequences
+- Task evolution: richer project/task-group structure, subtasks, recurrence, prerequisites, and sequences
 - Vices Tracking
-- People Memory
 - Journaling & Reflection
 - Budgeting / purchase decision support
 - General life logs
@@ -289,32 +300,33 @@ Implemented or active domain docs:
 - `docs/domains/routines.md`: user-authored recurring routine checklists.
 - `docs/domains/shopping.md`: active shopping list, trip grouping, and future wish-list support.
 - `docs/domains/today_dashboard.md`: Today / Home as the execution hub.
+- `docs/domains/debriefs.md`: Debrief workflow for recent ended calendar events, capture, and close-the-loop processing.
 - `docs/domains/future-modules/health.md`: active work-in-progress Health section for Sleep / PVT, Nutrition, lightweight workout logs, and daily context.
 - `docs/domains/future-modules/sleep_pvt.md`: active work-in-progress Health subdomain for sleep check-ins, PVT sessions, and trend tracking.
 - `docs/domains/future-modules/nutrition.md`: active work-in-progress Health subdomain for lightweight meal logging and trends.
 - `docs/domains/future-modules/fitness.md`: active work-in-progress standalone Fitness module for workout days, exercises, and exercise history.
 - `docs/domains/future-modules/music_practice.md`: active work-in-progress Music Practice foundation for pieces, sessions, and recent practice summaries.
+- `docs/domains/future-modules/people_memory.md`: active work-in-progress People Memory foundation for remembering names, meeting context, reusable tags, and lightweight study.
 
-Plan-only future module docs:
+Plan-only and product-sketch docs:
 
-- `docs/domains/future-modules/task_evolution.md`: projects, subtasks, recurring tasks, prerequisites, and task sequences.
+- `docs/domains/future-modules/task_evolution.md`: richer project/task-group behavior, subtasks, recurring tasks, prerequisites, and task sequences.
 - `docs/domains/future-modules/budgeting.md`: lightweight expense logs, spending awareness, and purchase decision support.
 - `docs/domains/future-modules/vices.md`: custom vices, mindful pre-action logging, goals, limits, and pattern review.
-- `docs/domains/future-modules/people_memory.md`: remembering names, meeting context, reusable tags, study mode, and future export.
 - `docs/domains/future-modules/journaling_reflection.md`: guided journaling, freeform reflection, search, links, and follow-up actions.
 - `docs/domains/future-modules/life_logs.md`: generic logs and guidance for when a domain needs dedicated models.
-- `docs/domains/future-modules/future_widgets.md`: future Home widget and sub-module widget ideas.
+- `docs/domains/future-modules/future_widgets.md`: mixed-status Home widget and sub-module widget ideas; `HomeWidgetRegistry` is the source of truth for current availability.
 
 Rough next steps:
 
-1. Strengthen the existing task system with explicit task groups/projects, then subtasks.
+1. Strengthen the existing task system with richer project/task-group behavior, then subtasks.
 2. Add promise-breaking / renegotiation friction to the existing Promises flow.
 3. Polish the Music Practice foundation with piece detail review, archive/unarchive, and manual QA.
 4. Polish Shopping as a practical capture module, keeping wish-list decisions separate from necessities.
 5. Add lightweight Budgeting around manual expenses and purchase decisions.
 6. Polish the Health work in progress: manually QA the PVT tap flow, refine neutral trend summaries, and decide how Health should surface in Home / Routines.
 7. Add Vices Tracking once the promise, Health, log, and check-in patterns are mature enough to support it cleanly.
-8. Add People Memory and Journaling & Reflection when their capture and retrieval flows are clear.
+8. Polish People Memory with clearer detail review, export decisions, and manual QA; add Journaling & Reflection when its capture and retrieval flow is clear.
 9. Build optional folder-based cloud sync after the SwiftData models for durable records are stable enough to audit for identity, merge behavior, deletion semantics, privacy, and migration risk.
 
 ## Current User-Facing App
@@ -326,10 +338,12 @@ Home is the widget-based execution hub. The default layout migrates the old Toda
 - inbox / quick capture
 - pinned projects
 - today’s calendar overview
+- pending Debriefs
 - active promises
 - due promise check-ins
 - today’s active routines
 - simple promise history counts
+- Shopping, Health, Music Practice, Fitness, and People module entry widgets
 
 Home supports a persisted vertical widget board. Users can long-press any widget or tap `Edit` to enter edit mode, then reorder widgets, remove widgets, resize supported widgets between small and large, and add more widgets from a module-grouped Add Widget screen.
 
@@ -376,15 +390,36 @@ Planner suggestions are transient until accepted. Accepted suggestions become `S
 
 When promises are active, Planner also shows a compact promise-presence banner.
 
+Auto-generation remains available as supporting behavior. The primary calendar support loop is now manual planning, calendar awareness, and Debrief follow-through.
+
+### Debriefs
+
+Debriefs are lightweight reflections attached to recent ended calendar events. The Debrief flow:
+
+- reads external calendar events through EventKit abstractions
+- lets the user choose Work Block, Meeting, or Social templates
+- captures essential answers plus optional detail
+- includes a universal "Capture from this event" input that writes captures into the inbox
+- marks events as Debriefed or No Debrief needed
+- persists Debrief records in SwiftData for future trend analysis
+
+### Projects
+
+Projects are available as a top-level tab. The current app supports lightweight project records, pinned project surfacing on Home, project-linked tasks, project captures, and project items such as maybes and notes.
+
+Project support is still intentionally lightweight. It is not a full project-management system, and future task evolution work still covers subtasks, recurrence, prerequisites, sequences, and richer task/project structure.
+
 ### Health
 
 Health is active work in progress and is reached from Home. The current app supports quick sleep check-ins, a rough one-minute in-app PVT reaction test, lightweight meal and workout logs, and neutral rolling 7/30-day trend summaries.
+
+The module is for personal tracking and trend visibility, not diagnosis or judging health state. Manual QA still needs to verify the real-time PVT tap flow on device or simulator.
 
 ### Fitness
 
 Fitness is active work in progress and is reached from Home through its module widget. The current app supports workout days, an exercise library, per-exercise recent history, structured strength-set logging, metric-summary cardio logging, and same-day logged-state surfacing.
 
-The module is for personal tracking and progress visibility, not diagnosis or judging health state. Manual QA still needs to verify the real-time PVT tap flow on device or simulator.
+The module is for personal tracking and progress visibility. Workout-completion objects, plans, charts, archive flows, Health sync, and Apple Health integration remain deferred.
 
 ### Shopping
 
@@ -396,17 +431,27 @@ Music Practice is active work in progress and is reached from Home through its m
 
 The module is intentionally small: it does not include practice plans, audio recording, metronome behavior, AI recommendations, detailed repertoire hierarchy, or Calendar/EventKit integration.
 
+### People Memory
+
+People Memory is active work in progress and is reached from Home through its module widget. The current app supports person capture, reusable tags, search across person details and tags, due-review counts, and lightweight study cards with easy/almost/missed ratings.
+
+Photos, Contacts integration, export, richer study modes, Home prompts, and task/planner links remain future work.
+
 ## Product Contract
 
 - Tasks live in app-owned SwiftData storage.
+- Projects, captures, and project items live in app-owned SwiftData storage.
 - App settings live in app-owned SwiftData storage.
 - Scheduled blocks live in app-owned SwiftData storage.
+- Debrief records live in app-owned SwiftData storage.
 - Home widget layout lives in app-owned SwiftData storage.
 - Promises live in app-owned SwiftData storage.
 - Routine definitions, routine step links, and daily completion logs live in app-owned SwiftData storage.
 - Health check-ins, PVT sessions, meal logs, and workout logs live in app-owned SwiftData storage.
 - Fitness exercises, workout days, and exercise sessions live in app-owned SwiftData storage.
 - Music Practice pieces and sessions live in app-owned SwiftData storage.
+- Shopping items live in app-owned SwiftData storage.
+- People Memory people and tags live in app-owned SwiftData storage.
 - Apple Calendar is the external source of truth for calendar busy time.
 - Accepted planner suggestions are written to Apple Calendar only after explicit user acceptance.
 - `ScheduledBlock` is the bridge between app tasks and Apple Calendar events.
@@ -414,6 +459,7 @@ The module is intentionally small: it does not include practice plans, audio rec
 - Planner suggestions remain ephemeral until accepted.
 - Only Planner / ScheduledBlock flows should write to Apple Calendar.
 - Promises, Routines, Music Practice, Fitness, Health, Shopping, Budgeting, Vices Tracking, People Memory, and Journaling & Reflection should not write directly to Apple Calendar.
+- Debriefs should not write directly to Apple Calendar.
 - Cross-device sync is not active today.
 - CloudKit is not the planned near-term sync path because it depends on Apple developer capabilities that may not be available to every user or build setup.
 - The planned sync extension is optional folder-based sync: the user chooses a cloud-backed folder, the app keeps SwiftData as the local source of truth, and sync reads/writes portable files in that folder.
@@ -425,8 +471,6 @@ The module is intentionally small: it does not include practice plans, audio rec
 ```text
 .
 |-- README.md
-|-- concrete_plan.md
-|-- life_assistant_app_brainstorm.md
 |-- apple_app/
 |-- docs/
 `-- scripts/
@@ -439,7 +483,6 @@ Important directories:
 - `docs/domains/`: domain docs for implemented or active app areas.
 - `docs/domains/future-modules/`: plan-only future module docs.
 - `scripts/`: Swift app QA helper scripts.
-- `concrete_plan.md`: ordered technical and product priorities.
 
 ## Swift App Architecture
 
@@ -487,13 +530,16 @@ Prefer injecting repositories/services through the app container instead of cons
 - `ScheduledBlockRepository`
 - `SettingsRepository`
 - `HomeLayoutRepository`
+- `DebriefRepository`
 - `PromiseRepository`
 - `RoutineRepository`
 - `HealthRepository`
 - `FitnessRepository`
 - `MusicPracticeRepository`
+- `ShoppingRepository`
+- `PeopleMemoryRepository`
 
-SwiftData records include tasks, projects, captures, project items, scheduled blocks, settings, home layout, promises, routines, routine completion logs, work-in-progress Health records, Music Practice records, and Fitness records.
+SwiftData records include tasks, projects, captures, project items, scheduled blocks, debrief records, settings, home layout, promises, routines, routine completion logs, Shopping records, work-in-progress Health records, Music Practice records, Fitness records, and People Memory records.
 
 ### Planned Folder Sync
 
@@ -523,23 +569,29 @@ The live SwiftData store should remain local. The cloud folder should contain po
 
 ## Testing
 
-Run the main Swift test suite on an available iOS simulator:
-
-```bash
-xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test
-```
-
-Run iPhone simulator build checks:
+Default to non-simulator checks first:
 
 ```bash
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build
 xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -sdk iphonesimulator build-for-testing
 ```
 
+Run simulator tests only when needed and when CoreSimulator is healthy:
+
+```bash
+xcodebuild -project apple_app/task-manager/task-manager.xcodeproj -scheme task-manager -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' test
+```
+
 Run the Swift QA helper:
 
 ```bash
 bash scripts/manual_test_session.sh
+```
+
+Enable simulator tests in the helper only when intentionally requested:
+
+```bash
+RUN_IOS_SIMULATOR_TESTS=1 bash scripts/manual_test_session.sh
 ```
 
 See `docs/testing_workflow.md` for the current manual and automated workflow.

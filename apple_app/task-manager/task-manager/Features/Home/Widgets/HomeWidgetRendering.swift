@@ -221,6 +221,9 @@ struct HomeWidgetRendererRegistry {
             AnyHomeWidgetRenderer(kind: .nextEvent) { widget, context in
                 HomeNextEventRenderer.render(widget: widget, context: context)
             },
+            AnyHomeWidgetRenderer(kind: .debriefsPending) { widget, context in
+                HomeDebriefsRenderer.render(widget: widget, context: context)
+            },
             AnyHomeWidgetRenderer(kind: .pinnedProjects) { widget, context in
                 HomeProjectsRenderer.renderPinnedProjects(widget: widget, context: context)
             },
@@ -388,6 +391,35 @@ private enum HomeProjectsRenderer {
                 systemImage: "folder.badge.questionmark",
                 message: "Configure this widget with a project."
             )
+        }
+    }
+}
+
+private enum HomeDebriefsRenderer {
+    @ViewBuilder
+    static func render(
+        widget: HomeWidgetInstance,
+        context: HomeWidgetRenderContext
+    ) -> some View {
+        let summary = context.execution.debriefSummary
+
+        if widget.size == .small {
+            HomeSmallButtonWidget(
+                title: "Debriefs",
+                systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
+                value: "\(summary.pendingCount)",
+                detail: summary.pendingCount > 0 ? "Close the loop" : "All caught up",
+                actionTitle: "Debrief"
+            ) {
+                context.perform(.openDebriefs, widget)
+            }
+        } else {
+            HomeDebriefsWidget(
+                pendingCandidates: summary.pendingCandidates,
+                completedTodayCount: summary.completedTodayCount
+            ) {
+                context.perform(.openDebriefs, widget)
+            }
         }
     }
 }
@@ -637,6 +669,61 @@ struct HomeActionWidget: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct HomeDebriefsWidget: View {
+    let pendingCandidates: [CalendarDebriefCandidate]
+    let completedTodayCount: Int
+    let onOpenDebriefs: () -> Void
+
+    var body: some View {
+        HomeWidgetCardSurface {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Debriefs", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+                        .font(.headline)
+                    Spacer()
+                    Text(summaryText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                if pendingCandidates.isEmpty {
+                    Text("All caught up")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(pendingCandidates.prefix(3)), id: \.id) { candidate in
+                            Text(candidate.title)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
+                Button {
+                    onOpenDebriefs()
+                } label: {
+                    Text(pendingCandidates.isEmpty ? "Open Debriefs" : "Debrief")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    private var summaryText: String {
+        if pendingCandidates.isEmpty {
+            return completedTodayCount > 0
+                ? "\(completedTodayCount) closed today"
+                : "No pending"
+        }
+
+        return pendingCandidates.count == 1
+            ? "1 waiting"
+            : "\(pendingCandidates.count) waiting"
     }
 }
 

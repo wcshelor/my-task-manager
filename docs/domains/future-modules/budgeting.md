@@ -69,9 +69,9 @@ Budgeting can summarize:
 - luxury spending
 - repeated categories
 
-## Interaction With Today / Planner
+## Interaction With Home / Planner
 
-Today can show budget check-ins sparingly:
+Home can show budget check-ins sparingly:
 
 - weekly spending review
 - pending purchase decisions

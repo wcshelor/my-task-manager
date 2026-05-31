@@ -45,6 +45,16 @@ nonisolated struct HomeFitnessSummary: Equatable, Sendable {
     }
 }
 
+nonisolated struct FitnessTrendSummary: Equatable, Sendable {
+    let current7Days: FitnessTrendWindow
+    let current30Days: FitnessTrendWindow
+}
+
+nonisolated struct FitnessTrendWindow: Equatable, Sendable {
+    let sessionCount: Int
+    let activeDayCount: Int
+}
+
 nonisolated struct FitnessTemplateRowSummary: Identifiable, Equatable, Sendable {
     let template: WorkoutTemplate
     let rows: [FitnessTemplateExerciseRow]
@@ -149,6 +159,22 @@ final class FitnessViewModel: ObservableObject {
         )
     }
 
+    var sessionsTodaySummary: String {
+        let count = todaysSessions.count
+        return "\(count) session\(count == 1 ? "" : "s") today"
+    }
+
+    var todaysSessions: [ExerciseSession] {
+        sessions.filter { $0.isForSameDay(as: nowProvider(), calendar: calendar) }
+    }
+
+    var trendSummary: FitnessTrendSummary {
+        FitnessTrendSummary(
+            current7Days: trendWindow(days: 7),
+            current30Days: trendWindow(days: 30)
+        )
+    }
+
     func loadIfNeeded() {
         guard hasLoaded == false else {
             return
@@ -175,6 +201,10 @@ final class FitnessViewModel: ObservableObject {
 
     func latestSession(for exerciseID: UUID) -> ExerciseSession? {
         sessionsByExerciseID[exerciseID]?.first
+    }
+
+    func exercise(withID exerciseID: UUID) -> FitnessExercise? {
+        exercisesByID[exerciseID]
     }
 
     func loggedToday(for exerciseID: UUID) -> Bool {
@@ -243,5 +273,18 @@ final class FitnessViewModel: ObservableObject {
         } catch {
             errorMessage = "Unable to delete session: \(error.localizedDescription)"
         }
+    }
+
+    private func trendWindow(days: Int) -> FitnessTrendWindow {
+        let now = nowProvider()
+        let earliestDate = calendar.date(byAdding: .day, value: -max(0, days - 1), to: calendar.startOfDay(for: now))
+            ?? now
+        let sessionsInWindow = sessions.filter { $0.performedAt >= earliestDate && $0.performedAt <= now }
+        let activeDays = Set(sessionsInWindow.map { calendar.startOfDay(for: $0.performedAt) })
+
+        return FitnessTrendWindow(
+            sessionCount: sessionsInWindow.count,
+            activeDayCount: activeDays.count
+        )
     }
 }

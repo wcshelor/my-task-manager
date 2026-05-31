@@ -3142,6 +3142,7 @@ private struct PlannerDayCalendarLayoutItem: Identifiable {
             events: [
                 CalendarEventSnapshot(
                     identifier: "standup",
+                    calendarIdentifier: nil,
                     title: "Team Standup",
                     start: Date.now.addingTimeInterval(60 * 60),
                     end: Date.now.addingTimeInterval(90 * 60),
@@ -3150,6 +3151,7 @@ private struct PlannerDayCalendarLayoutItem: Identifiable {
                 ),
                 CalendarEventSnapshot(
                     identifier: "lunch",
+                    calendarIdentifier: nil,
                     title: "Lunch",
                     start: Date.now.addingTimeInterval(4 * 60 * 60),
                     end: Date.now.addingTimeInterval(5 * 60 * 60),

@@ -48,7 +48,8 @@ private struct TaskManagerTabShell: View {
                 healthRepository: appEnvironment.healthRepository,
                 musicPracticeRepository: appEnvironment.musicPracticeRepository,
                 fitnessRepository: appEnvironment.fitnessRepository,
-                peopleMemoryRepository: appEnvironment.peopleMemoryRepository
+                peopleMemoryRepository: appEnvironment.peopleMemoryRepository,
+                debriefRepository: appEnvironment.debriefRepository
             )
                 .tabItem {
                     Label("Home", systemImage: "square.grid.2x2.fill")

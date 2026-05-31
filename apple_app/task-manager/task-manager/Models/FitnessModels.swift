@@ -104,7 +104,7 @@ nonisolated struct StrengthSet: Equatable, Codable, Sendable {
     }
 }
 
-nonisolated struct FitnessExercise: Identifiable, Equatable, Sendable {
+nonisolated struct FitnessExercise: Identifiable, Equatable, Hashable, Sendable {
     let id: UUID
     var name: String
     var tag: FitnessTag
@@ -244,7 +244,7 @@ nonisolated struct FitnessExercise: Identifiable, Equatable, Sendable {
     }
 }
 
-nonisolated struct WorkoutTemplate: Identifiable, Equatable, Sendable {
+nonisolated struct WorkoutTemplate: Identifiable, Equatable, Hashable, Sendable {
     let id: UUID
     var name: String
     var exerciseIDs: [UUID]

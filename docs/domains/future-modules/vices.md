@@ -76,9 +76,9 @@ Examples:
 
 If a log would break an active promise, the app should route through the Promise breaking / renegotiation flow rather than simply recording the event.
 
-## Interaction With Today / Planner
+## Interaction With Home / Planner
 
-Today can show:
+Home can show:
 
 - active vice goals
 - current count against daily or weekly limits

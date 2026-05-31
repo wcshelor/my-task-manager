@@ -8,7 +8,7 @@ This should be more structured than ordinary tasks because shopping items have c
 
 ## Product Shape
 
-The first version should support:
+The first version supports:
 
 - quick item capture
 - category labels
@@ -94,12 +94,10 @@ Budgeting can consume estimated and actual purchase costs, especially for option
 ```text
 Models/
   ShoppingModels.swift
-  WishListModels.swift
 
 Persistence/
   SwiftDataModels/
     ShoppingItemRecord.swift
-    WishListItemRecord.swift
   Repositories/
     ShoppingRepository.swift
   SwiftDataRepositories/
@@ -129,4 +127,13 @@ Start with shopping items. Add wish-list decision support as a second step if ne
 
 ## Status
 
-Planning only. No shopping or wish-list model, persistence, or UI exists yet.
+First-pass Shopping is implemented in Swift with:
+
+- `ShoppingItem`, `ShoppingTripGroup`, urgency, necessity, and status models
+- SwiftData persistence through `ShoppingItemRecord` and `SwiftDataShoppingRepository`
+- `ShoppingListViewModel`
+- Home module access and a dedicated Shopping Quick Add widget
+- active list, grouped trip view, history, bought/skipped/archive/reopen, delete, and search flows
+- targeted model, repository, view-model, and Home conversion tests
+
+Wish-list decision support, estimated/actual costs, budget integration, nutrition-generated items, repeated-purchase templates, and Planner-generated shopping trips remain planned.

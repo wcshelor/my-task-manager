@@ -185,6 +185,27 @@ nonisolated struct HomeMusicPracticeSummary: Equatable, Sendable {
     }
 }
 
+nonisolated struct HomeDebriefSummary: Equatable, Sendable {
+    let pendingCandidates: [CalendarDebriefCandidate]
+    let completedTodayCount: Int
+
+    var pendingCount: Int {
+        pendingCandidates.count
+    }
+
+    var detail: String {
+        if pendingCount == 0 {
+            return "All caught up"
+        }
+
+        if pendingCount == 1 {
+            return "1 Debrief waiting"
+        }
+
+        return "\(pendingCount) Debriefs waiting"
+    }
+}
+
 @MainActor
 final class HomeExecutionViewModel: ObservableObject {
     @Published private(set) var activePromises: [Promise] = []
@@ -210,6 +231,8 @@ final class HomeExecutionViewModel: ObservableObject {
         people: [],
         now: Date()
     )
+    @Published private(set) var pendingDebriefCandidates: [CalendarDebriefCandidate] = []
+    @Published private(set) var debriefCompletedTodayCount = 0
     @Published private(set) var tasks: [MyTask] = []
     @Published private(set) var captures: [CaptureItem] = []
     @Published private(set) var projects: [Project] = []
@@ -229,6 +252,7 @@ final class HomeExecutionViewModel: ObservableObject {
     private let musicPracticeRepository: (any MusicPracticeRepository)?
     private let fitnessRepository: (any FitnessRepository)?
     private let peopleMemoryRepository: (any PeopleMemoryRepository)?
+    private let debriefRepository: (any DebriefRepository)?
     private let calendarPermissionProvider: (any CalendarPermissionProviding)?
     private let calendarReader: (any CalendarReading)?
     private let calendar: Calendar
@@ -247,6 +271,7 @@ final class HomeExecutionViewModel: ObservableObject {
         musicPracticeRepository: (any MusicPracticeRepository)? = nil,
         fitnessRepository: (any FitnessRepository)? = nil,
         peopleMemoryRepository: (any PeopleMemoryRepository)? = nil,
+        debriefRepository: (any DebriefRepository)? = nil,
         calendarPermissionProvider: (any CalendarPermissionProviding)? = nil,
         calendarReader: (any CalendarReading)? = nil,
         calendar: Calendar = .current,
@@ -263,6 +288,7 @@ final class HomeExecutionViewModel: ObservableObject {
         self.musicPracticeRepository = musicPracticeRepository
         self.fitnessRepository = fitnessRepository
         self.peopleMemoryRepository = peopleMemoryRepository
+        self.debriefRepository = debriefRepository
         self.calendarPermissionProvider = calendarPermissionProvider
         self.calendarReader = calendarReader
         self.calendar = calendar
@@ -312,6 +338,13 @@ final class HomeExecutionViewModel: ObservableObject {
 
     var inboxSummary: HomeInboxSummary {
         HomeInboxSummary(pendingCaptures: captures, now: nowProvider())
+    }
+
+    var debriefSummary: HomeDebriefSummary {
+        HomeDebriefSummary(
+            pendingCandidates: pendingDebriefCandidates,
+            completedTodayCount: debriefCompletedTodayCount
+        )
     }
 
     var pinnedProjectSummaries: [HomePinnedProjectSummary] {
@@ -412,10 +445,19 @@ final class HomeExecutionViewModel: ObservableObject {
             routineProgress = activeRoutines.map { routine in
                 HomeRoutineProgress(routine: routine, completionLog: logLookup[routine.id])
             }
+            let debriefs = try debriefRepository?.fetchDebriefs() ?? []
+            debriefCompletedTodayCount = debriefs.filter { debrief in
+                guard let completedAt = debrief.completedAt else {
+                    return false
+                }
+
+                return calendar.isDate(completedAt, inSameDayAs: now)
+            }.count
             errorMessage = nil
             hasLoaded = true
             Task {
                 await refreshCalendarOverview()
+                await refreshDebriefQueue()
             }
         } catch {
             errorMessage = "Unable to load Today: \(error.localizedDescription)"
@@ -464,6 +506,47 @@ final class HomeExecutionViewModel: ObservableObject {
             )
         } catch {
             calendarOverview = nil
+            errorMessage = "Unable to load Today: \(error.localizedDescription)"
+        }
+    }
+
+    private func refreshDebriefQueue() async {
+        guard
+            let debriefRepository,
+            let calendarPermissionProvider,
+            let calendarReader
+        else {
+            pendingDebriefCandidates = []
+            debriefCompletedTodayCount = 0
+            return
+        }
+
+        let permissionStatus = calendarPermissionProvider.currentStatus()
+        guard permissionStatus == .fullAccessGranted else {
+            pendingDebriefCandidates = []
+            return
+        }
+
+        let now = nowProvider()
+        let settings = DebriefQueueSettings.mvpDefault
+        let queueStart = calendar.date(
+            byAdding: .day,
+            value: -max(1, settings.lookbackDays),
+            to: now
+        ) ?? now.addingTimeInterval(-Double(max(1, settings.lookbackDays)) * 86_400)
+
+        do {
+            let events = try await calendarReader.fetchEvents(
+                in: DateInterval(start: queueStart, end: now)
+            )
+            let debriefs = try debriefRepository.fetchDebriefs()
+            pendingDebriefCandidates = DebriefQueueService(settings: settings).pendingCandidates(
+                from: events,
+                existingDebriefs: debriefs,
+                now: now
+            )
+        } catch {
+            pendingDebriefCandidates = []
             errorMessage = "Unable to load Today: \(error.localizedDescription)"
         }
     }

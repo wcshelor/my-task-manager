@@ -10,6 +10,7 @@ struct HomeWidgetModelTests {
             .inbox,
             .pinnedProjects,
             .calendarOverview,
+            .debriefsPending,
             .promises,
             .routines,
             .promiseHistory,
@@ -215,6 +216,27 @@ struct HomeWidgetModelTests {
         #expect(removedLegacyLayout.normalized().widgets.map(\.kind).contains(.peopleMemoryModule) == false)
     }
 
+    @Test func homeLayoutMigrationInjectsDebriefsUnlessExplicitlyRemoved() {
+        let legacyLayout = HomeLayout(
+            version: 4,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ]
+        )
+        let removedLegacyLayout = HomeLayout(
+            version: 4,
+            widgets: [
+                HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
+            ],
+            removedWidgets: [
+                HomeWidgetInstance(kind: .debriefsPending, size: .large, sortOrder: 0),
+            ]
+        )
+
+        #expect(legacyLayout.normalized().widgets.map(\.kind).contains(.debriefsPending))
+        #expect(removedLegacyLayout.normalized().widgets.map(\.kind).contains(.debriefsPending) == false)
+    }
+
     @Test func shoppingQuickAddWidgetIsAvailableAndAllowsMultipleInstances() {
         let registry = HomeWidgetRegistry.standard
         let descriptor = registry.descriptor(for: .shoppingQuickAdd)
@@ -240,5 +262,71 @@ struct HomeWidgetModelTests {
         #expect(registry.supportsVisibilityToggle(for: registry.descriptor(for: .tasksModule)!) == true)
         #expect(registry.supportsVisibilityToggle(for: registry.descriptor(for: .projectNextTask)!) == false)
         #expect(registry.supportsVisibilityToggle(for: registry.descriptor(for: .shoppingQuickAdd)!) == false)
+    }
+
+    @Test func availableRoutineModuleLinkDescriptorsMirrorAvailableModuleWidgets() {
+        let registry = HomeWidgetRegistry.standard
+
+        #expect(registry.availableRoutineModuleLinkDescriptors.map(\.kind) == [
+            .tasksModule,
+            .plannerModule,
+            .projectsModule,
+            .promisesModule,
+            .routinesModule,
+            .shoppingModule,
+            .healthModule,
+            .musicPracticeModule,
+            .fitnessModule,
+            .peopleMemoryModule,
+        ])
+    }
+
+    @Test func availableRoutineModuleLinkDescriptorsExcludePlannedAndPreserveOrder() {
+        let registry = HomeWidgetRegistry(
+            descriptors: [
+                HomeWidgetDescriptor(
+                    kind: .tasksModule,
+                    displayName: "Tasks",
+                    iconSystemName: "checklist",
+                    module: .tasks,
+                    supportedSizes: [.small],
+                    defaultSize: .small,
+                    isModuleWidget: true
+                ),
+                HomeWidgetDescriptor(
+                    kind: .budgetModule,
+                    displayName: "Budget",
+                    iconSystemName: "creditcard",
+                    module: .future,
+                    supportedSizes: [.small],
+                    defaultSize: .small,
+                    availability: .planned("Planned"),
+                    isModuleWidget: true
+                ),
+                HomeWidgetDescriptor(
+                    kind: .healthModule,
+                    displayName: "Health",
+                    iconSystemName: "heart",
+                    module: .health,
+                    supportedSizes: [.small],
+                    defaultSize: .small,
+                    isModuleWidget: true
+                ),
+                HomeWidgetDescriptor(
+                    kind: .inbox,
+                    displayName: "Inbox",
+                    iconSystemName: "tray",
+                    module: .capture,
+                    supportedSizes: [.small],
+                    defaultSize: .small,
+                    isModuleWidget: false
+                ),
+            ]
+        )
+
+        #expect(registry.availableRoutineModuleLinkDescriptors.map(\.kind) == [
+            .tasksModule,
+            .healthModule,
+        ])
     }
 }

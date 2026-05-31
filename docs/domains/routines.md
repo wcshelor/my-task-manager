@@ -31,4 +31,4 @@ Routine items may create or link to tasks when they represent concrete obligatio
 
 ## Status
 
-Implemented in Swift as user-authored routines with daily or selected-weekday recurrence, Today visibility, and per-day item-level completion logs.
+Implemented in Swift as user-authored routines with daily or selected-weekday recurrence, Home visibility, and per-day item-level completion logs.

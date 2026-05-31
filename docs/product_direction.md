@@ -18,7 +18,7 @@ The app has four distinct responsibilities:
 - planner:
   - the planner combines user-selected planning constraints, calendar availability, and task metadata to generate suggested work blocks
 - daily execution support:
-  - Today surfaces current promises, due check-ins, and active routines without owning their domain rules
+  - Home surfaces current promises, due check-ins, active routines, captures, project context, and module entry widgets without owning their domain rules
 
 ## Source Of Truth Contract
 
@@ -36,8 +36,8 @@ The frozen contract is:
 ## Intended User Workflow
 
 1. User opens the app.
-2. User lands on `Today` to see active promises, due check-ins, and today's routines.
-3. User goes to the `Calendar` screen when planning time.
+2. User lands on `Home` to see captures, projects, active promises, due check-ins, today's routines, and module entry widgets.
+3. User goes to the `Planner` screen when planning time.
 4. The screen shows a minimal calendar overview of existing events and busy time.
 5. User taps `Generate Plan`.
 6. A lightweight planning input flow appears so the user can choose:

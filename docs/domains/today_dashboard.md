@@ -1,21 +1,24 @@
-# Today Dashboard Domain
+# Home / Today Dashboard Domain
 
 ## Purpose
 
-The Today tab is the app's home screen / secretary dashboard. It answers: what matters now, what is scheduled, what needs attention, and what recovery path is available if the day is going poorly.
+Home is the app's current home screen / secretary dashboard. Older docs may call this surface Today. It answers: what matters now, what is scheduled, what needs attention, and what recovery path is available if the day is going poorly.
 
-## Current Cards
+## Current Implemented Surface
 
-- active promises
-- due promise check-ins
-- routine status
-- simple promise history
+- persisted, reorderable Home widget board
+- quick capture and inbox review
+- pinned project and project-next-task widgets
+- today's calendar overview, next event, and Plan the Day widgets
+- active promises, due promise check-ins, and simple promise history
+- today's routines and current routine step widgets
+- Shopping module and Shopping Quick Add widgets
+- Health, Music Practice, Fitness, and People module widgets
 
 ## Possible Future Cards
 
-- today's scheduled blocks
 - urgent tasks
-- Health morning check-in status
+- richer Health morning check-in status
 - PVT / sleep quality status
 - planned workout
 - top task suggestion
@@ -25,8 +28,8 @@ The Today tab is the app's home screen / secretary dashboard. It answers: what m
 
 ## Interaction With Tasks / Planner
 
-Today should aggregate state from other domains instead of becoming the owner of their business logic. Task actions should delegate to task repositories/view models. Planning actions should delegate to the planner.
+Home should aggregate state from other domains instead of becoming the owner of their business logic. Task actions should delegate to task repositories/view models. Planning actions should delegate to the planner.
 
 ## Status
 
-Implemented as the first tab with Promises and Routines content. Today should continue to aggregate domain state instead of owning domain rules.
+Implemented as the first tab under the `Home` label with a persisted widget board and module entry points. Home should continue to aggregate domain state instead of owning domain rules.

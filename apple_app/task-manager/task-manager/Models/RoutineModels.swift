@@ -49,6 +49,7 @@ nonisolated struct RoutineItem: Identifiable, Equatable, Codable, Sendable {
 nonisolated enum RoutineStepLinkKind: String, CaseIterable, Codable, Sendable {
     case pvtTest
     case promiseCheckIn
+    case moduleWidget
 
     var displayTitle: String {
         switch self {
@@ -56,6 +57,8 @@ nonisolated enum RoutineStepLinkKind: String, CaseIterable, Codable, Sendable {
             return "PVT Test"
         case .promiseCheckIn:
             return "Promises"
+        case .moduleWidget:
+            return "Module"
         }
     }
 }
@@ -64,6 +67,7 @@ nonisolated struct RoutineStepLink: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     var routineStepID: UUID
     var kind: RoutineStepLinkKind
+    var moduleWidgetKindRawValue: String?
     var displayTitle: String
     var displayOrder: Int
 
@@ -71,14 +75,25 @@ nonisolated struct RoutineStepLink: Identifiable, Equatable, Codable, Sendable {
         id: UUID = UUID(),
         routineStepID: UUID,
         kind: RoutineStepLinkKind,
+        moduleWidgetKind: HomeWidgetKind? = nil,
         displayTitle: String? = nil,
         displayOrder: Int
     ) {
         self.id = id
         self.routineStepID = routineStepID
         self.kind = kind
+        self.moduleWidgetKindRawValue = moduleWidgetKind?.rawValue
         self.displayTitle = Routine.cleanedName(from: displayTitle ?? kind.displayTitle) ?? kind.displayTitle
         self.displayOrder = max(0, displayOrder)
+    }
+
+    var moduleWidgetKind: HomeWidgetKind? {
+        get {
+            moduleWidgetKindRawValue.map(HomeWidgetKind.init(rawValue:))
+        }
+        set {
+            moduleWidgetKindRawValue = newValue?.rawValue
+        }
     }
 }
 
@@ -210,6 +225,7 @@ nonisolated struct Routine: Identifiable, Equatable, Sendable {
                     id: link.id,
                     routineStepID: link.routineStepID,
                     kind: link.kind,
+                    moduleWidgetKind: link.moduleWidgetKind,
                     displayTitle: link.displayTitle,
                     displayOrder: link.displayOrder
                 )

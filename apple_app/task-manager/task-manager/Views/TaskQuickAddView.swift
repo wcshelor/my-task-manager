@@ -9,6 +9,9 @@ struct TaskQuickAddView: View {
     @State private var newTaskGroupText = ""
     @State private var isShowingCreateConfirmation = false
     @State private var isShowingCancelConfirmation = false
+    @State private var showsDetailedInfo = false
+    @State private var showsScheduleStatus = false
+    @State private var showsPlanningContext = false
 
     private enum Field: Hashable {
         case title
@@ -43,47 +46,23 @@ struct TaskQuickAddView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: isCompactWidth ? 20 : 24) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Title")
+                    Text("Essential Details")
                         .font(.headline)
 
-                    TextField("What needs to happen?", text: $formData.title)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.title3.weight(.semibold))
-                        .focused($focusedField, equals: .title)
-                        .submitLabel(.done)
-                }
+                    labeledField("Title") {
+                        TextField("What needs to happen?", text: $formData.title)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.title3.weight(.semibold))
+                            .focused($focusedField, equals: .title)
+                            .submitLabel(.done)
+                    }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Notes")
-                        .font(.headline)
-
-                    TextField(
-                        "Optional details",
-                        text: $formData.notesText,
-                        axis: .vertical
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(3...6)
-                    .focused($focusedField, equals: .notes)
-                }
-
-                durationSection
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Set Due Date", isOn: $formData.hasDueDate)
-                        .font(.headline)
-
-                    if formData.hasDueDate {
-                        DatePicker(
-                            "Due Date",
-                            selection: $formData.dueDate,
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
-                        .datePickerStyle(.compact)
+                    labeledField("Duration") {
+                        EstimatedDurationControl(estimatedMinutesText: $formData.estimatedMinutesText)
                     }
                 }
 
-                optionalAttributesSection
+                detailedInfoSection
 
                 if let validationMessage {
                     Text(validationMessage)
@@ -136,67 +115,97 @@ struct TaskQuickAddView: View {
     }
 
     @ViewBuilder
-    private var durationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Estimated Duration")
-                .font(.headline)
-
-            EstimatedDurationControl(estimatedMinutesText: $formData.estimatedMinutesText)
-        }
-    }
-
-    @ViewBuilder
-    private var optionalAttributesSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Optional Details")
-                .font(.headline)
-
-            LabeledContent("Status") {
-                Picker("Status", selection: $formData.status) {
-                    ForEach(TaskStatus.allCases, id: \.self) { status in
-                        Text(status.displayName).tag(status)
-                    }
+    private var detailedInfoSection: some View {
+        DisclosureGroup(isExpanded: $showsDetailedInfo) {
+            VStack(alignment: .leading, spacing: 14) {
+                labeledField("Notes") {
+                    TextField(
+                        "Optional context",
+                        text: $formData.notesText,
+                        axis: .vertical
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(3...6)
+                    .focused($focusedField, equals: .notes)
                 }
-                .pickerStyle(.menu)
-            }
 
-            taskGroupPicker
+                DisclosureGroup("Schedule and Status", isExpanded: $showsScheduleStatus) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Set Due Date", isOn: $formData.hasDueDate)
 
-            LabeledContent("Priority") {
-                Picker("Priority", selection: $formData.priority) {
-                    Text("None").tag(nil as PriorityLevel?)
+                        if formData.hasDueDate {
+                            labeledField("Due") {
+                                DatePicker(
+                                    "Due Date",
+                                    selection: $formData.dueDate,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+                            }
+                        }
 
-                    ForEach(PriorityLevel.allCases, id: \.self) { priority in
-                        Text(priority.displayName).tag(priority as PriorityLevel?)
+                        LabeledContent("Status") {
+                            Picker("Status", selection: $formData.status) {
+                                ForEach(TaskStatus.allCases, id: \.self) { status in
+                                    Text(status.displayName).tag(status)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
                     }
+                    .padding(.top, 8)
                 }
-                .pickerStyle(.menu)
-            }
 
-            LabeledContent("Energy") {
-                Picker("Energy Level", selection: $formData.energyLevel) {
-                    Text("None").tag(nil as EnergyLevel?)
+                DisclosureGroup("Planning Context", isExpanded: $showsPlanningContext) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        taskGroupPicker
 
-                    ForEach(EnergyLevel.allCases, id: \.self) { energyLevel in
-                        Text(energyLevel.displayName).tag(energyLevel as EnergyLevel?)
+                        LabeledContent("Priority") {
+                            Picker("Priority", selection: $formData.priority) {
+                                Text("None").tag(nil as PriorityLevel?)
+
+                                ForEach(PriorityLevel.allCases, id: \.self) { priority in
+                                    Text(priority.displayName).tag(priority as PriorityLevel?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+
+                        LabeledContent("Energy") {
+                            Picker("Energy Level", selection: $formData.energyLevel) {
+                                Text("None").tag(nil as EnergyLevel?)
+
+                                ForEach(EnergyLevel.allCases, id: \.self) { energyLevel in
+                                    Text(energyLevel.displayName).tag(energyLevel as EnergyLevel?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+
+                        LabeledContent("Mode") {
+                            Picker("Work Mode", selection: $formData.workMode) {
+                                Text("None").tag(nil as WorkModeKind?)
+
+                                ForEach(WorkModeKind.allCases, id: \.self) { workMode in
+                                    Text(workMode.displayName).tag(workMode as WorkModeKind?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+
+                        labeledField("Tags") {
+                            TextField("Comma-separated tags", text: $formData.tagsText)
+                                .textFieldStyle(.roundedBorder)
+                        }
                     }
+                    .padding(.top, 8)
                 }
-                .pickerStyle(.menu)
             }
-
-            LabeledContent("Mode") {
-                Picker("Work Mode", selection: $formData.workMode) {
-                    Text("None").tag(nil as WorkModeKind?)
-
-                    ForEach(WorkModeKind.allCases, id: \.self) { workMode in
-                        Text(workMode.displayName).tag(workMode as WorkModeKind?)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            TextField("Tags", text: $formData.tagsText)
-                .textFieldStyle(.roundedBorder)
+            .padding(.top, 10)
+        } label: {
+            Label("Detailed Task Info", systemImage: "slider.horizontal.3")
+                .font(.subheadline.weight(.semibold))
         }
     }
 
@@ -269,6 +278,20 @@ struct TaskQuickAddView: View {
 
         onSave(task)
         dismiss()
+    }
+
+    private func labeledField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            content()
+        }
     }
 }
 

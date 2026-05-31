@@ -84,6 +84,7 @@ struct EventKitCalendarServicesTests {
         store.events = [
             EventStoreEventDescriptor(
                 identifier: "work-1",
+                calendarIdentifier: "calendar",
                 title: "  Weekly Review  ",
                 start: reviewStart,
                 end: reviewStart.addingTimeInterval(1_800),
@@ -92,6 +93,7 @@ struct EventKitCalendarServicesTests {
             ),
             EventStoreEventDescriptor(
                 identifier: "work-2",
+                calendarIdentifier: "calendar",
                 title: "   ",
                 start: untitledStart,
                 end: untitledStart.addingTimeInterval(900),
@@ -100,6 +102,7 @@ struct EventKitCalendarServicesTests {
             ),
             EventStoreEventDescriptor(
                 identifier: "bad-interval",
+                calendarIdentifier: "calendar",
                 title: "Broken Event",
                 start: reviewStart,
                 end: reviewStart,
@@ -108,6 +111,7 @@ struct EventKitCalendarServicesTests {
             ),
             EventStoreEventDescriptor(
                 identifier: "birthday-1",
+                calendarIdentifier: "calendar",
                 title: "Birthday Dinner",
                 start: birthdaysStart,
                 end: birthdaysStart.addingTimeInterval(3_600),
@@ -255,6 +259,7 @@ struct EventKitCalendarServicesTests {
         store.saveEventResult = .success(
             EventStoreEventDescriptor(
                 identifier: "event-123",
+                calendarIdentifier: "calendar",
                 title: "Task: Draft roadmap",
                 start: Date(timeIntervalSince1970: 1_000),
                 end: Date(timeIntervalSince1970: 2_800),
@@ -302,6 +307,7 @@ struct EventKitCalendarServicesTests {
         store.saveEventResult = .success(
             EventStoreEventDescriptor(
                 identifier: "event-123",
+                calendarIdentifier: "calendar",
                 title: "Task: Draft roadmap",
                 start: Date(timeIntervalSince1970: 2_000),
                 end: Date(timeIntervalSince1970: 3_800),
@@ -341,6 +347,7 @@ struct EventKitCalendarServicesTests {
         store.events = [
             EventStoreEventDescriptor(
                 identifier: "event-123",
+                calendarIdentifier: "calendar",
                 title: "Task: Draft roadmap",
                 start: Date(timeIntervalSince1970: 2_000),
                 end: Date(timeIntervalSince1970: 3_800),
@@ -393,6 +400,7 @@ struct EventKitCalendarServicesTests {
         store.events = [
             EventStoreEventDescriptor(
                 identifier: "event-123",
+                calendarIdentifier: "calendar",
                 title: "Task: Draft roadmap",
                 start: Date(timeIntervalSince1970: 4_000),
                 end: Date(timeIntervalSince1970: 5_800),
@@ -525,6 +533,7 @@ private final class FakeCalendarEventStore: CalendarEventStore {
 
         let savedEvent = EventStoreEventDescriptor(
             identifier: request.identifier ?? "saved-\(savedRequests.count)",
+            calendarIdentifier: "calendar",
             title: request.title,
             start: request.start,
             end: request.end,

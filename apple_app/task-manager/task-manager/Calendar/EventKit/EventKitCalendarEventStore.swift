@@ -18,6 +18,7 @@ struct EventStoreCalendarDescriptor: Identifiable, Equatable, Sendable {
 
 struct EventStoreEventDescriptor: Equatable, Sendable {
     let identifier: String?
+    let calendarIdentifier: String
     let title: String?
     let start: Date
     let end: Date
@@ -105,6 +106,7 @@ final class EventKitCalendarEventStore: CalendarEventStore, CalendarChangeObserv
 
         return EventStoreEventDescriptor(
             identifier: event.eventIdentifier,
+            calendarIdentifier: event.calendar.calendarIdentifier,
             title: event.title,
             start: event.startDate,
             end: event.endDate,
@@ -147,6 +149,7 @@ final class EventKitCalendarEventStore: CalendarEventStore, CalendarChangeObserv
             .map { event in
                 EventStoreEventDescriptor(
                     identifier: event.eventIdentifier,
+                    calendarIdentifier: event.calendar.calendarIdentifier,
                     title: event.title,
                     start: event.startDate,
                     end: event.endDate,
@@ -204,6 +207,7 @@ final class EventKitCalendarEventStore: CalendarEventStore, CalendarChangeObserv
 
         return EventStoreEventDescriptor(
             identifier: event.eventIdentifier,
+            calendarIdentifier: event.calendar.calendarIdentifier,
             title: event.title,
             start: event.startDate,
             end: event.endDate,

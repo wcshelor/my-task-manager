@@ -133,6 +133,7 @@ final class EventKitCalendarReader: CalendarReading {
 
             return CalendarEventSnapshot(
                 identifier: event.identifier,
+                calendarIdentifier: event.calendarIdentifier,
                 title: normalizedEventTitle(event.title),
                 start: event.start,
                 end: event.end,

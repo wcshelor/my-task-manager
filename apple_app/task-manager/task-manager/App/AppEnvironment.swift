@@ -59,6 +59,10 @@ final class AppEnvironment {
         container.peopleMemoryRepository
     }
 
+    var debriefRepository: any DebriefRepository {
+        container.debriefRepository
+    }
+
     var calendarPermissionProvider: any CalendarPermissionProviding {
         container.calendarPermissionProvider
     }

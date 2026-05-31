@@ -1,5 +1,11 @@
 # Future Home Widgets
 
+## Status
+
+Mixed status. The current Swift app already has a persisted Home widget board, widget add/remove/reorder/resize flows, module-grouped Add Widget screen, and a first set of available widgets for Capture, Tasks, Planner, Projects, Promises, Routines, Shopping, Health, Music Practice, Fitness, and People Memory.
+
+This document is still a product sketch for future widgets and sub-module widgets. Individual ideas below may already exist, may be partially implemented, or may remain planned; check `HomeWidgetRegistry` for the current app truth.
+
 ## Purpose
 
 The home screen should become a modular command board. Full modules should still have their own pages, while home widgets provide shortcuts, summaries, and lightweight controls for the parts of the app the user wants present today.

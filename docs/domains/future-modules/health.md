@@ -62,9 +62,9 @@ Workout logging should remain separate from routines. A routine can remind the u
 
 The first implementation does not need one large health model. It can start with dedicated subdomain records that are presented together in the Health section.
 
-## Interaction With Today / Routines
+## Interaction With Home / Routines
 
-Today can surface Health items when they are relevant to execution:
+Home can surface Health items when they are relevant to execution:
 
 - morning PVT due
 - sleep check-in due
@@ -158,7 +158,7 @@ Still pending:
 
 ## Open Questions
 
-- Should Health get its own tab, or live under Today until it has enough depth?
+- Should Health get its own tab, or remain Home-reachable until it has enough depth?
 - Should the morning PVT be mandatory inside a routine or optional but prominently suggested?
 - How much night-before context should be structured versus free-text?
 - Should Health summaries be daily, weekly, or both?

@@ -60,6 +60,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
     static let calendarOverview = HomeWidgetKind(rawValue: "calendarOverview")
     static let planTheDay = HomeWidgetKind(rawValue: "planTheDay")
     static let nextEvent = HomeWidgetKind(rawValue: "nextEvent")
+    static let debriefsPending = HomeWidgetKind(rawValue: "debriefsPending")
     static let pinnedProjects = HomeWidgetKind(rawValue: "pinnedProjects")
     static let projectNextTask = HomeWidgetKind(rawValue: "projectNextTask")
     static let promises = HomeWidgetKind(rawValue: "promises")
@@ -87,6 +88,7 @@ nonisolated struct HomeWidgetKind: RawRepresentable, Codable, Hashable, CaseIter
         .calendarOverview,
         .planTheDay,
         .nextEvent,
+        .debriefsPending,
         .pinnedProjects,
         .projectNextTask,
         .promises,
@@ -180,7 +182,7 @@ nonisolated struct HomeWidgetInstance: Identifiable, Equatable, Sendable {
 }
 
 nonisolated struct HomeLayout: Equatable, Sendable {
-    static let currentVersion = 4
+    static let currentVersion = 5
 
     var version: Int
     var widgets: [HomeWidgetInstance]
@@ -201,14 +203,15 @@ nonisolated struct HomeLayout: Equatable, Sendable {
             HomeWidgetInstance(kind: .inbox, size: .large, sortOrder: 0),
             HomeWidgetInstance(kind: .pinnedProjects, size: .large, sortOrder: 1),
             HomeWidgetInstance(kind: .calendarOverview, size: .large, sortOrder: 2),
-            HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 3),
-            HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 4),
-            HomeWidgetInstance(kind: .promiseHistory, size: .large, sortOrder: 5),
-            HomeWidgetInstance(kind: .shoppingModule, size: .small, sortOrder: 6),
-            HomeWidgetInstance(kind: .healthModule, size: .small, sortOrder: 7),
-            HomeWidgetInstance(kind: .musicPracticeModule, size: .small, sortOrder: 8),
-            HomeWidgetInstance(kind: .fitnessModule, size: .small, sortOrder: 9),
-            HomeWidgetInstance(kind: .peopleMemoryModule, size: .small, sortOrder: 10),
+            HomeWidgetInstance(kind: .debriefsPending, size: .large, sortOrder: 3),
+            HomeWidgetInstance(kind: .promises, size: .large, sortOrder: 4),
+            HomeWidgetInstance(kind: .routines, size: .large, sortOrder: 5),
+            HomeWidgetInstance(kind: .promiseHistory, size: .large, sortOrder: 6),
+            HomeWidgetInstance(kind: .shoppingModule, size: .small, sortOrder: 7),
+            HomeWidgetInstance(kind: .healthModule, size: .small, sortOrder: 8),
+            HomeWidgetInstance(kind: .musicPracticeModule, size: .small, sortOrder: 9),
+            HomeWidgetInstance(kind: .fitnessModule, size: .small, sortOrder: 10),
+            HomeWidgetInstance(kind: .peopleMemoryModule, size: .small, sortOrder: 11),
         ]
     )
 
@@ -320,6 +323,7 @@ nonisolated enum HomeWidgetDefaultAction: Equatable, Sendable {
     case reviewInbox
     case openTasks
     case openPlanner
+    case openDebriefs
     case openProjects
     case openConfiguredProject
     case newPromise
@@ -370,6 +374,21 @@ nonisolated enum HomeLayoutMigrator {
                     HomeWidgetInstance(
                         kind: .peopleMemoryModule,
                         size: .small,
+                        sortOrder: migratedWidgets.count
+                    )
+                )
+            }
+        }
+
+        if version < 5 {
+            let hasDebriefs = migratedWidgets.contains { $0.kind == .debriefsPending }
+            let removedDebriefs = removedWidgets.contains { $0.kind == .debriefsPending }
+
+            if hasDebriefs == false, removedDebriefs == false {
+                migratedWidgets.append(
+                    HomeWidgetInstance(
+                        kind: .debriefsPending,
+                        size: .large,
                         sortOrder: migratedWidgets.count
                     )
                 )
@@ -513,6 +532,15 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
                 supportedSizes: [.small, .large],
                 defaultSize: .small,
                 defaultAction: .openPlanner
+            ),
+            HomeWidgetDescriptor(
+                kind: .debriefsPending,
+                displayName: "Debriefs",
+                iconSystemName: "arrow.trianglehead.2.clockwise.rotate.90",
+                module: .planner,
+                supportedSizes: [.small, .large],
+                defaultSize: .large,
+                defaultAction: .openDebriefs
             ),
             HomeWidgetDescriptor(
                 kind: .projectsModule,
@@ -709,6 +737,12 @@ nonisolated struct HomeWidgetRegistry: Equatable, Sendable {
     func moduleWidget(for module: HomeWidgetModule) -> HomeWidgetDescriptor? {
         descriptors.first {
             $0.module == module && $0.isModuleWidget
+        }
+    }
+
+    var availableRoutineModuleLinkDescriptors: [HomeWidgetDescriptor] {
+        descriptors.filter { descriptor in
+            descriptor.isModuleWidget && descriptor.isAvailable
         }
     }
 

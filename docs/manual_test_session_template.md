@@ -10,13 +10,13 @@
 
 - [ ] Opened `apple_app/task-manager/task-manager.xcodeproj`
 - [ ] Ran the `task-manager` scheme
-- [ ] Confirmed the app opens to Today
+- [ ] Confirmed the app opens to Home
 
-## Today / Promises
+## Home / Promises
 
 - [ ] Created a new promise
-- [ ] Confirmed the promise appears on Today
-- [ ] Confirmed the active-promise banner appears on Tasks and Calendar
+- [ ] Confirmed the promise appears on Home
+- [ ] Confirmed the active-promise banner appears on Tasks and Planner
 - [ ] Checked in as kept
 - [ ] Created another promise and checked in as missed
 - [ ] Added a short recovery reflection
@@ -27,7 +27,7 @@
 
 - [ ] Created a daily routine with multiple items
 - [ ] Created a selected-weekday routine
-- [ ] Confirmed today's active routines appear on Today
+- [ ] Confirmed today's active routines appear on Home
 - [ ] Completed and uncompleted routine items
 - [ ] Relaunched the app and confirmed completion state persists for today
 
@@ -59,6 +59,14 @@
 - [ ] Added a generic Health workout log
 - [ ] Confirmed Health history and delete flows still work
 
+## Shopping
+
+- [ ] Opened Shopping from Home
+- [ ] Added a shopping item from the module
+- [ ] Added a shopping item from the Home quick-add widget
+- [ ] Marked an item bought, skipped, archived, and reopened
+- [ ] Checked shopping search and history
+
 ## Fitness
 
 - [ ] Opened Fitness from Home
@@ -73,10 +81,25 @@
 - [ ] Checked Recent, A-Z, and Tag sorting
 - [ ] Confirmed the older Health workout log still behaves unchanged
 
+## Music Practice
+
+- [ ] Opened Music Practice from Home
+- [ ] Added a practice piece
+- [ ] Logged a practice session
+- [ ] Confirmed recent summaries update
+
+## People Memory
+
+- [ ] Opened People from Home
+- [ ] Added a person with tags
+- [ ] Searched by name, detail, and tag
+- [ ] Ran a study card and applied a rating
+- [ ] Confirmed Home summary counts update
+
 ## iPhone Runtime
 
 - [ ] App launches
-- [ ] Today layout is readable
+- [ ] Home layout is readable
 - [ ] Promise sheets are usable
 - [ ] Routine builder/checklist sheets are usable
 - [ ] Task quick add works

@@ -20,6 +20,7 @@ struct HomeView: View {
         case musicPractice
         case fitness
         case peopleMemory
+        case debriefs
 
         var id: String {
             switch self {
@@ -49,6 +50,8 @@ struct HomeView: View {
                 return "fitness"
             case .peopleMemory:
                 return "peopleMemory"
+            case .debriefs:
+                return "debriefs"
             }
         }
     }
@@ -94,6 +97,7 @@ struct HomeView: View {
     private let musicPracticeRepository: any MusicPracticeRepository
     private let fitnessRepository: any FitnessRepository
     private let peopleMemoryRepository: any PeopleMemoryRepository
+    private let debriefRepository: any DebriefRepository
 
     init(
         taskRepository: any TaskRepository,
@@ -115,7 +119,8 @@ struct HomeView: View {
         healthRepository: any HealthRepository,
         musicPracticeRepository: any MusicPracticeRepository,
         fitnessRepository: any FitnessRepository,
-        peopleMemoryRepository: any PeopleMemoryRepository
+        peopleMemoryRepository: any PeopleMemoryRepository,
+        debriefRepository: any DebriefRepository
     ) {
         self.taskRepository = taskRepository
         self.projectRepository = projectRepository
@@ -136,6 +141,7 @@ struct HomeView: View {
         self.musicPracticeRepository = musicPracticeRepository
         self.fitnessRepository = fitnessRepository
         self.peopleMemoryRepository = peopleMemoryRepository
+        self.debriefRepository = debriefRepository
         _viewModel = StateObject(
             wrappedValue: HomeExecutionViewModel(
                 taskRepository: taskRepository,
@@ -149,6 +155,7 @@ struct HomeView: View {
                 musicPracticeRepository: musicPracticeRepository,
                 fitnessRepository: fitnessRepository,
                 peopleMemoryRepository: peopleMemoryRepository,
+                debriefRepository: debriefRepository,
                 calendarPermissionProvider: calendarPermissionProvider,
                 calendarReader: calendarReader
             )
@@ -292,7 +299,25 @@ struct HomeView: View {
                     case .routineSession(let routineID):
                         RoutineSessionView(
                             viewModel: viewModel,
+                            registry: homeViewModel.registry,
+                            taskRepository: taskRepository,
+                            projectRepository: projectRepository,
+                            captureRepository: captureRepository,
+                            projectItemRepository: projectItemRepository,
+                            scheduledBlockRepository: scheduledBlockRepository,
+                            settingsRepository: settingsRepository,
+                            calendarPermissionProvider: calendarPermissionProvider,
+                            calendarListingService: calendarListingService,
+                            calendarReader: calendarReader,
+                            calendarWriter: calendarWriter,
+                            calendarReconciler: calendarReconciler,
+                            calendarChangeObserver: calendarChangeObserver,
+                            promiseRepository: promiseRepository,
+                            shoppingRepository: shoppingRepository,
                             healthRepository: healthRepository,
+                            musicPracticeRepository: musicPracticeRepository,
+                            fitnessRepository: fitnessRepository,
+                            peopleMemoryRepository: peopleMemoryRepository,
                             routineID: routineID
                         )
                     case .shoppingList:
@@ -305,7 +330,10 @@ struct HomeView: View {
                             presentedSheet = nil
                         }
                     case .health:
-                        HealthView(healthRepository: healthRepository) {
+                        HealthView(
+                            healthRepository: healthRepository,
+                            fitnessRepository: fitnessRepository
+                        ) {
                             viewModel.load()
                         }
                     case .musicPractice:
@@ -318,6 +346,15 @@ struct HomeView: View {
                         }
                     case .peopleMemory:
                         PeopleMemoryView(peopleMemoryRepository: peopleMemoryRepository) {
+                            viewModel.load()
+                        }
+                    case .debriefs:
+                        DebriefListView(
+                            debriefRepository: debriefRepository,
+                            captureRepository: captureRepository,
+                            calendarPermissionProvider: calendarPermissionProvider,
+                            calendarReader: calendarReader
+                        ) {
                             viewModel.load()
                         }
                     }
@@ -677,6 +714,8 @@ struct HomeView: View {
             presentedSheet = .fitness
         case .openPeopleMemory:
             presentedSheet = .peopleMemory
+        case .openDebriefs:
+            presentedSheet = .debriefs
         }
     }
 
@@ -1408,7 +1447,25 @@ private struct RoutineSessionView: View {
     @State private var pendingLinkStepID: UUID?
     @State private var isShowingLinkPicker = false
 
+    let registry: HomeWidgetRegistry
+    let taskRepository: any TaskRepository
+    let projectRepository: any ProjectRepository
+    let captureRepository: any CaptureRepository
+    let projectItemRepository: any ProjectItemRepository
+    let scheduledBlockRepository: any ScheduledBlockRepository
+    let settingsRepository: any SettingsRepository
+    let calendarPermissionProvider: any CalendarPermissionProviding
+    let calendarListingService: any CalendarListing
+    let calendarReader: any CalendarReading
+    let calendarWriter: any CalendarWriting
+    let calendarReconciler: any CalendarReconciling
+    let calendarChangeObserver: any CalendarChangeObserving
+    let promiseRepository: any PromiseRepository
+    let shoppingRepository: any ShoppingRepository
     let healthRepository: any HealthRepository
+    let musicPracticeRepository: any MusicPracticeRepository
+    let fitnessRepository: any FitnessRepository
+    let peopleMemoryRepository: any PeopleMemoryRepository
     let routineID: UUID
 
     var body: some View {
@@ -1497,9 +1554,14 @@ private struct RoutineSessionView: View {
                     isPresented: $isShowingLinkPicker,
                     titleVisibility: .visible
                 ) {
-                    ForEach(RoutineStepLinkKind.allCases, id: \.self) { kind in
-                        Button(kind.displayTitle) {
-                            addLink(kind: kind)
+                    if moduleLinkDescriptors.isEmpty {
+                        Button("No Available Module Links") {}
+                            .disabled(true)
+                    } else {
+                        ForEach(moduleLinkDescriptors, id: \.kind) { descriptor in
+                            Button(descriptor.displayName) {
+                                addModuleLink(descriptor: descriptor)
+                            }
                         }
                     }
                 }
@@ -1526,6 +1588,68 @@ private struct RoutineSessionView: View {
                                     presentedLinkSheet = nil
                                 }
                             )
+                        case .promiseForm:
+                            PromiseFormView { promise in
+                                viewModel.savePromise(promise)
+                                presentedLinkSheet = nil
+                            }
+                        case .routineBuilder:
+                            RoutineBuilderView { routine in
+                                viewModel.saveRoutine(routine)
+                                presentedLinkSheet = nil
+                            }
+                        case .tasks:
+                            TaskListView(
+                                taskRepository: taskRepository,
+                                projectRepository: projectRepository,
+                                scheduledBlockRepository: scheduledBlockRepository,
+                                calendarWriter: calendarWriter,
+                                promiseRepository: promiseRepository
+                            )
+                        case .planner:
+                            PlannerView(
+                                taskRepository: taskRepository,
+                                scheduledBlockRepository: scheduledBlockRepository,
+                                settingsRepository: settingsRepository,
+                                calendarPermissionProvider: calendarPermissionProvider,
+                                calendarListingService: calendarListingService,
+                                calendarReader: calendarReader,
+                                calendarWriter: calendarWriter,
+                                calendarReconciler: calendarReconciler,
+                                calendarChangeObserver: calendarChangeObserver,
+                                promiseRepository: promiseRepository,
+                                navigationTitle: "Plan the Day"
+                            )
+                        case .projects:
+                            ProjectsView(
+                                taskRepository: taskRepository,
+                                projectRepository: projectRepository,
+                                captureRepository: captureRepository,
+                                projectItemRepository: projectItemRepository
+                            )
+                        case .shoppingList:
+                            ShoppingListView(shoppingRepository: shoppingRepository) {
+                                viewModel.load()
+                            }
+                        case .health:
+                            HealthView(
+                                healthRepository: healthRepository,
+                                fitnessRepository: fitnessRepository
+                            ) {
+                                viewModel.load()
+                            }
+                        case .musicPractice:
+                            MusicPracticeView(musicPracticeRepository: musicPracticeRepository) {
+                                viewModel.load()
+                            }
+                        case .fitness:
+                            FitnessView(fitnessRepository: fitnessRepository) {
+                                viewModel.load()
+                            }
+                        case .peopleMemory:
+                            PeopleMemoryView(peopleMemoryRepository: peopleMemoryRepository) {
+                                viewModel.load()
+                            }
                         case .pvtTest:
                             PVTTestView { session in
                                 do {
@@ -1597,6 +1721,7 @@ private struct RoutineSessionView: View {
                     ForEach(links) { link in
                         RoutineStepLinkCard(
                             link: link,
+                            iconSystemName: descriptor(for: link)?.iconSystemName,
                             onOpen: { open(link: link) },
                             onRemove: { remove(linkID: link.id, from: progress.routine) }
                         )
@@ -1615,6 +1740,10 @@ private struct RoutineSessionView: View {
                 }
             }
         }
+    }
+
+    private var moduleLinkDescriptors: [HomeWidgetDescriptor] {
+        registry.availableRoutineModuleLinkDescriptors
     }
 
     private func progressText(totalCount: Int, isFinished: Bool) -> String {
@@ -1661,7 +1790,7 @@ private struct RoutineSessionView: View {
         }
     }
 
-    private func addLink(kind: RoutineStepLinkKind) {
+    private func addModuleLink(descriptor: HomeWidgetDescriptor) {
         guard let progress = viewModel.progress(for: routineID),
               let stepID = pendingLinkStepID else {
             return
@@ -1672,7 +1801,9 @@ private struct RoutineSessionView: View {
         updatedRoutine.stepLinks.append(
             RoutineStepLink(
                 routineStepID: stepID,
-                kind: kind,
+                kind: .moduleWidget,
+                moduleWidgetKind: descriptor.kind,
+                displayTitle: descriptor.displayName,
                 displayOrder: nextOrder
             )
         )
@@ -1703,6 +1834,7 @@ private struct RoutineSessionView: View {
                         id: link.id,
                         routineStepID: link.routineStepID,
                         kind: link.kind,
+                        moduleWidgetKind: link.moduleWidgetKind,
                         displayTitle: link.displayTitle,
                         displayOrder: index
                     )
@@ -1723,6 +1855,68 @@ private struct RoutineSessionView: View {
                     message: "Create or start a promise first, then reopen this link from the routine step."
                 )
             }
+        case .moduleWidget:
+            guard let descriptor = descriptor(for: link),
+                  descriptor.isAvailable,
+                  descriptor.isModuleWidget,
+                  let action = descriptor.defaultAction else {
+                presentedLinkSheet = .unavailable(
+                    title: "Module Link Unavailable",
+                    message: "This module link is no longer available in this version of the app."
+                )
+                return
+            }
+
+            openModuleAction(action)
+        }
+    }
+
+    private func descriptor(for link: RoutineStepLink) -> HomeWidgetDescriptor? {
+        guard link.kind == .moduleWidget,
+              let widgetKind = link.moduleWidgetKind else {
+            return nil
+        }
+
+        return registry.descriptor(for: widgetKind)
+    }
+
+    private func openModuleAction(_ action: HomeWidgetDefaultAction) {
+        switch action {
+        case .openTasks:
+            presentedLinkSheet = .tasks
+        case .openPlanner:
+            presentedLinkSheet = .planner
+        case .openProjects:
+            presentedLinkSheet = .projects
+        case .newPromise:
+            presentedLinkSheet = .promiseForm
+        case .newRoutine:
+            presentedLinkSheet = .routineBuilder
+        case .openShopping:
+            presentedLinkSheet = .shoppingList
+        case .openHealth:
+            presentedLinkSheet = .health
+        case .openMusicPractice:
+            presentedLinkSheet = .musicPractice
+        case .openFitness:
+            presentedLinkSheet = .fitness
+        case .openPeopleMemory:
+            presentedLinkSheet = .peopleMemory
+        case .openDebriefs:
+            presentedLinkSheet = .unavailable(
+                title: "Module Link Not Supported",
+                message: "Debrief links are not available from routine steps yet."
+            )
+        case .openCapture,
+             .reviewInbox,
+             .openConfiguredProject,
+             .checkInDuePromise,
+             .openConfiguredRoutine,
+             .quickAddShopping:
+            presentedLinkSheet = .unavailable(
+                title: "Module Link Not Supported",
+                message: "This widget action cannot be opened from a routine link."
+            )
         }
     }
 }
@@ -1730,6 +1924,16 @@ private struct RoutineSessionView: View {
 private enum RoutineStepLinkSheet: Identifiable {
     case promiseCheckIn(Promise)
     case pvtTest
+    case promiseForm
+    case routineBuilder
+    case tasks
+    case planner
+    case projects
+    case shoppingList
+    case health
+    case musicPractice
+    case fitness
+    case peopleMemory
     case unavailable(title: String, message: String)
 
     var id: String {
@@ -1738,6 +1942,26 @@ private enum RoutineStepLinkSheet: Identifiable {
             return "promise-\(promise.id.uuidString)"
         case .pvtTest:
             return "pvt-test"
+        case .promiseForm:
+            return "promise-form"
+        case .routineBuilder:
+            return "routine-builder"
+        case .tasks:
+            return "tasks"
+        case .planner:
+            return "planner"
+        case .projects:
+            return "projects"
+        case .shoppingList:
+            return "shopping-list"
+        case .health:
+            return "health"
+        case .musicPractice:
+            return "music-practice"
+        case .fitness:
+            return "fitness"
+        case .peopleMemory:
+            return "people-memory"
         case .unavailable(let title, _):
             return "unavailable-\(title)"
         }
@@ -1746,6 +1970,7 @@ private enum RoutineStepLinkSheet: Identifiable {
 
 private struct RoutineStepLinkCard: View {
     let link: RoutineStepLink
+    let iconSystemName: String?
     let onOpen: () -> Void
     let onRemove: () -> Void
 
@@ -1754,11 +1979,18 @@ private struct RoutineStepLinkCard: View {
             Button {
                 onOpen()
             } label: {
-                Text(link.displayTitle)
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                HStack(spacing: 8) {
+                    if let iconSystemName {
+                        Image(systemName: iconSystemName)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(link.displayTitle)
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
             }
             .buttonStyle(.plain)
 
@@ -2373,50 +2605,90 @@ struct InboxReviewView: View {
 
     private var taskConversionForm: some View {
         VStack(alignment: .leading, spacing: 14) {
-            TextField("Task title", text: $taskFormData.title)
-                .textFieldStyle(.roundedBorder)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Essential Details")
+                    .font(.headline)
 
-            projectPicker(selection: $taskFormData.projectID, requiresProject: false)
-
-            LabeledContent("Estimated Duration") {
-                EstimatedDurationControl(estimatedMinutesText: $taskFormData.estimatedMinutesText)
-            }
-
-            DisclosureGroup("Optional Details", isExpanded: $showsTaskDetails) {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Notes", text: $taskFormData.notesText, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                    Toggle("Set Due Date", isOn: $taskFormData.hasDueDate)
-                    if taskFormData.hasDueDate {
-                        DatePicker("Due", selection: $taskFormData.dueDate)
-                    }
-                    Picker("Status", selection: $taskFormData.status) {
-                        ForEach(TaskStatus.allCases, id: \.self) { status in
-                            Text(status.displayName).tag(status)
-                        }
-                    }
-                    Picker("Priority", selection: $taskFormData.priority) {
-                        Text("None").tag(nil as PriorityLevel?)
-                        ForEach(PriorityLevel.allCases, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority as PriorityLevel?)
-                        }
-                    }
-                    Picker("Energy", selection: $taskFormData.energyLevel) {
-                        Text("None").tag(nil as EnergyLevel?)
-                        ForEach(EnergyLevel.allCases, id: \.self) { energy in
-                            Text(energy.displayName).tag(energy as EnergyLevel?)
-                        }
-                    }
-                    Picker("Mode", selection: $taskFormData.workMode) {
-                        Text("None").tag(nil as WorkModeKind?)
-                        ForEach(WorkModeKind.allCases, id: \.self) { workMode in
-                            Text(workMode.displayName).tag(workMode as WorkModeKind?)
-                        }
-                    }
-                    TextField("Tags", text: $taskFormData.tagsText)
+                inboxLabeledField("Title") {
+                    TextField("What needs to happen?", text: $taskFormData.title)
                         .textFieldStyle(.roundedBorder)
                 }
-                .padding(.top, 8)
+
+                inboxLabeledField("Project") {
+                    projectPicker(selection: $taskFormData.projectID, requiresProject: false)
+                }
+
+                inboxLabeledField("Duration") {
+                    EstimatedDurationControl(estimatedMinutesText: $taskFormData.estimatedMinutesText)
+                }
+            }
+
+            DisclosureGroup(isExpanded: $showsTaskDetails) {
+                VStack(alignment: .leading, spacing: 14) {
+                    inboxLabeledField("Notes") {
+                        TextField("Optional context", text: $taskFormData.notesText, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...5)
+                    }
+
+                    DisclosureGroup("Schedule and Status") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("Set Due Date", isOn: $taskFormData.hasDueDate)
+                            if taskFormData.hasDueDate {
+                                inboxLabeledField("Due") {
+                                    DatePicker(
+                                        "Due",
+                                        selection: $taskFormData.dueDate,
+                                        displayedComponents: [.date, .hourAndMinute]
+                                    )
+                                    .labelsHidden()
+                                }
+                            }
+
+                            Picker("Status", selection: $taskFormData.status) {
+                                ForEach(TaskStatus.allCases, id: \.self) { status in
+                                    Text(status.displayName).tag(status)
+                                }
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+
+                    DisclosureGroup("Planning Context") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("Priority", selection: $taskFormData.priority) {
+                                Text("None").tag(nil as PriorityLevel?)
+                                ForEach(PriorityLevel.allCases, id: \.self) { priority in
+                                    Text(priority.displayName).tag(priority as PriorityLevel?)
+                                }
+                            }
+
+                            Picker("Energy", selection: $taskFormData.energyLevel) {
+                                Text("None").tag(nil as EnergyLevel?)
+                                ForEach(EnergyLevel.allCases, id: \.self) { energy in
+                                    Text(energy.displayName).tag(energy as EnergyLevel?)
+                                }
+                            }
+
+                            Picker("Mode", selection: $taskFormData.workMode) {
+                                Text("None").tag(nil as WorkModeKind?)
+                                ForEach(WorkModeKind.allCases, id: \.self) { workMode in
+                                    Text(workMode.displayName).tag(workMode as WorkModeKind?)
+                                }
+                            }
+
+                            inboxLabeledField("Tags") {
+                                TextField("Comma-separated tags", text: $taskFormData.tagsText)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+                }
+                .padding(.top, 10)
+            } label: {
+                Label("Detailed Task Info", systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.semibold))
             }
 
             Button {
@@ -2434,31 +2706,63 @@ struct InboxReviewView: View {
 
     private func projectItemConversionForm(kind: ProjectItemKind) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            TextField("\(kind.displayName) title", text: $itemTitle)
-                .textFieldStyle(.roundedBorder)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Essential Details")
+                    .font(.headline)
 
-            projectPicker(selection: $selectedProjectID, requiresProject: true)
+                inboxLabeledField("Title") {
+                    TextField("\(kind.displayName) title", text: $itemTitle)
+                        .textFieldStyle(.roundedBorder)
+                }
 
-            DisclosureGroup("Optional Details", isExpanded: $showsItemDetails) {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Notes", text: $itemNotes, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Source", text: $itemSource)
-                        .textFieldStyle(.roundedBorder)
+                inboxLabeledField("Project") {
+                    projectPicker(selection: $selectedProjectID, requiresProject: true)
+                }
+            }
+
+            DisclosureGroup(isExpanded: $showsItemDetails) {
+                VStack(alignment: .leading, spacing: 14) {
+                    inboxLabeledField("Notes") {
+                        TextField("Optional context", text: $itemNotes, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...5)
+                    }
+
+                    inboxLabeledField("Source") {
+                        TextField("Where did this come from?", text: $itemSource)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
                     if kind == .maybe {
-                        Picker("Pressure", selection: $itemPressure) {
-                            Text("None").tag(nil as ProjectItemPressure?)
-                            ForEach(ProjectItemPressure.allCases, id: \.self) { pressure in
-                                Text(pressure.displayName).tag(pressure as ProjectItemPressure?)
+                        DisclosureGroup("Review Settings") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Picker("Pressure", selection: $itemPressure) {
+                                    Text("None").tag(nil as ProjectItemPressure?)
+                                    ForEach(ProjectItemPressure.allCases, id: \.self) { pressure in
+                                        Text(pressure.displayName).tag(pressure as ProjectItemPressure?)
+                                    }
+                                }
+
+                                Toggle("Review Later", isOn: $itemHasReviewDate)
+                                if itemHasReviewDate {
+                                    inboxLabeledField("Review") {
+                                        DatePicker(
+                                            "Review",
+                                            selection: $itemReviewAfter,
+                                            displayedComponents: [.date]
+                                        )
+                                        .labelsHidden()
+                                    }
+                                }
                             }
-                        }
-                        Toggle("Review Later", isOn: $itemHasReviewDate)
-                        if itemHasReviewDate {
-                            DatePicker("Review", selection: $itemReviewAfter, displayedComponents: [.date])
+                            .padding(.top, 8)
                         }
                     }
                 }
-                .padding(.top, 8)
+                .padding(.top, 10)
+            } label: {
+                Label("Detailed \(kind.displayName) Info", systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.semibold))
             }
 
             Button {
@@ -2479,6 +2783,20 @@ struct InboxReviewView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(ProjectItem.cleanedTitle(from: itemTitle) == nil || selectedProjectID == nil)
+        }
+    }
+
+    private func inboxLabeledField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            content()
         }
     }
 
@@ -3254,6 +3572,7 @@ private struct ProjectItemFormView: View {
         healthRepository: container.healthRepository,
         musicPracticeRepository: container.musicPracticeRepository,
         fitnessRepository: container.fitnessRepository,
-        peopleMemoryRepository: container.peopleMemoryRepository
+        peopleMemoryRepository: container.peopleMemoryRepository,
+        debriefRepository: container.debriefRepository
     )
 }

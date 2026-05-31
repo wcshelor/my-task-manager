@@ -57,11 +57,53 @@ struct RoutineModelTests {
             stepLinks: [
                 RoutineStepLink(routineStepID: secondItem.id, kind: .promiseCheckIn, displayOrder: 1),
                 RoutineStepLink(routineStepID: secondItem.id, kind: .pvtTest, displayOrder: 0),
+                RoutineStepLink(
+                    routineStepID: secondItem.id,
+                    kind: .moduleWidget,
+                    moduleWidgetKind: .shoppingModule,
+                    displayTitle: "Shopping",
+                    displayOrder: 2
+                ),
                 RoutineStepLink(routineStepID: UUID(), kind: .pvtTest, displayOrder: 0),
             ]
         )
 
-        #expect(routine.stepLinks.count == 2)
-        #expect(routine.orderedStepLinks(for: secondItem.id).map(\.kind) == [.pvtTest, .promiseCheckIn])
+        #expect(routine.stepLinks.count == 3)
+        #expect(routine.orderedStepLinks(for: secondItem.id).map(\.kind) == [.pvtTest, .promiseCheckIn, .moduleWidget])
+        #expect(routine.orderedStepLinks(for: secondItem.id).last?.moduleWidgetKind == .shoppingModule)
+    }
+
+    @Test func routineStepLinkRoundTripsModuleWidgetKind() throws {
+        let originalLink = RoutineStepLink(
+            routineStepID: UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!,
+            kind: .moduleWidget,
+            moduleWidgetKind: .healthModule,
+            displayTitle: "Health",
+            displayOrder: 0
+        )
+
+        let encoded = try JSONEncoder().encode(originalLink)
+        let decoded = try JSONDecoder().decode(RoutineStepLink.self, from: encoded)
+
+        #expect(decoded.kind == .moduleWidget)
+        #expect(decoded.moduleWidgetKind == .healthModule)
+        #expect(decoded.displayTitle == "Health")
+    }
+
+    @Test func routineStepLinkDecodesLegacyPayloadWithoutModuleWidgetKind() throws {
+        let json = """
+        {
+          "id": "123E4567-E89B-12D3-A456-426614174111",
+          "routineStepID": "123E4567-E89B-12D3-A456-426614174112",
+          "kind": "pvtTest",
+          "displayTitle": "PVT Test",
+          "displayOrder": 0
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let decoded = try JSONDecoder().decode(RoutineStepLink.self, from: data)
+
+        #expect(decoded.kind == .pvtTest)
+        #expect(decoded.moduleWidgetKind == nil)
     }
 }

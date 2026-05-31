@@ -20,6 +20,7 @@ struct PlannerViewModelTests {
         let reader = FakeCalendarReader(result: .success([
             CalendarEventSnapshot(
                 identifier: "busy-1",
+                calendarIdentifier: nil,
                 title: "Focus",
                 start: Date(timeIntervalSince1970: 1_000),
                 end: Date(timeIntervalSince1970: 2_000),
@@ -65,6 +66,7 @@ struct PlannerViewModelTests {
         ]))
         let expectedEvent = CalendarEventSnapshot(
             identifier: "meeting-1",
+            calendarIdentifier: nil,
             title: "Design Review",
             start: Date(timeIntervalSince1970: 1_710_032_400),
             end: Date(timeIntervalSince1970: 1_710_036_000),
@@ -114,6 +116,7 @@ struct PlannerViewModelTests {
         ]))
         let expectedEvent = CalendarEventSnapshot(
             identifier: "meeting-1",
+            calendarIdentifier: nil,
             title: "Design Review",
             start: Date(timeIntervalSince1970: 1_710_032_400),
             end: Date(timeIntervalSince1970: 1_710_036_000),
@@ -238,6 +241,7 @@ struct PlannerViewModelTests {
         )!
         let blocker = CalendarEventSnapshot(
             identifier: "packed",
+            calendarIdentifier: nil,
             title: "Booked",
             start: now,
             end: dayEnd,
@@ -326,6 +330,7 @@ struct PlannerViewModelTests {
         let dayStart = calendar.startOfDay(for: now)
         let initialEvent = CalendarEventSnapshot(
             identifier: "meeting-1",
+            calendarIdentifier: nil,
             title: "Initial Review",
             start: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart)!,
             end: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: dayStart)!,
@@ -334,6 +339,7 @@ struct PlannerViewModelTests {
         )
         let updatedEvent = CalendarEventSnapshot(
             identifier: "meeting-2",
+            calendarIdentifier: nil,
             title: "Updated Review",
             start: calendar.date(bySettingHour: 11, minute: 0, second: 0, of: dayStart)!,
             end: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)!,
@@ -380,6 +386,7 @@ struct PlannerViewModelTests {
         let dayStart = calendar.startOfDay(for: now)
         let initialEvent = CalendarEventSnapshot(
             identifier: "meeting-1",
+            calendarIdentifier: nil,
             title: "Initial Review",
             start: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart)!,
             end: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: dayStart)!,
@@ -388,6 +395,7 @@ struct PlannerViewModelTests {
         )
         let updatedEvent = CalendarEventSnapshot(
             identifier: "meeting-2",
+            calendarIdentifier: nil,
             title: "Updated Review",
             start: calendar.date(bySettingHour: 11, minute: 0, second: 0, of: dayStart)!,
             end: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)!,
@@ -445,6 +453,7 @@ struct PlannerViewModelTests {
         )
         let mirroredEvent = CalendarEventSnapshot(
             identifier: "write-event-1",
+            calendarIdentifier: nil,
             title: "Task: \(task.title)",
             start: mirroredStart,
             end: mirroredEnd,
@@ -453,6 +462,7 @@ struct PlannerViewModelTests {
         )
         let externalEvent = CalendarEventSnapshot(
             identifier: "meeting-1",
+            calendarIdentifier: nil,
             title: "Design Review",
             start: calendar.date(byAdding: .hour, value: 13, to: dayStart)!,
             end: calendar.date(byAdding: .hour, value: 14, to: dayStart)!,
@@ -519,6 +529,7 @@ struct PlannerViewModelTests {
         let planningWindow = PlannerHorizon.tomorrow.planningWindow(relativeTo: now, calendar: calendar)
         let overnightBlocker = CalendarEventSnapshot(
             identifier: "sleep",
+            calendarIdentifier: nil,
             title: "Busy",
             start: planningWindow.start,
             end: planningWindow.start.addingTimeInterval(9 * 3_600),

@@ -3,9 +3,6 @@ import SwiftUI
 struct FitnessView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: FitnessViewModel
-    @State private var selectedTemplate: WorkoutTemplate?
-    @State private var selectedExercise: FitnessExercise?
-    @State private var presentedSheet: FitnessSheet?
 
     private let onChange: () -> Void
 
@@ -21,186 +18,201 @@ struct FitnessView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-
-                Section("Workout Days") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHGrid(rows: [GridItem(.fixed(110))], spacing: 12) {
-                            Button {
-                                presentedSheet = .template(nil)
-                            } label: {
-                                AddWorkoutDayCard()
-                            }
-                            .buttonStyle(.plain)
-
-                            ForEach(viewModel.workoutTemplates) { template in
-                                Button {
-                                    selectedTemplate = template
-                                } label: {
-                                    WorkoutDayCard(template: template)
-                                }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    Button("Edit") {
-                                        presentedSheet = .template(template)
-                                    }
-                                    Button("Delete", role: .destructive) {
-                                        viewModel.deleteWorkoutTemplate(withID: template.id)
-                                        onChange()
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .frame(height: 130)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                }
-
-                Section {
-                    Picker("Sort", selection: $viewModel.sortOption) {
-                        ForEach(ExerciseSortOption.allCases, id: \.self) { option in
-                            Text(option.displayName).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section("Exercise Library") {
-                    if viewModel.sortedExercises.isEmpty {
-                        ContentUnavailableView(
-                            "No Exercises",
-                            systemImage: "dumbbell",
-                            description: Text("Create your first exercise to start logging sessions.")
-                        )
-                    } else {
-                        ForEach(viewModel.sortedExercises) { exercise in
-                            Button {
-                                selectedExercise = exercise
-                            } label: {
-                                ExerciseLibraryRow(
-                                    exercise: exercise,
-                                    latestSession: viewModel.latestSession(for: exercise.id)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions {
-                                Button {
-                                    presentedSheet = .session(exercise, nil)
-                                } label: {
-                                    Label("Log", systemImage: "plus.circle")
-                                }
-                                .tint(.accentColor)
-
-                                Button {
-                                    presentedSheet = .exercise(exercise)
-                                } label: {
-                                    Label("Edit", systemImage: "square.and.pencil")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            FitnessTrackerView(viewModel: viewModel, onChange: onChange)
             .navigationTitle("Fitness")
-            .task {
-                viewModel.loadIfNeeded()
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        presentedSheet = .exercise(nil)
-                    } label: {
-                        Label("Exercise", systemImage: "plus")
-                    }
-                }
-            }
-            .sheet(item: $presentedSheet) { sheet in
-                NavigationStack {
-                    switch sheet {
-                    case .exercise(let exercise):
-                        FitnessExerciseFormView(initialExercise: exercise) { savedExercise in
-                            viewModel.saveExercise(savedExercise, replacingExerciseWithID: exercise?.id)
-                            onChange()
-                            presentedSheet = nil
-                        }
-                    case .template(let template):
-                        WorkoutTemplateFormView(
-                            initialTemplate: template,
-                            exercises: viewModel.exercises
-                        ) { savedTemplate in
-                            viewModel.saveWorkoutTemplate(
-                                savedTemplate,
-                                replacingWorkoutTemplateWithID: template?.id
-                            )
-                            onChange()
-                            presentedSheet = nil
-                        } onDelete: {
-                            guard let template else { return }
-                            viewModel.deleteWorkoutTemplate(withID: template.id)
-                            onChange()
-                            presentedSheet = nil
-                        }
-                    case .session(let exercise, let session):
-                        ExerciseSessionFormView(
-                            exercise: exercise,
-                            initialSession: session,
-                            lastSession: viewModel.latestSession(for: exercise.id)
-                        ) { savedSession in
-                            viewModel.saveExerciseSession(
-                                savedSession,
-                                replacingExerciseSessionWithID: session?.id
-                            )
-                            onChange()
-                            presentedSheet = nil
-                        }
-                    }
-                }
-            }
-            .navigationDestination(item: $selectedTemplate) { template in
-                WorkoutTemplateDetailView(
-                    summary: viewModel.templateRows(for: template),
-                    onEdit: {
-                        presentedSheet = .template(template)
-                    },
-                    onSelectExercise: { exercise in
-                        selectedExercise = exercise
-                    }
-                )
-            }
-            .navigationDestination(item: $selectedExercise) { exercise in
-                ExerciseDetailView(
-                    exercise: exercise,
-                    sessions: viewModel.recentSessions(for: exercise.id, limit: 20),
-                    loggedToday: viewModel.loggedToday(for: exercise.id),
-                    onEditExercise: {
-                        presentedSheet = .exercise(exercise)
-                    },
-                    onLogSession: {
-                        presentedSheet = .session(exercise, nil)
-                    },
-                    onEditSession: { session in
-                        presentedSheet = .session(exercise, session)
-                    },
-                    onDeleteSession: { session in
-                        viewModel.deleteExerciseSession(withID: session.id)
-                        onChange()
-                    }
-                )
             }
         }
     }
 
+}
+
+struct FitnessTrackerView: View {
+    @ObservedObject var viewModel: FitnessViewModel
+    let onChange: () -> Void
+
+    @State private var selectedTemplate: WorkoutTemplate?
+    @State private var selectedExercise: FitnessExercise?
+    @State private var presentedSheet: FitnessSheet?
+
+    var body: some View {
+        List {
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            Section("Workout Days") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHGrid(rows: [GridItem(.fixed(110))], spacing: 12) {
+                        Button {
+                            presentedSheet = .template(nil)
+                        } label: {
+                            AddWorkoutDayCard()
+                        }
+                        .buttonStyle(.plain)
+
+                        ForEach(viewModel.workoutTemplates) { template in
+                            Button {
+                                selectedTemplate = template
+                            } label: {
+                                WorkoutDayCard(template: template)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Edit") {
+                                    presentedSheet = .template(template)
+                                }
+                                Button("Delete", role: .destructive) {
+                                    viewModel.deleteWorkoutTemplate(withID: template.id)
+                                    onChange()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .frame(height: 130)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            }
+
+            Section {
+                Picker("Sort", selection: $viewModel.sortOption) {
+                    ForEach(ExerciseSortOption.allCases, id: \.self) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section("Exercise Library") {
+                if viewModel.sortedExercises.isEmpty {
+                    ContentUnavailableView(
+                        "No Exercises",
+                        systemImage: "dumbbell",
+                        description: Text("Create your first exercise to start logging sessions.")
+                    )
+                } else {
+                    ForEach(viewModel.sortedExercises) { exercise in
+                        Button {
+                            selectedExercise = exercise
+                        } label: {
+                            ExerciseLibraryRow(
+                                exercise: exercise,
+                                latestSession: viewModel.latestSession(for: exercise.id)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions {
+                            Button {
+                                presentedSheet = .session(exercise, nil)
+                            } label: {
+                                Label("Log", systemImage: "plus.circle")
+                            }
+                            .tint(.accentColor)
+
+                            Button {
+                                presentedSheet = .exercise(exercise)
+                            } label: {
+                                Label("Edit", systemImage: "square.and.pencil")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            viewModel.loadIfNeeded()
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    presentedSheet = .exercise(nil)
+                } label: {
+                    Label("Exercise", systemImage: "plus")
+                }
+            }
+        }
+        .sheet(item: $presentedSheet) { sheet in
+            NavigationStack {
+                switch sheet {
+                case .exercise(let exercise):
+                    FitnessExerciseFormView(initialExercise: exercise) { savedExercise in
+                        viewModel.saveExercise(savedExercise, replacingExerciseWithID: exercise?.id)
+                        onChange()
+                        presentedSheet = nil
+                    }
+                case .template(let template):
+                    WorkoutTemplateFormView(
+                        initialTemplate: template,
+                        exercises: viewModel.exercises
+                    ) { savedTemplate in
+                        viewModel.saveWorkoutTemplate(
+                            savedTemplate,
+                            replacingWorkoutTemplateWithID: template?.id
+                        )
+                        onChange()
+                        presentedSheet = nil
+                    } onDelete: {
+                        guard let template else { return }
+                        viewModel.deleteWorkoutTemplate(withID: template.id)
+                        onChange()
+                        presentedSheet = nil
+                    }
+                case .session(let exercise, let session):
+                    ExerciseSessionFormView(
+                        exercise: exercise,
+                        initialSession: session,
+                        lastSession: viewModel.latestSession(for: exercise.id)
+                    ) { savedSession in
+                        viewModel.saveExerciseSession(
+                            savedSession,
+                            replacingExerciseSessionWithID: session?.id
+                        )
+                        onChange()
+                        presentedSheet = nil
+                    }
+                }
+            }
+        }
+        .navigationDestination(item: $selectedTemplate) { template in
+            WorkoutTemplateDetailView(
+                summary: viewModel.templateRows(for: template),
+                onEdit: {
+                    presentedSheet = .template(template)
+                },
+                onSelectExercise: { exercise in
+                    selectedExercise = exercise
+                }
+            )
+        }
+        .navigationDestination(item: $selectedExercise) { exercise in
+            ExerciseDetailView(
+                exercise: exercise,
+                sessions: viewModel.recentSessions(for: exercise.id, limit: 20),
+                loggedToday: viewModel.loggedToday(for: exercise.id),
+                onEditExercise: {
+                    presentedSheet = .exercise(exercise)
+                },
+                onLogSession: {
+                    presentedSheet = .session(exercise, nil)
+                },
+                onEditSession: { session in
+                    presentedSheet = .session(exercise, session)
+                },
+                onDeleteSession: { session in
+                    viewModel.deleteExerciseSession(withID: session.id)
+                    onChange()
+                }
+            )
+        }
+    }
 }
 
 private enum FitnessSheet: Identifiable {
